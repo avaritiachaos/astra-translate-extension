@@ -1,0 +1,327 @@
+/* ============================================================
+   Astra Translate – Options Page Styles
+   ============================================================ */
+
+@import "../styles/theme.css";
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--ast-bg);
+  color: var(--ast-text);
+  font-family: var(--ast-font);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+.ast-options-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 24px 60px;
+}
+
+/* Header */
+.ast-options-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.ast-options-logo {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--ast-primary);
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.ast-options-desc {
+  color: var(--ast-muted);
+  font-size: 14px;
+}
+
+/* Card */
+.ast-card {
+  background: var(--ast-card-bg);
+  border: 1px solid var(--ast-border);
+  border-radius: 18px;
+  box-shadow: var(--ast-shadow);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.ast-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ast-text);
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--ast-border);
+}
+
+/* Form */
+.ast-form-group {
+  margin-bottom: 16px;
+}
+
+.ast-form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ast-text);
+  margin-bottom: 6px;
+}
+
+.ast-form-hint {
+  font-size: 12px;
+  color: var(--ast-muted);
+  margin-top: 4px;
+}
+
+.ast-form-input,
+.ast-form-select,
+.ast-form-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--ast-border);
+  border-radius: var(--ast-radius-sm);
+  background: var(--ast-bg);
+  color: var(--ast-text);
+  font-size: 14px;
+  font-family: var(--ast-font);
+  outline: none;
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+
+.ast-form-input:focus,
+.ast-form-select:focus,
+.ast-form-textarea:focus {
+  border-color: var(--ast-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.ast-form-textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.ast-form-select {
+  cursor: pointer;
+}
+
+/* API Key input group */
+.ast-api-key-group {
+  display: flex;
+  gap: 8px;
+}
+
+.ast-api-key-group .ast-form-input {
+  flex: 1;
+}
+
+.ast-toggle-visibility {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--ast-border);
+  border-radius: var(--ast-radius-sm);
+  background: var(--ast-bg);
+  color: var(--ast-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 120ms ease-out;
+  overflow: hidden;
+}
+
+.ast-key-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--ast-radius-sm);
+}
+
+.ast-toggle-visibility:hover {
+  border-color: var(--ast-primary);
+  color: var(--ast-primary);
+}
+
+/* Toggle switch */
+.ast-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.ast-toggle-label {
+  font-size: 14px;
+  color: var(--ast-text);
+}
+
+.ast-toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--ast-border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 120ms ease-out;
+  outline: none;
+  border: none;
+}
+
+.ast-toggle::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 120ms ease-out;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.ast-toggle:checked {
+  background: var(--ast-primary);
+}
+
+.ast-toggle:checked::before {
+  transform: translateX(20px);
+}
+
+/* Two column layout */
+.ast-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .ast-form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Buttons */
+.ast-options-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+.ast-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: var(--ast-radius-sm);
+  font-size: 14px;
+  font-family: var(--ast-font);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease-out, transform 120ms ease-out;
+}
+
+.ast-btn:active {
+  transform: scale(0.97);
+}
+
+.ast-btn-primary {
+  background: var(--ast-primary);
+  color: #fff;
+}
+
+.ast-btn-primary:hover {
+  background: var(--ast-primary-hover);
+}
+
+.ast-btn-secondary {
+  background: var(--ast-border);
+  color: var(--ast-text);
+}
+
+.ast-btn-secondary:hover {
+  background: var(--ast-muted);
+  color: #fff;
+}
+
+.ast-btn-outline {
+  background: transparent;
+  color: var(--ast-primary);
+  border: 1px solid var(--ast-primary);
+}
+
+.ast-btn-outline:hover {
+  background: var(--ast-primary);
+  color: #fff;
+}
+
+.ast-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Test result */
+.ast-test-result {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: var(--ast-radius-sm);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ast-test-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--ast-success);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.ast-test-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--ast-error);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Toast */
+.ast-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ast-success);
+  color: #fff;
+  padding: 10px 24px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+  animation: ast-toast-in 200ms ease-out;
+  z-index: 1000;
+}
+
+@keyframes ast-toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Footer */
+.ast-options-footer {
+  text-align: center;
+  margin-top: 40px;
+  color: var(--ast-muted);
+  font-size: 12px;
+}

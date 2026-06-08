@@ -1,0 +1,49 @@
+/* ============================================================
+   Astra Translate – Theme Variables
+   ============================================================ */
+
+:root {
+  /* Light theme */
+  --ast-bg: #f7f7fa;
+  --ast-card-bg: #ffffff;
+  --ast-text: #1a1a2e;
+  --ast-muted: #6b7280;
+  --ast-border: #e5e7eb;
+  --ast-primary: #6366f1;
+  --ast-primary-hover: #4f46e5;
+  --ast-primary-light: #eef2ff;
+  --ast-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --ast-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --ast-radius: 14px;
+  --ast-radius-sm: 8px;
+  --ast-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ast-transition: 120ms ease-out;
+  --ast-success: #10b981;
+  --ast-error: #ef4444;
+  --ast-warning: #f59e0b;
+  --ast-overlay: rgba(0, 0, 0, 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ast-bg: #0f0f1a;
+    --ast-card-bg: #1a1a2e;
+    --ast-text: #e5e7eb;
+    --ast-muted: #9ca3af;
+    --ast-border: #2d2d44;
+    --ast-primary: #818cf8;
+    --ast-primary-hover: #6366f1;
+    --ast-primary-light: #1e1b4b;
+    --ast-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    --ast-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --ast-overlay: rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Base resets for injected UI */
+[class^="ast-"],
+[class*=" ast-"] {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}

@@ -1,0 +1,68 @@
+/* ============================================================
+   Astra Translate – Content Script Styles (Progress Overlay)
+   Note: Selection bubble styles are inlined in selectionBubble.ts
+   to ensure they work in IIFE content script builds.
+   ============================================================ */
+
+/* Progress overlay (page translation) */
+.ast-progress {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 2147483645;
+  background: #ffffff;
+  color: #1a1a2e;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  padding: 12px 18px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: ast-bubble-in 120ms ease-out;
+  cursor: pointer;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ast-progress {
+    background: #1a1a2e;
+    color: #e5e7eb;
+    border-color: #2d2d44;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+}
+
+.ast-progress-bar {
+  width: 60px;
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ast-progress-bar { background: #2d2d44; }
+}
+
+.ast-progress-fill {
+  height: 100%;
+  background: #6366f1;
+  border-radius: 2px;
+  transition: width 200ms ease-out;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ast-progress-fill { background: #818cf8; }
+}
+
+.ast-progress-text {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+@keyframes ast-bubble-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
