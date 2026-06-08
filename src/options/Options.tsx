@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import type { AstraSettings, ProviderApiFormat } from "../shared/types";
 import { t, type UiLanguage } from "../shared/i18n";
@@ -19,7 +19,10 @@ export default function Options() {
   } | null>(null);
   const [testing, setTesting] = useState(false);
   const [toast, setToast] = useState("");
-  const [dirty, setDirty] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
   const lang: UiLanguage = settings.uiLanguage || "zh-CN";
 
@@ -30,13 +33,50 @@ export default function Options() {
     });
   }, []);
 
-  // Mark dirty on any change
+  // Toast helper (defined early so scheduleSave can use it)
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2000);
+  }, []);
+
+  // Debounced auto-save
+  const scheduleSave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      setSaveStatus("saving");
+      try {
+        await chrome.runtime.sendMessage({
+          type: "SAVE_SETTINGS",
+          payload: settingsRef.current,
+        });
+        setSaveStatus("saved");
+        showToast(t(settingsRef.current.uiLanguage || "zh-CN", "opt.saved"));
+        setTimeout(() => setSaveStatus("idle"), 1500);
+      } catch {
+        setSaveStatus("idle");
+        showToast(t(settingsRef.current.uiLanguage || "zh-CN", "opt.saveFailed"));
+      }
+    }, 600);
+  }, [showToast]);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
+  // Update a single field and auto-save
   const update = useCallback(
     <K extends keyof AstraSettings>(key: K, value: AstraSettings[K]) => {
-      setSettings((prev) => ({ ...prev, [key]: value }));
-      setDirty(true);
+      setSettings((prev) => {
+        const next = { ...prev, [key]: value };
+        settingsRef.current = next;
+        return next;
+      });
+      scheduleSave();
     },
-    []
+    [scheduleSave]
   );
 
   // Provider preset change
@@ -44,51 +84,46 @@ export default function Options() {
     (presetId: string) => {
       const preset = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === presetId);
       if (!preset) return;
-      setSettings((prev) => ({
-        ...prev,
-        providerId: preset.id,
-        providerName: preset.name,
-        apiFormat: preset.apiFormat,
-        baseUrl: preset.baseUrl,
-        endpoint: preset.endpoint,
-        model: preset.defaultModel || prev.model,
-      }));
-      setDirty(true);
+      setSettings((prev) => {
+        const next = {
+          ...prev,
+          providerId: preset.id,
+          providerName: preset.name,
+          apiFormat: preset.apiFormat,
+          baseUrl: preset.baseUrl,
+          endpoint: preset.endpoint,
+          model: preset.defaultModel || prev.model,
+        };
+        settingsRef.current = next;
+        return next;
+      });
+      scheduleSave();
     },
-    []
+    [scheduleSave]
   );
 
-  // Save
-  const handleSave = useCallback(async () => {
-    try {
-      await chrome.runtime.sendMessage({
-        type: "SAVE_SETTINGS",
-        payload: settings,
-      });
-      setDirty(false);
-      showToast(t(lang, "opt.saved"));
-    } catch {
-      showToast(t(lang, "opt.saveFailed"));
-    }
-  }, [settings, lang]);
-
   // Reset to defaults
-  const handleReset = useCallback(async () => {
+  const handleReset = useCallback(() => {
     const defaults = getDefaultSettings();
     setSettings(defaults);
-    setDirty(true);
+    settingsRef.current = defaults;
     setTestResult(null);
-  }, []);
+    scheduleSave();
+  }, [scheduleSave]);
 
   // Reset prompts
   const handleResetPrompts = useCallback(() => {
-    setSettings((prev) => ({
-      ...prev,
-      selectionPrompt: DEFAULT_SELECTION_PROMPT,
-      pagePrompt: DEFAULT_PAGE_PROMPT,
-    }));
-    setDirty(true);
-  }, []);
+    setSettings((prev) => {
+      const next = {
+        ...prev,
+        selectionPrompt: DEFAULT_SELECTION_PROMPT,
+        pagePrompt: DEFAULT_PAGE_PROMPT,
+      };
+      settingsRef.current = next;
+      return next;
+    });
+    scheduleSave();
+  }, [scheduleSave]);
 
   // Test API — uses current form state directly, auto-saves on success
   const handleTest = useCallback(async () => {
@@ -107,13 +142,13 @@ export default function Options() {
       });
 
       if (response?.success) {
-        // Auto-save on success
+        // Force save on test success
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         try {
           await chrome.runtime.sendMessage({
             type: "SAVE_SETTINGS",
             payload: settings,
           });
-          setDirty(false);
         } catch {
           // Save failed, but test succeeded — still show success
         }
@@ -131,12 +166,6 @@ export default function Options() {
       setTesting(false);
     }
   }, [settings, lang]);
-
-  // Toast helper
-  const showToast = useCallback((msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 2000);
-  }, []);
 
   const selectedPreset = DEFAULT_PROVIDER_PRESETS.find(
     (p) => p.id === settings.providerId
@@ -312,6 +341,37 @@ export default function Options() {
             </select>
           </div>
           <div className="ast-form-group">
+            <label className="ast-form-label">{t(lang, "opt.pageTargetLang")}</label>
+            <select
+              className="ast-form-select"
+              value={settings.pageTargetLang}
+              onChange={(e) => update("pageTargetLang", e.target.value)}
+            >
+              {SUPPORTED_LANGUAGES.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="ast-form-row">
+          <div className="ast-form-group">
+            <label className="ast-form-label">{t(lang, "opt.selectionTargetLang")}</label>
+            <select
+              className="ast-form-select"
+              value={settings.selectionTargetLang}
+              onChange={(e) => update("selectionTargetLang", e.target.value)}
+            >
+              {SUPPORTED_LANGUAGES.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="ast-form-group">
             <label className="ast-form-label">{t(lang, "opt.temperature")}</label>
             <input
               className="ast-form-input"
@@ -390,6 +450,76 @@ export default function Options() {
         </div>
       </div>
 
+      {/* Floating Ball Card */}
+      <div className="ast-card">
+        <div className="ast-card-title">{t(lang, "opt.floatingBall")}</div>
+
+        <div className="ast-toggle-row">
+          <span className="ast-toggle-label">{t(lang, "opt.floatingBallEnable")}</span>
+          <input
+            type="checkbox"
+            className="ast-toggle"
+            checked={settings.enableFloatingBall}
+            onChange={(e) => update("enableFloatingBall", e.target.checked)}
+          />
+        </div>
+
+        <div className="ast-form-row" style={{ marginTop: 12 }}>
+          <div className="ast-form-group">
+            <label className="ast-form-label">{t(lang, "opt.floatingBallSize")}</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <input
+                type="range"
+                min="32"
+                max="80"
+                step="2"
+                value={settings.floatingBallSize}
+                onChange={(e) => update("floatingBallSize", parseInt(e.target.value))}
+                style={{ flex: 1 }}
+              />
+              <span style={{ minWidth: 40, textAlign: "right", fontSize: 13, color: "#6b7280" }}>
+                {settings.floatingBallSize}px
+              </span>
+            </div>
+          </div>
+          <div className="ast-form-group">
+            <label className="ast-form-label">{t(lang, "opt.floatingBallOpacity")}</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <input
+                type="range"
+                min="10"
+                max="100"
+                step="5"
+                value={Math.round(settings.floatingBallOpacity * 100)}
+                onChange={(e) => update("floatingBallOpacity", parseInt(e.target.value) / 100)}
+                style={{ flex: 1 }}
+              />
+              <span style={{ minWidth: 40, textAlign: "right", fontSize: 13, color: "#6b7280" }}>
+                {Math.round(settings.floatingBallOpacity * 100)}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="ast-form-group">
+          <label className="ast-form-label">{t(lang, "opt.popupScale")}</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <input
+              type="range"
+              min="80"
+              max="180"
+              step="10"
+              value={Math.round(settings.popupScale * 100)}
+              onChange={(e) => update("popupScale", parseInt(e.target.value) / 100)}
+              style={{ flex: 1 }}
+            />
+            <span style={{ minWidth: 44, textAlign: "right", fontSize: 13, color: "#6b7280" }}>
+              {Math.round(settings.popupScale * 100)}%
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Prompt Settings Card */}
       <div className="ast-card">
         <div className="ast-card-title">{t(lang, "opt.prompt")}</div>
@@ -425,12 +555,16 @@ export default function Options() {
         </button>
       </div>
 
-      {/* Actions */}
+      {/* Auto-save status + reset */}
       <div className="ast-options-actions">
-        <button className="ast-btn ast-btn-primary" onClick={handleSave}>
-          {t(lang, "opt.save")}
-        </button>
-        <button className="ast-btn ast-btn-secondary" onClick={handleReset}>
+        <span className={`ast-autosave-status ${
+          saveStatus === "saving" ? "ast-autosave-saving" :
+          saveStatus === "saved" ? "ast-autosave-saved" : ""
+        }`}>
+          {saveStatus === "saving" && t(lang, "opt.autoSaving")}
+          {saveStatus === "saved" && `✓ ${t(lang, "opt.saved")}`}
+        </span>
+        <button className="ast-btn ast-btn-ghost" onClick={handleReset}>
           {t(lang, "opt.reset")}
         </button>
       </div>

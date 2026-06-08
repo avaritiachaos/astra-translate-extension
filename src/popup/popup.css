@@ -10,16 +10,41 @@
   padding: 0;
 }
 
+html {
+  border-radius: 14px;
+  overflow: hidden;
+}
+
 body {
   width: 460px;
   min-height: 200px;
   max-height: 600px;
   overflow-y: auto;
+  overflow-x: hidden;
   background: var(--ast-bg);
   color: var(--ast-text);
   font-family: var(--ast-font);
   font-size: 14px;
   line-height: 1.5;
+  border-radius: 14px;
+}
+
+/* Scrollbar — thin, blends with background */
+body::-webkit-scrollbar {
+  width: 5px;
+}
+
+body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: var(--ast-border);
+  border-radius: 3px;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  background: var(--ast-muted);
 }
 
 /* Header */
@@ -27,26 +52,26 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 9px 16px;
   border-bottom: 1px solid var(--ast-border);
 }
 
 .ast-popup-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--ast-primary);
   letter-spacing: 0.01em;
 }
 
 .ast-popup-settings-btn {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border: none;
   background: transparent;
   cursor: pointer;
   border-radius: 8px;
   color: var(--ast-muted);
-  font-size: 18px;
+  font-size: 17px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -63,18 +88,18 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
+  padding: 7px 16px;
   border-bottom: 1px solid var(--ast-border);
 }
 
 .ast-lang-select {
   flex: 1;
-  padding: 6px 10px;
+  padding: 5px 9px;
   border: 1px solid var(--ast-border);
   border-radius: var(--ast-radius-sm);
   background: var(--ast-card-bg);
   color: var(--ast-text);
-  font-size: 13px;
+  font-size: 12px;
   font-family: var(--ast-font);
   cursor: pointer;
   outline: none;
@@ -86,14 +111,14 @@ body {
 }
 
 .ast-lang-swap {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border: none;
   background: transparent;
   cursor: pointer;
   border-radius: 8px;
   color: var(--ast-muted);
-  font-size: 16px;
+  font-size: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -105,23 +130,39 @@ body {
   color: var(--ast-primary);
 }
 
+/* Language saved indicator */
+.ast-lang-saved {
+  font-size: 13px;
+  color: var(--ast-success);
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.ast-lang-saved--show {
+  opacity: 1;
+}
+
 /* Input area */
 .ast-input-area {
-  padding: 10px 16px;
+  padding: 9px 16px;
 }
 
 .ast-input-box {
   width: 100%;
-  min-height: 80px;
-  max-height: 160px;
-  padding: 10px 12px;
+  min-height: 68px;
+  max-height: 150px;
+  padding: 9px 11px;
   border: 1px solid var(--ast-border);
   border-radius: var(--ast-radius-sm);
   background: var(--ast-card-bg);
   color: var(--ast-text);
-  font-size: 14px;
+  font-size: 13px;
   font-family: var(--ast-font);
-  line-height: 1.6;
+  line-height: 1.5;
   resize: vertical;
   outline: none;
   transition: border-color 120ms ease-out;
@@ -135,18 +176,26 @@ body {
   color: var(--ast-muted);
 }
 
-/* Actions */
+/* Actions row — buttons + keyboard hint inline */
 .ast-actions {
   display: flex;
-  gap: 8px;
-  padding: 0 16px 10px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px 9px;
+}
+
+.ast-keyboard-hint {
+  font-size: 10px;
+  color: var(--ast-muted);
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .ast-btn {
-  padding: 8px 16px;
+  padding: 7px 14px;
   border: none;
   border-radius: var(--ast-radius-sm);
-  font-size: 13px;
+  font-size: 12px;
   font-family: var(--ast-font);
   font-weight: 500;
   cursor: pointer;
@@ -183,17 +232,19 @@ body {
 
 /* Result area */
 .ast-result-area {
-  padding: 0 16px 14px;
+  padding: 0 16px 12px;
 }
 
 .ast-result-box {
-  min-height: 80px;
-  padding: 12px 14px;
+  min-height: 60px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 10px 12px;
   border: 1px solid var(--ast-border);
   border-radius: var(--ast-radius-sm);
   background: var(--ast-card-bg);
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--ast-text);
@@ -209,15 +260,15 @@ body {
 .ast-loading-inline {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   color: var(--ast-muted);
-  font-size: 13px;
-  padding: 8px 0;
+  font-size: 12px;
+  padding: 6px 0;
 }
 
 .ast-spinner-sm {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   border: 2px solid var(--ast-border);
   border-top-color: var(--ast-primary);
   border-radius: 50%;
@@ -231,39 +282,50 @@ body {
 /* Error */
 .ast-error-msg {
   color: var(--ast-error);
-  font-size: 13px;
-  padding: 8px 12px;
+  font-size: 12px;
+  padding: 7px 10px;
   background: rgba(239, 68, 68, 0.08);
   border-radius: var(--ast-radius-sm);
-  margin: 0 16px 12px;
+  margin: 0 16px 9px;
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: 5px;
 }
 
 /* Page translate section */
 .ast-page-section {
   border-top: 1px solid var(--ast-border);
-  padding: 14px 16px;
+  padding: 10px 16px 12px;
 }
 
 .ast-page-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--ast-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 8px;
+  letter-spacing: 0.04em;
+  margin-bottom: 7px;
 }
 
 .ast-page-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+}
+
+.ast-page-lang-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 7px;
+}
+
+.ast-page-lang-row .ast-lang-select {
+  flex: 1;
 }
 
 .ast-page-status {
-  margin-top: 8px;
-  font-size: 12px;
+  margin-top: 7px;
+  font-size: 11px;
   color: var(--ast-muted);
 }
 
@@ -286,12 +348,4 @@ body {
 @keyframes ast-toast-in {
   from { opacity: 0; transform: translateX(-50%) translateY(8px); }
   to { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
-
-/* Keyboard hint */
-.ast-keyboard-hint {
-  font-size: 11px;
-  color: var(--ast-muted);
-  text-align: right;
-  padding: 0 16px 6px;
 }

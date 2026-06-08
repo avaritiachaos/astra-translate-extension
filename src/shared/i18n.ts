@@ -10,7 +10,7 @@ const zhCN: MessageDict = {
   // ---- 通用 ----
   "app.name": "Astra Translate",
   "app.desc": "轻量、优雅、模型服务商中立的浏览器翻译插件。",
-  "app.version": "Astra Translate v1.0.0 · 模型服务商中立的浏览器翻译插件",
+  "app.version": "Astra Translate v2.0.0 · 模型服务商中立的浏览器翻译插件",
 
   // ---- Options 页面 ----
   "opt.provider": "服务商设置",
@@ -30,13 +30,21 @@ const zhCN: MessageDict = {
   "opt.uiLang": "界面语言",
 
   "opt.translation": "翻译设置",
-  "opt.defaultTargetLang": "默认目标语言",
+  "opt.defaultTargetLang": "手动输入目标语言",
+  "opt.pageTargetLang": "页面翻译目标语言",
+  "opt.selectionTargetLang": "划词翻译目标语言",
   "opt.temperature": "温度",
   "opt.temperatureHint": "越低越稳定，默认 0.2",
   "opt.timeout": "请求超时",
   "opt.batchSize": "页面翻译批量字符数",
   "opt.concurrency": "并发数",
   "opt.realtime": "实时页面翻译",
+
+  "opt.floatingBall": "悬浮球设置",
+  "opt.floatingBallEnable": "显示悬浮球",
+  "opt.floatingBallOpacity": "悬浮球透明度",
+  "opt.floatingBallSize": "悬浮球大小",
+  "opt.popupScale": "翻译弹窗缩放",
 
   "opt.prompt": "Prompt 设置",
   "opt.selectionPrompt": "划词 / 手动翻译 Prompt",
@@ -46,6 +54,7 @@ const zhCN: MessageDict = {
   "opt.resetPrompts": "恢复默认 Prompt",
 
   "opt.save": "保存设置",
+  "opt.autoSaving": "保存中…",
   "opt.reset": "恢复默认设置",
   "opt.saved": "保存成功",
   "opt.saveFailed": "保存失败",
@@ -85,6 +94,7 @@ const zhCN: MessageDict = {
   "bubble.translating": "正在翻译…",
   "bubble.translationFailed": "翻译失败",
   "bubble.connectFail": "无法连接到翻译服务。",
+  "bubble.resize": "拖动缩放",
 
   // ---- 页面翻译浮层 ----
   "page.collecting": "正在收集文本…",
@@ -112,13 +122,20 @@ const zhCN: MessageDict = {
   "error.geminiNotImplemented": "Gemini-compatible API 尚未实现，请使用 OpenAI-compatible 服务商。",
   "error.anthropicNotImplemented": "Anthropic-compatible API 尚未实现，请使用 OpenAI-compatible 服务商。",
   "error.unknownApiFormat": "未知的 API 格式：{format}",
+
+  // ---- 悬浮球 ----
+  "ball.translatePage": "翻译当前页面",
+  "ball.settings": "设置",
+  "ball.opacity": "透明度",
+  "ball.size": "大小",
+  "ball.close": "关闭悬浮球",
 };
 
 const enUS: MessageDict = {
   // ---- General ----
   "app.name": "Astra Translate",
   "app.desc": "A lightweight, elegant, provider-neutral browser translator.",
-  "app.version": "Astra Translate v1.0.0 · Provider-neutral browser translator",
+  "app.version": "Astra Translate v2.0.0 · Provider-neutral browser translator",
 
   // ---- Options ----
   "opt.provider": "Provider Settings",
@@ -138,13 +155,21 @@ const enUS: MessageDict = {
   "opt.uiLang": "UI Language",
 
   "opt.translation": "Translation Settings",
-  "opt.defaultTargetLang": "Default Target Language",
+  "opt.defaultTargetLang": "Manual Input Target Language",
+  "opt.pageTargetLang": "Page Translation Target Language",
+  "opt.selectionTargetLang": "Selection Translation Target Language",
   "opt.temperature": "Temperature",
   "opt.temperatureHint": "Lower = more consistent, default 0.2",
   "opt.timeout": "Timeout (ms)",
   "opt.batchSize": "Page Batch Size (chars)",
   "opt.concurrency": "Concurrency",
   "opt.realtime": "Real-time Page Translation",
+
+  "opt.floatingBall": "Floating Ball",
+  "opt.floatingBallEnable": "Show Floating Ball",
+  "opt.floatingBallOpacity": "Floating Ball Opacity",
+  "opt.floatingBallSize": "Floating Ball Size",
+  "opt.popupScale": "Translation Popup Scale",
 
   "opt.prompt": "Prompt Settings",
   "opt.selectionPrompt": "Selection / Manual Translation Prompt",
@@ -154,6 +179,7 @@ const enUS: MessageDict = {
   "opt.resetPrompts": "Restore Default Prompts",
 
   "opt.save": "Save Settings",
+  "opt.autoSaving": "Saving…",
   "opt.reset": "Reset All to Default",
   "opt.saved": "Settings saved!",
   "opt.saveFailed": "Failed to save settings.",
@@ -193,6 +219,7 @@ const enUS: MessageDict = {
   "bubble.translating": "Translating…",
   "bubble.translationFailed": "Translation failed",
   "bubble.connectFail": "Failed to connect to translation service.",
+  "bubble.resize": "Drag to resize",
 
   // ---- Page Translation ----
   "page.collecting": "Collecting text…",
@@ -220,6 +247,13 @@ const enUS: MessageDict = {
   "error.geminiNotImplemented": "Gemini-compatible API is not yet implemented. Please use an OpenAI-compatible provider.",
   "error.anthropicNotImplemented": "Anthropic-compatible API is not yet implemented. Please use an OpenAI-compatible provider.",
   "error.unknownApiFormat": "Unknown API format: {format}",
+
+  // ---- Floating Ball ----
+  "ball.translatePage": "Translate Page",
+  "ball.settings": "Settings",
+  "ball.opacity": "Opacity",
+  "ball.size": "Size",
+  "ball.close": "Hide Floating Ball",
 };
 
 const messages: Record<UiLanguage, MessageDict> = {

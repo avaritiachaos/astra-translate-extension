@@ -9,12 +9,15 @@ export default function Popup() {
   const [settings, setSettings] = useState<AstraSettings | null>(null);
   const [sourceLang, setSourceLang] = useState("Auto");
   const [targetLang, setTargetLang] = useState("Simplified Chinese");
+  const [pageTargetLang, setPageTargetLang] = useState("Simplified Chinese");
   const [inputText, setInputText] = useState("");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [pageStatus, setPageStatus] = useState<string>("");
   const [toast, setToast] = useState("");
+  const [langSaved, setLangSaved] = useState(false);
+  const [pageLangSaved, setPageLangSaved] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const lang: UiLanguage = settings?.uiLanguage || "zh-CN";
@@ -25,10 +28,51 @@ export default function Popup() {
       if (s) {
         setSettings(s);
         setTargetLang(s.defaultTargetLang || "Simplified Chinese");
+        setPageTargetLang(s.pageTargetLang || "Simplified Chinese");
       }
     });
     inputRef.current?.focus();
   }, []);
+
+  // Persist target language to settings
+  const saveTargetLang = useCallback(
+    async (lang: string) => {
+      if (!settings) return;
+      const updated = { ...settings, defaultTargetLang: lang };
+      setSettings(updated);
+      try {
+        await chrome.runtime.sendMessage({
+          type: "SAVE_SETTINGS",
+          payload: updated,
+        });
+        setLangSaved(true);
+        setTimeout(() => setLangSaved(false), 1200);
+      } catch {
+        // ignore
+      }
+    },
+    [settings]
+  );
+
+  // Persist page translation target language
+  const savePageTargetLang = useCallback(
+    async (lang: string) => {
+      if (!settings) return;
+      const updated = { ...settings, pageTargetLang: lang };
+      setSettings(updated);
+      try {
+        await chrome.runtime.sendMessage({
+          type: "SAVE_SETTINGS",
+          payload: updated,
+        });
+        setPageLangSaved(true);
+        setTimeout(() => setPageLangSaved(false), 1200);
+      } catch {
+        // ignore
+      }
+    },
+    [settings]
+  );
 
   // Swap languages
   const swapLangs = useCallback(() => {
@@ -36,7 +80,8 @@ export default function Popup() {
     const tmp = sourceLang;
     setSourceLang(targetLang);
     setTargetLang(tmp);
-  }, [sourceLang, targetLang]);
+    saveTargetLang(tmp);
+  }, [sourceLang, targetLang, saveTargetLang]);
 
   // Translate
   const handleTranslate = useCallback(async () => {
@@ -96,7 +141,7 @@ export default function Popup() {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab?.id) {
         await chrome.tabs.sendMessage(tab.id, { type: "PAGE_TRANSLATE_START" });
-        setPageStatus(t(lang, "popup.pageTranslating"));
+        window.close();
       }
     } catch {
       setError(t(lang, "popup.cannotAccess"));
@@ -171,7 +216,11 @@ export default function Popup() {
         <select
           className="ast-lang-select"
           value={targetLang}
-          onChange={(e) => setTargetLang(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            setTargetLang(v);
+            saveTargetLang(v);
+          }}
         >
           {SUPPORTED_LANGUAGES.map((l) => (
             <option key={l} value={l}>
@@ -179,6 +228,9 @@ export default function Popup() {
             </option>
           ))}
         </select>
+        <span className={`ast-lang-saved ${langSaved ? "ast-lang-saved--show" : ""}`}>
+          ✓
+        </span>
       </div>
 
       {/* Input */}
@@ -193,10 +245,7 @@ export default function Popup() {
         />
       </div>
 
-      {/* Keyboard hint */}
-      <div className="ast-keyboard-hint">{t(lang, "popup.kbHint")}</div>
-
-      {/* Actions */}
+      {/* Actions + keyboard hint inline */}
       <div className="ast-actions">
         <button
           className="ast-btn ast-btn-primary"
@@ -215,6 +264,7 @@ export default function Popup() {
         >
           {t(lang, "popup.copy")}
         </button>
+        <span className="ast-keyboard-hint">{t(lang, "popup.kbHint")}</span>
       </div>
 
       {/* Error */}
@@ -250,6 +300,26 @@ export default function Popup() {
       {/* Page translation */}
       <div className="ast-page-section">
         <div className="ast-page-title">{t(lang, "popup.pageTranslation")}</div>
+        <div className="ast-page-lang-row">
+          <select
+            className="ast-lang-select"
+            value={pageTargetLang}
+            onChange={(e) => {
+              const v = e.target.value;
+              setPageTargetLang(v);
+              savePageTargetLang(v);
+            }}
+          >
+            {SUPPORTED_LANGUAGES.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <span className={`ast-lang-saved ${pageLangSaved ? "ast-lang-saved--show" : ""}`}>
+            ✓
+          </span>
+        </div>
         <div className="ast-page-actions">
           <button className="ast-btn ast-btn-primary" onClick={handlePageTranslate}>
             {t(lang, "popup.translatePage")}

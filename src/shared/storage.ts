@@ -20,11 +20,17 @@ export function getDefaultSettings(): AstraSettings {
     disableThinking: true,
     uiLanguage: "zh-CN",
     defaultTargetLang: DEFAULT_TARGET_LANG,
+    pageTargetLang: DEFAULT_TARGET_LANG,
+    selectionTargetLang: DEFAULT_TARGET_LANG,
     selectionPrompt: DEFAULT_SELECTION_PROMPT,
     pagePrompt: DEFAULT_PAGE_PROMPT,
     batchSize: 4000,
     concurrency: 2,
     enableRealtimePageTranslate: true,
+    enableFloatingBall: true,
+    floatingBallOpacity: 0.8,
+    floatingBallSize: 48,
+    popupScale: 1.0,
   };
 }
 

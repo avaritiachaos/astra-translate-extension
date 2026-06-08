@@ -38,11 +38,17 @@ export interface UserProviderSettings {
 export interface AstraSettings extends UserProviderSettings {
   uiLanguage: UiLanguage;
   defaultTargetLang: string;
+  pageTargetLang: string;
+  selectionTargetLang: string;
   selectionPrompt: string;
   pagePrompt: string;
   batchSize: number;
   concurrency: number;
   enableRealtimePageTranslate: boolean;
+  enableFloatingBall: boolean;
+  floatingBallOpacity: number;
+  floatingBallSize: number;
+  popupScale: number;
 }
 
 // ---------- Messages ----------
@@ -55,7 +61,11 @@ export type MessageType =
   | "PAGE_TRANSLATE_START"
   | "PAGE_TRANSLATE_RESTORE"
   | "PAGE_TRANSLATE_STATUS"
-  | "OPEN_OPTIONS_PAGE";
+  | "OPEN_OPTIONS_PAGE"
+  | "SAVE_FLOATING_BALL_OPACITY"
+  | "SAVE_FLOATING_BALL_ENABLED"
+  | "SAVE_FLOATING_BALL_SIZE"
+  | "SAVE_POPUP_SCALE";
 
 export interface Message<T = unknown> {
   type: MessageType;

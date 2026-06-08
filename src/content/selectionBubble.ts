@@ -17,12 +17,15 @@ let bubble: HTMLElement | null = null;
 let isPinned = false;
 let isTranslating = false;
 let cachedLang: UiLanguage = "zh-CN";
+let cachedPopupScale = 1.0;
+let cachedSelectionTargetLang = "";
 
 /** Fetch uiLanguage from settings (cached). */
 async function getLang(): Promise<UiLanguage> {
   try {
     const s = await chrome.runtime.sendMessage({ type: "GET_SETTINGS" });
     if (s?.uiLanguage) cachedLang = s.uiLanguage;
+    if (s?.selectionTargetLang) cachedSelectionTargetLang = s.selectionTargetLang;
   } catch {
     // fallback
   }
@@ -322,6 +325,31 @@ export function injectThemeVars(): void {
         border-color: #4a2020;
       }
     }
+    /* ---- Scroll translation hint ---- */
+    .${BUBBLE_PREFIX}-scroll-hint {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 2147483645;
+      background: rgba(99, 102, 241, 0.9);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      box-shadow: 0 2px 12px rgba(99, 102, 241, 0.3);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 400ms ease-out;
+      animation: ${BUBBLE_PREFIX}-bubble-in 200ms ease-out;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-scroll-hint {
+        background: rgba(79, 70, 229, 0.9);
+        box-shadow: 0 2px 12px rgba(79, 70, 229, 0.4);
+      }
+    }
     /* ---- Draggable Popup (context menu / selection button) ---- */
     .${BUBBLE_PREFIX}-popup {
       position: absolute;
@@ -452,6 +480,265 @@ export function injectThemeVars(): void {
     }
     @media (prefers-color-scheme: dark) {
       .${BUBBLE_PREFIX}-popup-actions-bar { border-top-color: #2d2d44; }
+    }
+    /* ---- Resize Handle ---- */
+    .${BUBBLE_PREFIX}-resize-handle {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 18px;
+      height: 18px;
+      cursor: nwse-resize;
+      z-index: 10;
+      opacity: 0;
+      transition: opacity 150ms ease-out;
+    }
+    .${BUBBLE_PREFIX}-popup:hover .${BUBBLE_PREFIX}-resize-handle,
+    .${BUBBLE_PREFIX}-bubble:hover .${BUBBLE_PREFIX}-resize-handle {
+      opacity: 1;
+    }
+    .${BUBBLE_PREFIX}-resize-handle::before {
+      content: "";
+      position: absolute;
+      bottom: 3px;
+      right: 3px;
+      width: 10px;
+      height: 10px;
+      border-right: 2px solid #9ca3af;
+      border-bottom: 2px solid #9ca3af;
+      border-radius: 0 0 2px 0;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-resize-handle::before {
+        border-color: #6b7280;
+      }
+    }
+    .${BUBBLE_PREFIX}-resize-handle:hover::before {
+      border-color: #6366f1;
+    }
+    /* ---- Floating Ball ---- */
+    .ast-ball-container {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      z-index: 2147483644;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35), 0 0 0 2px rgba(255,255,255,0.2);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: box-shadow 200ms ease-out, width 200ms ease-out, height 200ms ease-out;
+      animation: ast-ball-float 3s ease-in-out infinite;
+    }
+    .ast-ball-container:hover {
+      box-shadow: 0 6px 24px rgba(99, 102, 241, 0.5), 0 0 0 3px rgba(255,255,255,0.3);
+      animation-play-state: paused;
+    }
+    .ast-ball-container:active {
+      transform: scale(0.95);
+    }
+    .ast-ball-icon {
+      pointer-events: none;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+      transition: width 200ms ease-out, height 200ms ease-out;
+    }
+    .ast-ball-pulse {
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      border: 2px solid rgba(99, 102, 241, 0.3);
+      animation: ast-ball-pulse 2s ease-out infinite;
+      pointer-events: none;
+    }
+    @keyframes ast-ball-float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    @keyframes ast-ball-pulse {
+      0% { transform: scale(1); opacity: 0.6; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .ast-ball-container {
+        background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+        box-shadow: 0 4px 16px rgba(79, 70, 229, 0.4), 0 0 0 2px rgba(255,255,255,0.1);
+      }
+      .ast-ball-container:hover {
+        box-shadow: 0 6px 24px rgba(79, 70, 229, 0.6), 0 0 0 3px rgba(255,255,255,0.15);
+      }
+    }
+    /* ---- Floating Ball Settings Panel ---- */
+    .ast-ball-settings {
+      position: fixed;
+      z-index: 2147483643;
+      width: 200px;
+      background: #ffffff;
+      color: #1a1a2e;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      overflow: hidden;
+      animation: ast-ball-panel-in 150ms ease-out;
+    }
+    @keyframes ast-ball-panel-in {
+      from { opacity: 0; transform: translateX(8px) scale(0.96); }
+      to { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    @media (prefers-color-scheme: dark) {
+      .ast-ball-settings {
+        background: #1a1a2e;
+        color: #e5e7eb;
+        border-color: #2d2d44;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      }
+    }
+    .ast-ball-settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #eef2ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      .ast-ball-settings-header {
+        background: #1e1b4b;
+        border-bottom-color: #2d2d44;
+      }
+    }
+    .ast-ball-settings-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #6366f1;
+    }
+    @media (prefers-color-scheme: dark) {
+      .ast-ball-settings-title { color: #818cf8; }
+    }
+    .ast-ball-settings-close {
+      width: 22px;
+      height: 22px;
+      border: none;
+      background: transparent;
+      color: #6b7280;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 120ms, color 120ms;
+    }
+    .ast-ball-settings-close:hover {
+      background: #e5e7eb;
+      color: #1a1a2e;
+    }
+    @media (prefers-color-scheme: dark) {
+      .ast-ball-settings-close { color: #9ca3af; }
+      .ast-ball-settings-close:hover { background: #2d2d44; color: #e5e7eb; }
+    }
+    .ast-ball-settings-body {
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ast-ball-settings-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .ast-ball-settings-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: #6b7280;
+    }
+    @media (prefers-color-scheme: dark) {
+      .ast-ball-settings-label { color: #9ca3af; }
+    }
+    .ast-ball-slider-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ast-ball-slider {
+      flex: 1;
+      height: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: #e5e7eb;
+      border-radius: 2px;
+      outline: none;
+    }
+    .ast-ball-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #6366f1;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(99, 102, 241, 0.3);
+    }
+    @media (prefers-color-scheme: dark) {
+      .ast-ball-slider { background: #2d2d44; }
+      .ast-ball-slider::-webkit-slider-thumb { background: #818cf8; }
+    }
+    .ast-ball-slider-value {
+      font-size: 11px;
+      color: #6b7280;
+      min-width: 32px;
+      text-align: right;
+    }
+    @media (prefers-color-scheme: dark) {
+      .ast-ball-slider-value { color: #9ca3af; }
+    }
+    .ast-ball-settings-translate {
+      width: 100%;
+      padding: 7px 0;
+      border: none;
+      border-radius: 8px;
+      background: #6366f1;
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 120ms;
+    }
+    .ast-ball-settings-translate:hover {
+      background: #4f46e5;
+    }
+    .ast-ball-settings-hide {
+      width: 100%;
+      padding: 6px 0;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: transparent;
+      color: #6b7280;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 120ms, color 120ms;
+    }
+    .ast-ball-settings-hide:hover {
+      background: #f3f4f6;
+      color: #1a1a2e;
+    }
+    @media (prefers-color-scheme: dark) {
+      .ast-ball-settings-hide {
+        border-color: #2d2d44;
+        color: #9ca3af;
+      }
+      .ast-ball-settings-hide:hover {
+        background: #2d2d44;
+        color: #e5e7eb;
+      }
     }
   `;
   document.head.appendChild(style);
@@ -623,6 +910,12 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
   el.style.left = `${x}px`;
   el.style.top = `${y}px`;
 
+  // Apply scale
+  if (cachedPopupScale !== 1) {
+    el.style.transform = `scale(${cachedPopupScale})`;
+    el.style.transformOrigin = "top left";
+  }
+
   const showSource = sourceText.length > MAX_SOURCE_DISPLAY;
 
   el.innerHTML = `
@@ -643,6 +936,7 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
       <div class="${BUBBLE_PREFIX}-spinner"></div>
       <span>${t(cachedLang, "bubble.translating")}</span>
     </div>
+    <div class="${BUBBLE_PREFIX}-resize-handle" title="${t(cachedLang, "bubble.resize")}"></div>
   `;
 
   // Event handlers
@@ -685,6 +979,67 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
     });
   }
 
+  // Resize handle
+  const resizeHandle = el.querySelector(`.${BUBBLE_PREFIX}-resize-handle`) as HTMLElement | null;
+  let isResizing = false;
+  let resizeStartScale = 1;
+  let resizeStartDist = 1;
+  let resizeOriginX = x;
+  let resizeOriginY = y;
+  let rafId = 0;
+  let pendingScale = 1;
+
+  const applyResize = () => {
+    rafId = 0;
+    cachedPopupScale = Math.round(pendingScale * 10) / 10;
+    cachedPopupScale = Math.max(0.5, Math.min(2.0, cachedPopupScale));
+    el.style.transform = `scale(${cachedPopupScale})`;
+    el.style.transformOrigin = "top left";
+  };
+
+  const onResizeMove = (e: MouseEvent) => {
+    if (!isResizing) return;
+    const curDist = Math.hypot(
+      e.clientX + window.scrollX - resizeOriginX,
+      e.clientY + window.scrollY - resizeOriginY
+    );
+    pendingScale = resizeStartScale * (curDist / resizeStartDist);
+    if (!rafId) {
+      rafId = requestAnimationFrame(applyResize);
+    }
+  };
+
+  const onResizeEnd = () => {
+    if (!isResizing) return;
+    isResizing = false;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    chrome.runtime.sendMessage({
+      type: "SAVE_POPUP_SCALE",
+      payload: { scale: cachedPopupScale },
+    }).catch(() => {});
+  };
+
+  resizeHandle?.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizing = true;
+    resizeStartScale = cachedPopupScale;
+    resizeOriginX = x;
+    resizeOriginY = y;
+    resizeStartDist = Math.hypot(
+      e.clientX + window.scrollX - resizeOriginX,
+      e.clientY + window.scrollY - resizeOriginY
+    );
+    if (resizeStartDist < 5) resizeStartDist = 5;
+    document.body.style.cursor = "nwse-resize";
+    document.body.style.userSelect = "none";
+  });
+
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+
   document.body.appendChild(el);
   bubble = el;
 }
@@ -696,7 +1051,10 @@ async function requestTranslation(text: string): Promise<void> {
   try {
     const response = await chrome.runtime.sendMessage({
       type: "TRANSLATE_TEXT",
-      payload: { text },
+      payload: {
+        text,
+        ...(cachedSelectionTargetLang ? { targetLang: cachedSelectionTargetLang } : {}),
+      },
     });
 
     if (!bubble) return;
@@ -720,7 +1078,7 @@ async function requestTranslation(text: string): Promise<void> {
 }
 
 /** Show translation bubble directly with given text (for keyboard shortcut). */
-export function showTranslationBubble(text: string): void {
+export async function showTranslationBubble(text: string): Promise<void> {
   if (!text || !isTranslatable(text)) return;
 
   // Try to get current selection rect, otherwise use viewport center
@@ -744,6 +1102,7 @@ export function showTranslationBubble(text: string): void {
 
   removeSelectionBtn();
   showBubble(rect, text);
+  await getLang();
   requestTranslation(text);
 }
 
@@ -774,7 +1133,7 @@ function removeDragPopup(): void {
  * Show a full-featured draggable translation popup.
  * Used by both the context menu and the selection button.
  */
-export function showDraggablePopup(text: string, x: number, y: number): void {
+export async function showDraggablePopup(text: string, x: number, y: number): Promise<void> {
   removeDragPopup();
   removeBubble();
   removeSelectionBtn();
@@ -809,6 +1168,7 @@ export function showDraggablePopup(text: string, x: number, y: number): void {
         ${t(cachedLang, "popup.openSettings")}
       </button>
     </div>
+    <div class="${BUBBLE_PREFIX}-resize-handle" title="${t(cachedLang, "bubble.resize")}"></div>
   `;
 
   // Position: keep within viewport
@@ -829,6 +1189,12 @@ export function showDraggablePopup(text: string, x: number, y: number): void {
 
   el.style.left = `${px}px`;
   el.style.top = `${py}px`;
+
+  // Apply scale
+  if (cachedPopupScale !== 1) {
+    el.style.transform = `scale(${cachedPopupScale})`;
+    el.style.transformOrigin = "top left";
+  }
 
   // ---- Drag handling (with proper cleanup) ----
   const header = el.querySelector(`.${BUBBLE_PREFIX}-popup-header`) as HTMLElement;
@@ -860,10 +1226,76 @@ export function showDraggablePopup(text: string, x: number, y: number): void {
   document.addEventListener("mousemove", onDragMove);
   document.addEventListener("mouseup", onDragEnd);
 
+  // ---- Resize handling ----
+  const resizeHandle = el.querySelector(`.${BUBBLE_PREFIX}-resize-handle`) as HTMLElement | null;
+  let isResizing = false;
+  let resizeStartScale = 1;
+  let resizeStartDist = 1;
+  // The anchor point is the popup's top-left corner (transform-origin: top left)
+  // which is at (styleLeft, styleTop) in page coords.
+  let resizeOriginX = px;
+  let resizeOriginY = py;
+  let rafId = 0;
+  let pendingScale = 1;
+
+  const applyResize = () => {
+    rafId = 0;
+    cachedPopupScale = Math.round(pendingScale * 10) / 10;
+    cachedPopupScale = Math.max(0.5, Math.min(2.0, cachedPopupScale));
+    el.style.transform = `scale(${cachedPopupScale})`;
+    el.style.transformOrigin = "top left";
+  };
+
+  const onResizeMove = (e: MouseEvent) => {
+    if (!isResizing) return;
+    const curDist = Math.hypot(
+      e.clientX + window.scrollX - resizeOriginX,
+      e.clientY + window.scrollY - resizeOriginY
+    );
+    pendingScale = resizeStartScale * (curDist / resizeStartDist);
+    if (!rafId) {
+      rafId = requestAnimationFrame(applyResize);
+    }
+  };
+
+  const onResizeEnd = () => {
+    if (!isResizing) return;
+    isResizing = false;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    chrome.runtime.sendMessage({
+      type: "SAVE_POPUP_SCALE",
+      payload: { scale: cachedPopupScale },
+    }).catch(() => {});
+  };
+
+  resizeHandle?.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizing = true;
+    resizeStartScale = cachedPopupScale;
+    resizeOriginX = px;
+    resizeOriginY = py;
+    resizeStartDist = Math.hypot(
+      e.clientX + window.scrollX - resizeOriginX,
+      e.clientY + window.scrollY - resizeOriginY
+    );
+    // Prevent division by zero if mouse is exactly at the origin
+    if (resizeStartDist < 5) resizeStartDist = 5;
+    document.body.style.cursor = "nwse-resize";
+    document.body.style.userSelect = "none";
+  });
+
+  document.addEventListener("mousemove", onResizeMove);
+  document.addEventListener("mouseup", onResizeEnd);
+
   // ---- Cleanup helper (removes all listeners) ----
   const cleanup = () => {
     document.removeEventListener("mousemove", onDragMove);
     document.removeEventListener("mouseup", onDragEnd);
+    document.removeEventListener("mousemove", onResizeMove);
+    document.removeEventListener("mouseup", onResizeEnd);
     document.removeEventListener("keydown", onKey);
     document.removeEventListener("mousedown", onOutsideClick);
   };
@@ -913,7 +1345,8 @@ export function showDraggablePopup(text: string, x: number, y: number): void {
   document.body.appendChild(el);
   dragPopup = el;
 
-  // Translate
+  // Ensure settings are cached before translating
+  await getLang();
   requestTranslationForPopup(text);
 
   // Auto-remove after 60 seconds
@@ -945,7 +1378,10 @@ async function requestTranslationForPopup(text: string): Promise<void> {
   try {
     const response = await chrome.runtime.sendMessage({
       type: "TRANSLATE_TEXT",
-      payload: { text },
+      payload: {
+        text,
+        ...(cachedSelectionTargetLang ? { targetLang: cachedSelectionTargetLang } : {}),
+      },
     });
 
     if (!dragPopup) return;
@@ -973,7 +1409,7 @@ export function isDragPopupOpen(): boolean {
   return dragPopup !== null;
 }
 
-export function translateCurrentSelection(): void {
+export async function translateCurrentSelection(): Promise<void> {
   const sel = window.getSelection();
   const text = sel?.toString().trim();
   if (!text || !isTranslatable(text)) return;
@@ -983,6 +1419,7 @@ export function translateCurrentSelection(): void {
   if (!rect || rect.width === 0 || rect.height === 0) return;
 
   showBubble(rect, text);
+  await getLang();
   requestTranslation(text);
 }
 
@@ -999,4 +1436,9 @@ export function initBubbleClose(): void {
 /** Pre-fetch language setting on content script load. */
 export function prefetchLang(): void {
   getLang();
+}
+
+/** Set the popup/bubble scale factor. */
+export function setPopupScale(scale: number): void {
+  cachedPopupScale = scale;
 }

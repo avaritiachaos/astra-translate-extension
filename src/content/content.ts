@@ -13,8 +13,10 @@ import {
   isSelectionBtnHovered,
   initBubbleClose,
   prefetchLang,
+  setPopupScale,
 } from "./selectionBubble";
 import { PageTranslator } from "./pageTranslator";
+import { initFloatingBall, updateFloatingBall } from "./floatingBall";
 import type { UiLanguage } from "../shared/i18n";
 
 let pageTranslator: PageTranslator | null = null;
@@ -155,7 +157,7 @@ async function startPageTranslation(): Promise<void> {
   try {
     const settings = await chrome.runtime.sendMessage({ type: "GET_SETTINGS" });
     if (settings) {
-      targetLang = settings.defaultTargetLang || targetLang;
+      targetLang = settings.pageTargetLang || settings.defaultTargetLang || targetLang;
       batchSize = settings.batchSize || batchSize;
       concurrency = settings.concurrency || concurrency;
       enableRealtime = settings.enableRealtimePageTranslate ?? enableRealtime;
@@ -186,3 +188,17 @@ async function startPageTranslation(): Promise<void> {
 
 prefetchLang();
 initBubbleClose();
+
+// Initialize floating ball
+chrome.runtime.sendMessage({ type: "GET_SETTINGS" }).then((settings) => {
+  if (settings) {
+    initFloatingBall({
+      enabled: settings.enableFloatingBall ?? true,
+      opacity: settings.floatingBallOpacity ?? 0.8,
+      size: settings.floatingBallSize ?? 48,
+      lang: settings.uiLanguage || "zh-CN",
+      onTranslatePage: () => startPageTranslation(),
+    });
+    setPopupScale(settings.popupScale ?? 1.0);
+  }
+});

@@ -47,6 +47,34 @@ export async function handleMessage(
       chrome.runtime.openOptionsPage();
       return { success: true };
 
+    case "SAVE_FLOATING_BALL_OPACITY": {
+      const settings = await getSettings();
+      settings.floatingBallOpacity = (msg.payload as any)?.opacity ?? settings.floatingBallOpacity;
+      await saveSettings(settings);
+      return { success: true };
+    }
+
+    case "SAVE_FLOATING_BALL_ENABLED": {
+      const settings = await getSettings();
+      settings.enableFloatingBall = (msg.payload as any)?.enabled ?? settings.enableFloatingBall;
+      await saveSettings(settings);
+      return { success: true };
+    }
+
+    case "SAVE_FLOATING_BALL_SIZE": {
+      const settings = await getSettings();
+      settings.floatingBallSize = (msg.payload as any)?.size ?? settings.floatingBallSize;
+      await saveSettings(settings);
+      return { success: true };
+    }
+
+    case "SAVE_POPUP_SCALE": {
+      const settings = await getSettings();
+      settings.popupScale = (msg.payload as any)?.scale ?? settings.popupScale;
+      await saveSettings(settings);
+      return { success: true };
+    }
+
     default:
       return { success: false, error: `Unknown message type: ${(msg as any).type}` };
   }

@@ -201,6 +201,32 @@ body {
   transform: translateX(20px);
 }
 
+/* Range slider */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: var(--ast-border);
+  border-radius: 3px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ast-primary);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.3);
+  transition: box-shadow 120ms ease-out;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5);
+}
+
 /* Two column layout */
 .ast-form-row {
   display: grid;
@@ -219,8 +245,47 @@ body {
   display: flex;
   gap: 12px;
   justify-content: center;
+  align-items: center;
   margin-top: 24px;
   flex-wrap: wrap;
+}
+
+/* Auto-save status */
+.ast-autosave-status {
+  font-size: 13px;
+  color: transparent;
+  min-width: 80px;
+  text-align: center;
+  transition: color 200ms ease-out;
+}
+
+.ast-autosave-saving {
+  color: var(--ast-muted);
+  animation: ast-pulse 1s ease-in-out infinite;
+}
+
+.ast-autosave-saved {
+  color: var(--ast-success);
+  font-weight: 600;
+}
+
+@keyframes ast-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Ghost button — minimal, for reset */
+.ast-btn-ghost {
+  background: transparent;
+  color: var(--ast-muted);
+  border: none;
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.ast-btn-ghost:hover {
+  color: var(--ast-error);
+  background: rgba(239, 68, 68, 0.06);
 }
 
 .ast-btn {
