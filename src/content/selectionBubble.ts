@@ -859,6 +859,27 @@ export function injectThemeVars(): void {
       font-style: italic;
       padding: 8px 16px 12px;
     }
+    .${BUBBLE_PREFIX}-dict-name-hint {
+      margin: 8px 16px 0;
+      font-size: 12px;
+      color: #6b7280;
+      background: rgba(99,102,241,0.06);
+      border-radius: 10px;
+      padding: 8px 10px;
+      line-height: 1.5;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-dict-name-hint { color: #9ca3af; background: rgba(129,140,248,0.1); }
+    }
+    .${BUBBLE_PREFIX}-dict-nt-hint {
+      margin: 6px 16px 12px;
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-dict-nt-hint { color: #9ca3af; }
+    }
     .${BUBBLE_PREFIX}-dict-footer {
       display: flex;
       justify-content: flex-end;
@@ -1163,7 +1184,8 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
   copyBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
     const transEl = el.querySelector(`.${BUBBLE_PREFIX}-translation`)
-      || el.querySelector(`.${BUBBLE_PREFIX}-dict-main-translation`);
+      || el.querySelector(`.${BUBBLE_PREFIX}-dict-main-translation`)
+      || el.querySelector(`.${BUBBLE_PREFIX}-dict-word`);
     if (transEl) {
       navigator.clipboard.writeText(transEl.textContent || "");
       (copyBtn as HTMLElement).style.color = "#10b981";
@@ -1250,7 +1272,7 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
 
 /** Render a compact dictionary card from a DictionaryResult JSON. */
 function renderDictionaryCard(
-  result: { selectedText: string; translation: string; partOfSpeech: string; pronunciation?: string; meanings: string[]; contextMeaning: string; examples: { source: string; target: string }[]; isTranslatable: boolean },
+  result: { selectedText: string; translation: string; partOfSpeech: string; pronunciation?: string; meanings: string[]; contextMeaning: string; examples: { source: string; target: string }[]; isTranslatable: boolean; isNameOrIdentifier?: boolean; note?: string },
   _resolvedLang: string
 ): string {
   const P = BUBBLE_PREFIX;
@@ -1270,6 +1292,37 @@ function renderDictionaryCard(
     html += `</div>`;
   }
   html += `</div>`;
+
+  // Name / identifier card: keep the word unchanged, hint that it's a name,
+  // and explain any meaning / origin the model could find.
+  if (result.isNameOrIdentifier) {
+    html += `<div class="${P}-dict-name-hint">${t(cachedLang, "bubble.nameHint")}</div>`;
+
+    if (result.meanings && result.meanings.length > 0) {
+      html += `<section class="${P}-dict-section">`;
+      html += `<div class="${P}-dict-section-title">${t(cachedLang, "bubble.possibleMeanings")}</div>`;
+      html += `<div class="${P}-meaning-chips">`;
+      for (const m of result.meanings) {
+        html += `<span class="${P}-meaning-chip">${escapeHtml(m)}</span>`;
+      }
+      html += `</div></section>`;
+    }
+
+    const explanation = (result.note && result.note.trim())
+      || (result.contextMeaning && result.contextMeaning.trim())
+      || t(cachedLang, "bubble.noReliableMeaning");
+    html += `<section class="${P}-dict-section">`;
+    html += `<div class="${P}-dict-section-title">${t(cachedLang, "bubble.explanation")}</div>`;
+    html += `<div class="${P}-dict-context-box">${escapeHtml(explanation)}</div>`;
+    html += `</section>`;
+
+    html += `<div class="${P}-dict-footer">`;
+    html += `<button class="${P}-dict-footer-btn ${P}-dict-copy-btn" title="${t(cachedLang, "bubble.copyTranslation")}">${COPY_ICON}</button>`;
+    html += `<button class="${P}-dict-footer-btn ${P}-dict-retranslate-btn" title="${t(cachedLang, "bubble.retranslate")}">${REFRESH_ICON}</button>`;
+    html += `<button class="${P}-dict-footer-btn ${P}-dict-settings-btn" title="${t(cachedLang, "bubble.openSettings")}">${SETTINGS_ICON}</button>`;
+    html += `</div></div>`;
+    return html;
+  }
 
   if (!result.isTranslatable) {
     html += `<div class="${P}-dict-notrans">${t(cachedLang, "bubble.notTranslatable")}</div>`;
@@ -1324,12 +1377,38 @@ function renderDictionaryCard(
   return html;
 }
 
+/** Render a compact card for hard-non-translatable content (URL, path, code…). */
+function renderNonTranslatableCard(kind: string, text: string): string {
+  const P = BUBBLE_PREFIX;
+  const hintKey: Record<string, string> = {
+    url: "bubble.hardUrl",
+    email: "bubble.hardEmail",
+    path: "bubble.hardPath",
+    code: "bubble.hardCode",
+    hash: "bubble.hardHash",
+    generic: "bubble.hardGeneric",
+  };
+  const hint = t(cachedLang, hintKey[kind] || "bubble.hardGeneric");
+
+  let html = `<div class="${P}-dict-card">`;
+  html += `<div class="${P}-dict-head">`;
+  html += `<div class="${P}-dict-word" style="font-size:15px;font-weight:600;word-break:break-all;">${escapeHtml(text)}</div>`;
+  html += `</div>`;
+  html += `<div class="${P}-dict-nt-hint">${hint}</div>`;
+  html += `<div class="${P}-dict-footer">`;
+  html += `<button class="${P}-dict-footer-btn ${P}-dict-copy-btn" title="${t(cachedLang, "bubble.copyTranslation")}">${COPY_ICON}</button>`;
+  html += `<button class="${P}-dict-footer-btn ${P}-dict-settings-btn" title="${t(cachedLang, "bubble.openSettings")}">${SETTINGS_ICON}</button>`;
+  html += `</div></div>`;
+  return html;
+}
+
 /** Attach click listeners to dictionary card footer buttons. */
 function attachDictFooterListeners(container: Element, retranslateFn?: () => void): void {
   const copyBtn = container.querySelector(`.${BUBBLE_PREFIX}-dict-copy-btn`);
   copyBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
-    const translationEl = container.querySelector(`.${BUBBLE_PREFIX}-dict-main-translation`);
+    const translationEl = container.querySelector(`.${BUBBLE_PREFIX}-dict-main-translation`)
+      || container.querySelector(`.${BUBBLE_PREFIX}-dict-word`);
     if (translationEl) {
       navigator.clipboard.writeText(translationEl.textContent || "");
       (copyBtn as HTMLElement).style.color = "#10b981";
@@ -1378,7 +1457,10 @@ async function requestTranslation(text: string): Promise<void> {
     if (!loadingEl) return;
 
     if (response?.success) {
-      if (response.dictionaryResult) {
+      if (response.nonTranslatable) {
+        loadingEl.innerHTML = renderNonTranslatableCard(response.nonTranslatable.kind, text);
+        attachDictFooterListeners(loadingEl);
+      } else if (response.dictionaryResult) {
         loadingEl.innerHTML = renderDictionaryCard(response.dictionaryResult, response.resolvedLang || "");
         attachDictFooterListeners(loadingEl);
       } else {
@@ -1718,7 +1800,10 @@ async function requestTranslationForPopup(text: string): Promise<void> {
     if (!resultEl) return;
 
     if (response?.success) {
-      if (response.dictionaryResult) {
+      if (response.nonTranslatable) {
+        resultEl.innerHTML = renderNonTranslatableCard(response.nonTranslatable.kind, text);
+        attachDictFooterListeners(resultEl);
+      } else if (response.dictionaryResult) {
         resultEl.innerHTML = renderDictionaryCard(response.dictionaryResult, response.resolvedLang || "");
         const srcTextArea = dragPopup?.querySelector(`.${BUBBLE_PREFIX}-popup-src`) as HTMLTextAreaElement | null;
         attachDictFooterListeners(resultEl, srcTextArea ? () => requestTranslationForPopup(srcTextArea.value) : undefined);

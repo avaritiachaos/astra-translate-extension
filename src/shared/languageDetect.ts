@@ -29,36 +29,114 @@ export function isProbablyEmail(text: string): boolean {
 /** Contains code-like patterns: braces, semicolons, arrows, keywords. */
 export function isProbablyCodeLike(text: string): boolean {
   const t = text.trim();
-  // Contains multiple code syntax markers
-  if (/[{}();]/.test(t) && (t.includes("=>") || t.includes("function ") || t.includes("const ") || t.includes("import ") || t.includes("return "))) {
+  // Fat-arrow is a strong, prose-rare code signal.
+  if (t.includes("=>")) return true;
+  // Brackets / statement terminators combined with a code keyword.
+  if (/[{}();]/.test(t) &&
+      (t.includes("function ") || /\b(const|let|var|return|import|export|new|class)\b/.test(t))) {
     return true;
   }
-  // Looks like a shell command
-  if (/^(npm|yarn|pip|git|docker|curl|wget|sudo|apt|brew|cd|ls|cat|grep|chmod|mkdir)\s/.test(t)) {
+  // Looks like a shell command.
+  if (/^(npm|npx|yarn|pnpm|pip3?|git|docker|kubectl|curl|wget|sudo|apt(?:-get)?|brew|cd|ls|cat|grep|chmod|chown|mkdir|rm|mv|cp|ssh|scp|make|cargo|go|python3?|node|deno|bun)\s/.test(t)) {
     return true;
   }
-  // Looks like a code snippet with assignment or comparison
-  if (/^(let |var |const |if |else |for |while |switch |class |def |import |export |from )/.test(t)) {
+  // Looks like a code snippet with a leading keyword.
+  if (/^(let |var |const |if[ (]|else |for[ (]|while[ (]|switch |class |def |import |export |from |function |func |fn |public |private |static )/.test(t)) {
     return true;
   }
   return false;
 }
 
 /**
- * Single identifier-like token: alphanumeric, underscores, hyphens, dots.
- * No spaces, length < 32, not a common English word.
- * Examples: avaritia, foo_bar, GPT-5, deepseek-v4-flash, astra-translate-extension
+ * Single file path token. No spaces. Examples:
+ *   /usr/local/bin   ./src/index.ts   ../foo/bar   ~/notes.md   C:\Users\rain
+ * Deliberately requires a slash/backslash so plain tokens like
+ * "astra-translate-extension" are NOT treated as paths.
  */
-export function isProbablyIdentifier(text: string): boolean {
+export function isProbablyFilePath(text: string): boolean {
+  const t = text.trim();
+  if (!t || /\s/.test(t)) return false;
+  if (isProbablyUrl(t)) return false; // URLs are handled separately
+  // Windows drive path (C:\, D:/) or UNC path (\\server\share)
+  if (/^[a-zA-Z]:[\\/]/.test(t) || /^\\\\[^\\]+/.test(t)) return true;
+  // POSIX explicit path prefixes: /, ./, ../, ~/
+  if (/^(\/|\.{1,2}\/|~\/)/.test(t)) return true;
+  // Relative multi-segment path ending in a file extension, e.g. src/app/main.ts
+  if (t.includes("/") && /^[\w./\-]+\.[a-zA-Z0-9]{1,8}$/.test(t)) return true;
+  return false;
+}
+
+/**
+ * Long opaque hash / UUID / token that has no readable meaning. Examples:
+ *   550e8400-e29b-41d4-a716-446655440000   (UUID)
+ *   d41d8cd98f00b204e9800998ecf8427e        (md5 / long hex)
+ *   ghp_xK2j9fL0pQ7zR3vT8wY1nB4mC6dE5...    (opaque token)
+ * Short SHAs and short alphanumeric names are NOT matched.
+ */
+export function isProbablyHashOrToken(text: string): boolean {
+  const t = text.trim();
+  if (!t || /\s/.test(t)) return false;
+  // UUID
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t)) return true;
+  // Long hexadecimal hash (git SHA, md5, sha1/256, …)
+  if (/^[0-9a-fA-F]{16,}$/.test(t)) return true;
+  // Long opaque token: >= 24 chars, identifier charset, mixes letters and digits.
+  if (t.length >= 24 && /^[A-Za-z0-9._\-]+$/.test(t) && /[0-9]/.test(t) && /[A-Za-z]/.test(t)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Hard non-translatable: content that should NEVER be translated in any mode,
+ * only flagged (link, path, code, command, hash, email).
+ */
+export function isHardNonTranslatable(text: string): boolean {
+  const t = text.trim();
+  return (
+    isProbablyUrl(t) ||
+    isProbablyEmail(t) ||
+    isProbablyFilePath(t) ||
+    isProbablyCodeLike(t) ||
+    isProbablyHashOrToken(t)
+  );
+}
+
+/** Categorize a hard-non-translatable string so the UI can show a fitting hint. */
+export type NonTranslatableKind = "url" | "email" | "path" | "code" | "hash" | "generic";
+
+export function detectNonTranslatableKind(text: string): NonTranslatableKind {
+  const t = text.trim();
+  if (isProbablyUrl(t)) return "url";
+  if (isProbablyEmail(t)) return "email";
+  if (isProbablyFilePath(t)) return "path";
+  if (isProbablyHashOrToken(t)) return "hash";
+  if (isProbablyCodeLike(t)) return "code";
+  return "generic";
+}
+
+/**
+ * Soft identifier: a short token that reads like a username, nickname,
+ * repository, model name, product name, or other proper noun. In long
+ * sentences and page translation these stay unchanged; when the user
+ * selects one on its own they can be looked up (dictionary / name mode).
+ *
+ * Single token, allowed charset, reasonably short, not a common English word.
+ * Examples: avaritia, avaritiachaos, astra-translate-extension,
+ *           deepseek-v4-flash, GPT-5, foo_bar, dot.case
+ */
+export function isSoftIdentifier(text: string): boolean {
   const t = text.trim();
   // Must be a single token (no spaces)
   if (/\s/.test(t)) return false;
-  // Must be composed of allowed chars
+  // Must be composed of allowed identifier chars
   if (!/^[a-zA-Z0-9_.\-]+$/.test(t)) return false;
-  // Must be reasonably short
+  // Must contain at least one letter (pure numbers are not identifiers)
+  if (!/[a-zA-Z]/.test(t)) return false;
+  // Must be reasonably short (longer opaque tokens are hard-non-translatable)
   if (t.length >= 32) return false;
-  // Must not be a common English word (single short word that's clearly natural language)
-  if (/^[a-z]{2,8}$/i.test(t) && COMMON_WORDS.has(t.toLowerCase())) {
+  // A single common English word is natural language, not an identifier.
+  if (/^[a-z]{2,}$/i.test(t) && COMMON_WORDS.has(t.toLowerCase())) {
     return false;
   }
   return true;
@@ -231,54 +309,72 @@ export function detectDominantScript(text: string): DominantScript {
 
 // ---- Translation mode resolution ----
 
+/**
+ * How a selected piece of text should be handled.
+ *  - "hard-non-translatable": never translate (URL, email, path, code, command, hash) — only hint.
+ *  - "soft-identifier": a name/username/ID kept unchanged in sentence/page translation.
+ *  - "dictionary": look it up (word, phrase, or name-meaning).
+ *  - "translate": plain translation.
+ */
+export type SelectedTextClass =
+  | "hard-non-translatable"
+  | "soft-identifier"
+  | "dictionary"
+  | "translate";
+
+/** Back-compat alias: the old two-way mode used by callers that only branch dict vs translate. */
 export type TranslationMode = "translate" | "dictionary";
 
 /**
- * Determine whether a piece of text should use dictionary mode or plain translation.
+ * Classify selected text into one of four handling classes.
  *
- * @param text - The selected text
- * @param settings - Full AstraSettings
- * @returns "dictionary" for short words/phrases, "translate" for everything else
+ * @param text     The selected text.
+ * @param mode     Where the selection came from: "selection" (划词), "manual" (popup),
+ *                 or "page" (整页). Dictionary/name lookup only applies to "selection".
+ * @param settings Dictionary toggle + smart-target length thresholds.
+ *
+ * Rules:
+ *  1. Hard non-translatable content → "hard-non-translatable" (in every mode).
+ *  2. Soft identifiers → "dictionary" when selected on their own, otherwise
+ *     "soft-identifier" (kept unchanged in sentence / page / manual translation).
+ *  3. Short Latin word / 2-4 word phrase (selection only) → "dictionary".
+ *  4. Everything else → "translate".
  */
-export function resolveTranslationMode(
+export function classifySelectedText(
   text: string,
+  mode: "selection" | "manual" | "page",
   settings: Pick<AstraSettings, "dictionaryModeEnabled" | "smartTargetMaxChars" | "smartTargetMaxWords" | "smartTargetMaxCjkChars">
-): TranslationMode {
-  if (!settings.dictionaryModeEnabled) return "translate";
-
+): SelectedTextClass {
   const trimmed = text.trim();
 
-  // Untranslatable content → translate mode (the prompt will keep it unchanged)
-  if (isProbablyUrl(trimmed) ||
-      isProbablyEmail(trimmed) ||
-      isProbablyCodeLike(trimmed) ||
-      isProbablyIdentifier(trimmed)) {
-    return "translate";
+  // 1. Hard non-translatable — never translate, even if dictionary mode is off.
+  if (isHardNonTranslatable(trimmed)) {
+    return "hard-non-translatable";
   }
 
-  // Long text → translate mode
-  if (!isShortSmartTargetCandidate(trimmed, settings)) {
-    return "translate";
+  // Dictionary / name lookup is a selection-only affordance.
+  const dictionaryAllowed = settings.dictionaryModeEnabled && mode === "selection";
+
+  // 2. Soft identifiers (usernames, repo/model/product names, single tokens,
+  //    short kebab/snake/dot-case tokens).
+  if (isSoftIdentifier(trimmed)) {
+    if (dictionaryAllowed) return "dictionary";
+    // Sentence / page / manual translation: keep it unchanged.
+    return "soft-identifier";
   }
 
-  const dominant = detectDominantScript(trimmed);
-
-  // CJK short text → translate mode (dictionary mode is mainly for Latin words/phrases)
-  if (dominant === "zh" || dominant === "ja" || dominant === "ko") {
-    return "translate";
+  // 3. Short Latin word or 2-4 word phrase → dictionary (selection only).
+  if (dictionaryAllowed && isShortSmartTargetCandidate(trimmed, settings)) {
+    const dominant = detectDominantScript(trimmed);
+    if (dominant === "latin") {
+      const wordCount = countLatinWords(trimmed);
+      if (wordCount >= 1 && wordCount <= 4) {
+        return "dictionary";
+      }
+    }
   }
 
-  // Cyrillic short text → translate mode
-  if (dominant === "cyrillic") {
-    return "translate";
-  }
-
-  // Latin short text (1-4 words) → dictionary mode
-  const wordCount = countLatinWords(trimmed);
-  if (wordCount >= 1 && wordCount <= 4) {
-    return "dictionary";
-  }
-
+  // 4. Everything else → plain translation (the prompt preserves names/code).
   return "translate";
 }
 
@@ -388,11 +484,8 @@ export function resolveTargetLanguageForText(
 
   const trimmed = text.trim();
 
-  // Untranslatable content → use default (prompt will preserve it)
-  if (isProbablyUrl(trimmed) ||
-      isProbablyEmail(trimmed) ||
-      isProbablyCodeLike(trimmed) ||
-      isProbablyIdentifier(trimmed)) {
+  // Untranslatable / identifier content → use default (prompt will preserve it)
+  if (isHardNonTranslatable(trimmed) || isSoftIdentifier(trimmed)) {
     return settings.defaultTargetLang;
   }
 

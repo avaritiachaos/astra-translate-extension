@@ -4,7 +4,12 @@
 
 import type { AstraSettings } from "./types";
 import { STORAGE_KEY, DEFAULT_TARGET_LANG } from "./constants";
-import { DEFAULT_SELECTION_PROMPT, DEFAULT_PAGE_PROMPT, DEFAULT_DICTIONARY_PROMPT } from "./prompts";
+import {
+  DEFAULT_SELECTION_PROMPT,
+  DEFAULT_PAGE_PROMPT,
+  DEFAULT_DICTIONARY_PROMPT,
+  LEGACY_DICTIONARY_PROMPTS,
+} from "./prompts";
 
 export function getDefaultSettings(): AstraSettings {
   return {
@@ -49,7 +54,14 @@ export async function getSettings(): Promise<AstraSettings> {
   const result = await chrome.storage.local.get(STORAGE_KEY);
   const saved = result[STORAGE_KEY] as Partial<AstraSettings> | undefined;
   if (!saved) return getDefaultSettings();
-  return { ...getDefaultSettings(), ...saved };
+  const merged = { ...getDefaultSettings(), ...saved };
+  // Auto-upgrade the dictionary prompt for users who never customized it, so the
+  // dictionary / name-meaning behavior applies without a manual "restore default".
+  const savedPrompt = saved.dictionaryPrompt?.trim();
+  if (!savedPrompt || LEGACY_DICTIONARY_PROMPTS.some((p) => p.trim() === savedPrompt)) {
+    merged.dictionaryPrompt = DEFAULT_DICTIONARY_PROMPT;
+  }
+  return merged;
 }
 
 export async function saveSettings(settings: AstraSettings): Promise<void> {

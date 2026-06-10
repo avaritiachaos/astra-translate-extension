@@ -146,6 +146,17 @@ export interface DictionaryResult {
   contextMeaning: string;
   examples: { source: string; target: string }[];
   isTranslatable: boolean;
+  /** True when the model judges the text to be a name / username / ID kept unchanged. */
+  isNameOrIdentifier?: boolean;
+  /** Short note, e.g. word origin, or why it is kept unchanged. */
+  note?: string;
+}
+
+/** Kind of hard-non-translatable content, used to pick a fitting UI hint. */
+export type NonTranslatableKind = "url" | "email" | "path" | "code" | "hash" | "generic";
+
+export interface NonTranslatableInfo {
+  kind: NonTranslatableKind;
 }
 
 export interface TranslateResponse {
@@ -154,6 +165,8 @@ export interface TranslateResponse {
   error?: string;
   resolvedLang?: string;
   dictionaryResult?: DictionaryResult;
+  /** Present when the text is hard-non-translatable (link/path/code/command/hash). */
+  nonTranslatable?: NonTranslatableInfo;
 }
 
 export interface TranslateBatchResponse {

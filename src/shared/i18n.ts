@@ -10,7 +10,7 @@ const zhCN: MessageDict = {
   // ---- 通用 ----
   "app.name": "Astra Translate",
   "app.desc": "轻量、优雅、模型服务商中立的浏览器翻译插件。",
-  "app.version": "Astra Translate v3.0.4 · 模型服务商中立的浏览器翻译插件",
+  "app.version": "Astra Translate v3.0.5 · 模型服务商中立的浏览器翻译插件",
 
   // ---- Options 页面 ----
   "opt.provider": "服务商设置",
@@ -118,6 +118,16 @@ const zhCN: MessageDict = {
   "bubble.notTranslatable": "该内容看起来像名称、用户名或 ID，通常无需翻译。",
   "bubble.retranslate": "重新翻译",
   "bubble.openSettings": "打开设置",
+  "bubble.nameHint": "可能是用户名、昵称或名称，正文中通常保留原样。",
+  "bubble.possibleMeanings": "可能含义",
+  "bubble.explanation": "说明",
+  "bubble.noReliableMeaning": "没有可靠的通用词义，通常作为名称或 ID 保留。",
+  "bubble.hardUrl": "这是一个链接，通常无需翻译。",
+  "bubble.hardEmail": "这是一个邮箱地址，通常无需翻译。",
+  "bubble.hardPath": "这是一个文件路径，通常无需翻译。",
+  "bubble.hardCode": "这看起来是代码或命令，通常无需翻译。",
+  "bubble.hardHash": "这看起来是哈希、ID 或令牌，通常无需翻译。",
+  "bubble.hardGeneric": "这看起来无需翻译。",
 
   // ---- 页面翻译浮层 ----
   "page.collecting": "正在收集文本…",
@@ -158,7 +168,7 @@ const enUS: MessageDict = {
   // ---- General ----
   "app.name": "Astra Translate",
   "app.desc": "A lightweight, elegant, provider-neutral browser translator.",
-  "app.version": "Astra Translate v3.0.4 · Provider-neutral browser translator",
+  "app.version": "Astra Translate v3.0.5 · Provider-neutral browser translator",
 
   // ---- Options ----
   "opt.provider": "Provider Settings",
@@ -266,6 +276,16 @@ const enUS: MessageDict = {
   "bubble.notTranslatable": "This looks like a name, username, or ID — usually doesn't need translation.",
   "bubble.retranslate": "Retranslate",
   "bubble.openSettings": "Open Settings",
+  "bubble.nameHint": "Likely a username, nickname, or name — usually kept as-is in running text.",
+  "bubble.possibleMeanings": "Possible meanings",
+  "bubble.explanation": "Notes",
+  "bubble.noReliableMeaning": "No reliable common meaning; usually kept unchanged as a name or ID.",
+  "bubble.hardUrl": "This is a link — usually doesn't need translation.",
+  "bubble.hardEmail": "This is an email address — usually doesn't need translation.",
+  "bubble.hardPath": "This is a file path — usually doesn't need translation.",
+  "bubble.hardCode": "This looks like code or a command — usually doesn't need translation.",
+  "bubble.hardHash": "This looks like a hash, ID, or token — usually doesn't need translation.",
+  "bubble.hardGeneric": "This usually doesn't need translation.",
 
   // ---- Page Translation ----
   "page.collecting": "Collecting text…",
@@ -306,7 +326,7 @@ const jaJP: MessageDict = {
   // ---- 一般 ----
   "app.name": "Astra Translate",
   "app.desc": "軽量・エレガント・プロバイダー非依存のブラウザ翻訳拡張機能。",
-  "app.version": "Astra Translate v3.0.4 · プロバイダー非依存のブラウザ翻訳拡張機能",
+  "app.version": "Astra Translate v3.0.5 · プロバイダー非依存のブラウザ翻訳拡張機能",
 
   // ---- Options ページ ----
   "opt.provider": "プロバイダー設定",
@@ -414,6 +434,16 @@ const jaJP: MessageDict = {
   "bubble.notTranslatable": "名前、ユーザー名、ID のようです。通常、翻訳は不要です。",
   "bubble.retranslate": "再翻訳",
   "bubble.openSettings": "設定を開く",
+  "bubble.nameHint": "ユーザー名・ニックネーム・名前の可能性があり、本文では通常そのまま保持されます。",
+  "bubble.possibleMeanings": "考えられる意味",
+  "bubble.explanation": "説明",
+  "bubble.noReliableMeaning": "確かな一般的な語義はありません。通常は名前や ID としてそのまま保持されます。",
+  "bubble.hardUrl": "これはリンクです。通常、翻訳は不要です。",
+  "bubble.hardEmail": "これはメールアドレスです。通常、翻訳は不要です。",
+  "bubble.hardPath": "これはファイルパスです。通常、翻訳は不要です。",
+  "bubble.hardCode": "これはコードまたはコマンドのようです。通常、翻訳は不要です。",
+  "bubble.hardHash": "これはハッシュ・ID・トークンのようです。通常、翻訳は不要です。",
+  "bubble.hardGeneric": "これは通常、翻訳は不要です。",
 
   // ---- ページ翻訳オーバーレイ ----
   "page.collecting": "テキストを収集中…",

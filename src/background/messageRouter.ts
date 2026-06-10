@@ -17,7 +17,7 @@ import { getSettings, saveSettings } from "../shared/storage";
 import { translateViaProvider } from "./providerClient";
 import { ProviderRequestError, AstraError } from "./errors";
 import { extractJson } from "../shared/utils";
-import { resolveTargetLanguageForText, resolveTranslationMode } from "../shared/languageDetect";
+import { resolveTargetLanguageForText, classifySelectedText, detectNonTranslatableKind, isSoftIdentifier } from "../shared/languageDetect";
 import {
   createTranslationCacheKey,
   getCachedTranslation,
@@ -139,17 +139,31 @@ async function handleTranslateText(
   const isExplicitOverride = targetLang && targetLang !== settings.defaultTargetLang;
   const finalTargetLang = isExplicitOverride ? targetLang : resolvedLang;
 
-  // Determine if we should use dictionary mode
-  const transMode = effectiveMode === "selection"
-    ? resolveTranslationMode(text, settings)
-    : "translate";
+  // Classify the selection: hard-non-translatable / soft-identifier / dictionary / translate.
+  const textClass = classifySelectedText(text, effectiveMode, settings);
 
-  if (transMode === "dictionary") {
+  // Hard non-translatable (URL, email, path, code, command, hash): never translate.
+  // Return the original text plus a kind so the UI can show a fitting hint —
+  // no API call needed. The popup simply shows the unchanged text.
+  if (textClass === "hard-non-translatable") {
+    return {
+      success: true,
+      translation: text,
+      resolvedLang: finalTargetLang,
+      nonTranslatable: { kind: detectNonTranslatableKind(text) },
+    };
+  }
+
+  if (textClass === "dictionary") {
     return handleDictionaryTranslation(
       settings, lang, text, finalTargetLang,
-      contextBefore || "", contextAfter || "", fullLineText || ""
+      contextBefore || "", contextAfter || "", fullLineText || "",
+      isSoftIdentifier(text)
     );
   }
+
+  // "soft-identifier" and "translate" both use plain translation; the prompt
+  // preserves names / code / identifiers unchanged.
 
   const systemPrompt = (prompt || settings.selectionPrompt).replace(
     /\{\{targetLang\}\}/g,
@@ -201,6 +215,7 @@ async function handleDictionaryTranslation(
   contextBefore: string,
   contextAfter: string,
   fullLineText: string,
+  possibleNameOrIdentifier = false,
 ): Promise<TranslateResponse> {
   const systemPrompt = settings.dictionaryPrompt.replace(
     /\{\{targetLang\}\}/g,
@@ -213,6 +228,7 @@ async function handleDictionaryTranslation(
     contextBefore,
     contextAfter,
     fullLineText,
+    possibleNameOrIdentifier,
   });
   const cacheKey = await createTranslationCacheKey({
     mode: "dictionary",
