@@ -12,6 +12,7 @@ export default function Popup() {
   const [pageTargetLang, setPageTargetLang] = useState("Simplified Chinese");
   const [inputText, setInputText] = useState("");
   const [result, setResult] = useState("");
+  const [resolvedLang, setResolvedLang] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [pageStatus, setPageStatus] = useState<string>("");
@@ -91,6 +92,7 @@ export default function Popup() {
     setLoading(true);
     setError("");
     setResult("");
+    setResolvedLang("");
 
     try {
       const response = await chrome.runtime.sendMessage({
@@ -99,11 +101,13 @@ export default function Popup() {
           text,
           targetLang,
           sourceLang: sourceLang === "Auto" ? undefined : sourceLang,
+          mode: "manual",
         },
       });
 
       if (response?.success) {
         setResult(response.translation || "");
+        setResolvedLang(response.resolvedLang || "");
       } else {
         setError(response?.error || t(lang, "error.translationFailed"));
       }
@@ -118,6 +122,7 @@ export default function Popup() {
   const handleClear = useCallback(() => {
     setInputText("");
     setResult("");
+    setResolvedLang("");
     setError("");
     inputRef.current?.focus();
   }, []);
@@ -284,7 +289,19 @@ export default function Popup() {
               <span>{t(lang, "popup.translating")}</span>
             </div>
           ) : (
-            <div className="ast-result-box">{result}</div>
+            <>
+              {resolvedLang && (
+                <div className="ast-result-lang-label">
+                  {t(lang, "bubble.translatedTo", { lang: resolvedLang })}
+                </div>
+              )}
+              <div className="ast-result-box">{result}</div>
+              {result.trim() === inputText.trim() && result.trim().length > 0 && (
+                <div className="ast-result-hint">
+                  {t(lang, "bubble.mayBeIdentifier")}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

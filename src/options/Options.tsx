@@ -388,6 +388,105 @@ export default function Options() {
           </div>
         </div>
 
+        {/* Smart Target Language */}
+        <div className="ast-toggle-row" style={{ marginTop: 8 }}>
+          <span className="ast-toggle-label">{t(lang, "opt.smartTargetEnabled")}</span>
+          <input
+            type="checkbox"
+            className="ast-toggle"
+            checked={settings.smartTargetEnabled}
+            onChange={(e) => update("smartTargetEnabled", e.target.checked)}
+          />
+        </div>
+        <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 8 }}>
+          {t(lang, "opt.smartTargetDescription")}
+        </div>
+
+        {settings.smartTargetEnabled && (
+          <div className="ast-form-row">
+            <div className="ast-form-group">
+              <label className="ast-form-label">{t(lang, "opt.secondaryTargetLang")}</label>
+              <select
+                className="ast-form-select"
+                value={settings.secondaryTargetLang}
+                onChange={(e) => update("secondaryTargetLang", e.target.value)}
+              >
+                {SUPPORTED_LANGUAGES.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="ast-form-group">
+              <label className="ast-form-label">{t(lang, "opt.smartTargetMaxChars")}</label>
+              <input
+                className="ast-form-input"
+                type="number"
+                min="10"
+                max="200"
+                step="5"
+                value={settings.smartTargetMaxChars}
+                onChange={(e) =>
+                  update("smartTargetMaxChars", parseInt(e.target.value) || 40)
+                }
+              />
+              <div className="ast-form-hint">{t(lang, "opt.smartTargetMaxCharsHint")}</div>
+            </div>
+          </div>
+        )}
+
+        {settings.smartTargetEnabled && (
+          <>
+            <div className="ast-toggle-row" style={{ marginTop: 4 }}>
+              <span className="ast-toggle-label">{t(lang, "opt.sameLanguageToSecondary")}</span>
+              <input
+                type="checkbox"
+                className="ast-toggle"
+                checked={settings.sameLanguageToSecondaryEnabled}
+                onChange={(e) => update("sameLanguageToSecondaryEnabled", e.target.checked)}
+              />
+            </div>
+            <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 8 }}>
+              {t(lang, "opt.sameLanguageToSecondaryHint")}
+            </div>
+
+            {settings.sameLanguageToSecondaryEnabled && (
+              <div className="ast-form-row">
+                <div className="ast-form-group">
+                  <label className="ast-form-label">{t(lang, "opt.sameLanguageMinPurity")}</label>
+                  <input
+                    className="ast-form-input"
+                    type="number"
+                    min="0.5"
+                    max="0.99"
+                    step="0.01"
+                    value={settings.sameLanguageMinPurity}
+                    onChange={(e) =>
+                      update("sameLanguageMinPurity", parseFloat(e.target.value) || 0.82)
+                    }
+                  />
+                  <div className="ast-form-hint">{t(lang, "opt.sameLanguageMinPurityHint")}</div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Dictionary Mode */}
+        <div className="ast-toggle-row" style={{ marginTop: 8 }}>
+          <span className="ast-toggle-label">{t(lang, "opt.dictionaryMode")}</span>
+          <input
+            type="checkbox"
+            className="ast-toggle"
+            checked={settings.dictionaryModeEnabled}
+            onChange={(e) => update("dictionaryModeEnabled", e.target.checked)}
+          />
+        </div>
+        <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 8 }}>
+          {t(lang, "opt.dictionaryModeDescription")}
+        </div>
+
         <div className="ast-form-row">
           <div className="ast-form-group">
             <label className="ast-form-label">{t(lang, "opt.timeout")}</label>

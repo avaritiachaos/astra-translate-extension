@@ -10,12 +10,14 @@ import type {
   TranslateResponse,
   TranslateBatchResponse,
   AstraSettings,
+  DictionaryResult,
 } from "../shared/types";
 import { t, type UiLanguage } from "../shared/i18n";
 import { getSettings, saveSettings } from "../shared/storage";
 import { translateViaProvider } from "./providerClient";
 import { ProviderRequestError, AstraError } from "./errors";
 import { extractJson } from "../shared/utils";
+import { resolveTargetLanguageForText, resolveTranslationMode } from "../shared/languageDetect";
 
 /**
  * Handle all messages from popup / options / content scripts.
@@ -117,15 +119,120 @@ async function handleTranslateText(
     return { success: false, error: t(lang, "error.apiKeyNotConfigured") };
   }
 
-  const { text, targetLang, prompt } = msg.payload!;
+  const { text, targetLang, prompt, mode, contextBefore, contextAfter, fullLineText } = msg.payload!;
+
+  // Smart target language resolution:
+  // When smart mode is active and the caller's targetLang is just the default
+  // (not an explicit user override), let the resolver pick the best language.
+  const effectiveMode = mode || "manual";
+  const resolvedLang = resolveTargetLanguageForText(
+    text,
+    settings,
+    effectiveMode === "selection" ? "selection" : "manual"
+  );
+
+  // If caller sent an explicit targetLang that differs from the default,
+  // respect the caller's choice. Otherwise use the smart-resolved lang.
+  const isExplicitOverride = targetLang && targetLang !== settings.defaultTargetLang;
+  const finalTargetLang = isExplicitOverride ? targetLang : resolvedLang;
+
+  // Determine if we should use dictionary mode
+  const transMode = effectiveMode === "selection"
+    ? resolveTranslationMode(text, settings)
+    : "translate";
+
+  if (transMode === "dictionary") {
+    return handleDictionaryTranslation(
+      settings, lang, text, finalTargetLang,
+      contextBefore || "", contextAfter || "", fullLineText || ""
+    );
+  }
+
   const systemPrompt = (prompt || settings.selectionPrompt).replace(
     /\{\{targetLang\}\}/g,
-    targetLang || settings.defaultTargetLang
+    finalTargetLang
   );
 
   try {
     const translation = await translateViaProvider(settings, systemPrompt, text, lang);
-    return { success: true, translation };
+    return { success: true, translation, resolvedLang: finalTargetLang };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof ProviderRequestError || err instanceof AstraError
+        ? err.message
+        : t(lang, "error.translationFailed"),
+    };
+  }
+}
+
+async function handleDictionaryTranslation(
+  settings: AstraSettings,
+  lang: UiLanguage,
+  text: string,
+  targetLang: string,
+  contextBefore: string,
+  contextAfter: string,
+  fullLineText: string,
+): Promise<TranslateResponse> {
+  const systemPrompt = settings.dictionaryPrompt.replace(
+    /\{\{targetLang\}\}/g,
+    targetLang
+  );
+
+  const userContent = JSON.stringify({
+    targetLang,
+    selectedText: text,
+    contextBefore,
+    contextAfter,
+    fullLineText,
+  });
+
+  try {
+    const raw = await translateViaProvider(settings, systemPrompt, userContent, lang);
+
+    // Try to parse as JSON
+    let parsed: DictionaryResult | null = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      const jsonStr = extractJson(raw);
+      if (jsonStr) {
+        try {
+          parsed = JSON.parse(jsonStr);
+        } catch {
+          // Give up on JSON parsing
+        }
+      }
+    }
+
+    // Validate the parsed result has required fields
+    if (parsed && parsed.mode === "dictionary" && parsed.selectedText) {
+      // Clamp arrays to max sizes
+      if (parsed.meanings && parsed.meanings.length > 4) {
+        parsed.meanings = parsed.meanings.slice(0, 4);
+      }
+      if (parsed.examples && parsed.examples.length > 3) {
+        parsed.examples = parsed.examples.slice(0, 3);
+      }
+      // Ensure pronunciation is a string or absent
+      if (parsed.pronunciation && typeof parsed.pronunciation !== "string") {
+        (parsed as any).pronunciation = undefined;
+      }
+      return {
+        success: true,
+        translation: parsed.translation || text,
+        resolvedLang: targetLang,
+        dictionaryResult: parsed,
+      };
+    }
+
+    // JSON parse failed or invalid format — fall back to plain translation
+    return {
+      success: true,
+      translation: raw,
+      resolvedLang: targetLang,
+    };
   } catch (err) {
     return {
       success: false,

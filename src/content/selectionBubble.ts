@@ -8,11 +8,15 @@ import { t, type UiLanguage } from "../shared/i18n";
 // Constants
 const BUBBLE_PREFIX = "ast";
 const MAX_SOURCE_DISPLAY = 300;
+const CONTEXT_CHARS = 80;
 
 // State
 let selectionBtn: HTMLButtonElement | null = null;
 let selectionBtnHovered = false;
 let savedSelectionText = "";
+let savedContextBefore = "";
+let savedContextAfter = "";
+let savedFullLineText = "";
 let bubble: HTMLElement | null = null;
 let isPinned = false;
 let isTranslating = false;
@@ -37,6 +41,8 @@ const TRANSLATE_ICON_IMG = `<img src="${chrome.runtime.getURL("icons/icon48.png"
 const COPY_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
 const PIN_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 11V4a1 1 0 011-1h4a1 1 0 011 1v7"/><path d="M6 11h12l-1.5 6h-9z"/></svg>`;
 const CLOSE_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+const REFRESH_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>`;
+const SETTINGS_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>`;
 
 export function injectThemeVars(): void {
   if (document.getElementById(`${BUBBLE_PREFIX}-theme-vars`)) return;
@@ -740,6 +746,171 @@ export function injectThemeVars(): void {
         color: #e5e7eb;
       }
     }
+    /* ---- Dictionary Card (compact) ---- */
+    .${BUBBLE_PREFIX}-dict-card {
+      max-width: 420px;
+      max-height: 380px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 0;
+      font-size: 13px;
+      line-height: 1.45;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,0,0,0.15) transparent;
+    }
+    .${BUBBLE_PREFIX}-dict-card::-webkit-scrollbar { width: 4px; height: 4px; }
+    .${BUBBLE_PREFIX}-dict-card::-webkit-scrollbar-track { background: transparent; }
+    .${BUBBLE_PREFIX}-dict-card::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 2px; }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-dict-card { scrollbar-color: rgba(255,255,255,0.15) transparent; }
+      .${BUBBLE_PREFIX}-dict-card::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
+    }
+    .${BUBBLE_PREFIX}-dict-head {
+      padding: 12px 16px 0;
+    }
+    .${BUBBLE_PREFIX}-dict-word {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a1a2e;
+      line-height: 1.3;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-dict-word { color: #e5e7eb; }
+    }
+    .${BUBBLE_PREFIX}-dict-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 3px;
+    }
+    .${BUBBLE_PREFIX}-pos-pill {
+      display: inline-block;
+      font-size: 12px;
+      padding: 1px 8px;
+      border-radius: 999px;
+      background: rgba(99,102,241,0.08);
+      color: #6366f1;
+      font-weight: 500;
+      line-height: 1.6;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-pos-pill { background: rgba(129,140,248,0.15); color: #818cf8; }
+    }
+    .${BUBBLE_PREFIX}-phonetic {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-phonetic { color: #6b7280; }
+    }
+    .${BUBBLE_PREFIX}-dict-main-translation {
+      padding: 8px 16px 6px;
+      font-size: 18px;
+      font-weight: 600;
+      color: #1a1a2e;
+      line-height: 1.4;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-dict-main-translation { color: #e5e7eb; }
+    }
+    .${BUBBLE_PREFIX}-dict-section {
+      margin: 10px 16px 14px;
+    }
+    .${BUBBLE_PREFIX}-dict-section:first-of-type {
+      margin-top: 6px;
+    }
+    .${BUBBLE_PREFIX}-dict-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #6b7280;
+      margin-bottom: 6px;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-dict-section-title { color: #9ca3af; }
+    }
+    .${BUBBLE_PREFIX}-dict-context-box {
+      font-size: 13px;
+      color: #374151;
+      background: rgba(99,102,241,0.06);
+      border-radius: 10px;
+      padding: 8px 10px;
+      line-height: 1.5;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-dict-context-box { color: #d1d5db; background: rgba(129,140,248,0.1); }
+    }
+    .${BUBBLE_PREFIX}-meaning-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .${BUBBLE_PREFIX}-meaning-chip {
+      display: inline-block;
+      padding: 4px 8px;
+      font-size: 12px;
+      border-radius: 6px;
+      background: #f3f4f6;
+      color: #374151;
+      line-height: 1.4;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-meaning-chip { background: #2d2d44; color: #d1d5db; }
+    }
+    .${BUBBLE_PREFIX}-example-list > div {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.5;
+      margin-bottom: 4px;
+    }
+    .${BUBBLE_PREFIX}-example-list > div:last-child {
+      margin-bottom: 0;
+    }
+    .${BUBBLE_PREFIX}-example-list strong {
+      color: #374151;
+      font-weight: 600;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-example-list > div { color: #9ca3af; }
+      .${BUBBLE_PREFIX}-example-list strong { color: #d1d5db; }
+    }
+    .${BUBBLE_PREFIX}-dict-notrans {
+      font-size: 12px;
+      color: #9ca3af;
+      font-style: italic;
+      padding: 8px 16px 12px;
+    }
+    .${BUBBLE_PREFIX}-dict-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 4px;
+      padding: 6px 16px 10px;
+      border-top: 1px solid #f3f4f6;
+      margin-top: 4px;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-dict-footer { border-top-color: #2d2d44; }
+    }
+    .${BUBBLE_PREFIX}-dict-footer-btn {
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #9ca3af;
+      transition: background 120ms, color 120ms;
+    }
+    .${BUBBLE_PREFIX}-dict-footer-btn:hover {
+      background: #f3f4f6;
+      color: #6366f1;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-dict-footer-btn { color: #6b7280; }
+      .${BUBBLE_PREFIX}-dict-footer-btn:hover { background: #2d2d44; color: #818cf8; }
+    }
   `;
   document.head.appendChild(style);
 }
@@ -772,13 +943,65 @@ function isTranslatable(text: string): boolean {
   return true;
 }
 
+/**
+ * Capture surrounding context from the selection.
+ * Reads the text node or parent element's textContent, then extracts
+ * the characters immediately before and after the selected text.
+ * Skips input/textarea/password/contenteditable elements.
+ */
+function captureSelectionContext(range: Range): { contextBefore: string; contextAfter: string; fullLineText: string } {
+  const EMPTY = { contextBefore: "", contextAfter: "", fullLineText: "" };
+
+  try {
+    const { anchorNode } = window.getSelection() || {};
+    if (!anchorNode) return EMPTY;
+
+    // Skip editable fields
+    const parentEl = anchorNode.parentElement;
+    if (parentEl) {
+      const tag = parentEl.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return EMPTY;
+      if (parentEl.isContentEditable) return EMPTY;
+    }
+
+    // Get the full text from the text node or parent element
+    let fullText = "";
+    if (anchorNode.nodeType === Node.TEXT_NODE) {
+      fullText = anchorNode.textContent || "";
+    } else if (parentEl) {
+      fullText = parentEl.textContent || "";
+    }
+
+    if (!fullText) return EMPTY;
+
+    const selectedText = range.toString();
+    const selStart = fullText.indexOf(selectedText);
+    if (selStart < 0) return EMPTY;
+
+    const selEnd = selStart + selectedText.length;
+    const contextBefore = fullText.substring(Math.max(0, selStart - CONTEXT_CHARS), selStart);
+    const contextAfter = fullText.substring(selEnd, selEnd + CONTEXT_CHARS);
+
+    // fullLineText: the full text content (capped at 300 chars for safety)
+    const fullLineText = fullText.length > 300 ? fullText.substring(0, 300) : fullText;
+
+    return { contextBefore, contextAfter, fullLineText };
+  } catch {
+    return EMPTY;
+  }
+}
+
 export function showSelectionBtn(range: Range): void {
   removeSelectionBtn();
   injectThemeVars();
 
-  // Save the selected text NOW — the selection may be cleared before
+  // Save the selected text and context NOW — the selection may be cleared before
   // the user clicks the button (e.g. by site event handlers on mousedown).
   savedSelectionText = range.toString().trim();
+  const ctx = captureSelectionContext(range);
+  savedContextBefore = ctx.contextBefore;
+  savedContextAfter = ctx.contextAfter;
+  savedFullLineText = ctx.fullLineText;
 
   const btn = document.createElement("button");
   btn.className = `${BUBBLE_PREFIX}-selection-btn`;
@@ -959,7 +1182,8 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
   const copyBtn = el.querySelector(`.${BUBBLE_PREFIX}-copy-btn`);
   copyBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
-    const transEl = el.querySelector(`.${BUBBLE_PREFIX}-translation`);
+    const transEl = el.querySelector(`.${BUBBLE_PREFIX}-translation`)
+      || el.querySelector(`.${BUBBLE_PREFIX}-dict-main-translation`);
     if (transEl) {
       navigator.clipboard.writeText(transEl.textContent || "");
       (copyBtn as HTMLElement).style.color = "#10b981";
@@ -1044,6 +1268,114 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
   bubble = el;
 }
 
+/** Render a compact dictionary card from a DictionaryResult JSON. */
+function renderDictionaryCard(
+  result: { selectedText: string; translation: string; partOfSpeech: string; pronunciation?: string; meanings: string[]; contextMeaning: string; examples: { source: string; target: string }[]; isTranslatable: boolean },
+  _resolvedLang: string
+): string {
+  const P = BUBBLE_PREFIX;
+  let html = `<div class="${P}-dict-card">`;
+
+  // Head: word + meta (pos pill + phonetic)
+  html += `<div class="${P}-dict-head">`;
+  html += `<div class="${P}-dict-word">${escapeHtml(result.selectedText)}</div>`;
+  if (result.partOfSpeech || result.pronunciation) {
+    html += `<div class="${P}-dict-meta">`;
+    if (result.partOfSpeech) {
+      html += `<span class="${P}-pos-pill">${escapeHtml(result.partOfSpeech)}</span>`;
+    }
+    if (result.pronunciation) {
+      html += `<span class="${P}-phonetic">${escapeHtml(result.pronunciation)}</span>`;
+    }
+    html += `</div>`;
+  }
+  html += `</div>`;
+
+  if (!result.isTranslatable) {
+    html += `<div class="${P}-dict-notrans">${t(cachedLang, "bubble.notTranslatable")}</div>`;
+    html += `<div class="${P}-dict-footer">`;
+    html += `<button class="${P}-dict-footer-btn ${P}-dict-copy-btn" title="${t(cachedLang, "bubble.copyTranslation")}">${COPY_ICON}</button>`;
+    html += `<button class="${P}-dict-footer-btn ${P}-dict-settings-btn" title="${t(cachedLang, "bubble.openSettings")}">${SETTINGS_ICON}</button>`;
+    html += `</div></div>`;
+    return html;
+  }
+
+  // Main translation
+  html += `<div class="${P}-dict-main-translation">${escapeHtml(result.translation)}</div>`;
+
+  // Context section
+  if (result.contextMeaning) {
+    html += `<section class="${P}-dict-section ${P}-dict-context-section">`;
+    html += `<div class="${P}-dict-section-title">${t(cachedLang, "bubble.currentContext")}</div>`;
+    html += `<div class="${P}-dict-context-box">${escapeHtml(result.contextMeaning)}</div>`;
+    html += `</section>`;
+  }
+
+  // Meanings as chips
+  if (result.meanings && result.meanings.length > 0) {
+    html += `<section class="${P}-dict-section">`;
+    html += `<div class="${P}-dict-section-title">${t(cachedLang, "bubble.commonMeanings")}</div>`;
+    html += `<div class="${P}-meaning-chips">`;
+    for (const m of result.meanings) {
+      html += `<span class="${P}-meaning-chip">${escapeHtml(m)}</span>`;
+    }
+    html += `</div></section>`;
+  }
+
+  // Examples
+  if (result.examples && result.examples.length > 0) {
+    html += `<section class="${P}-dict-section">`;
+    html += `<div class="${P}-dict-section-title">${t(cachedLang, "bubble.commonCollocations")}</div>`;
+    html += `<div class="${P}-example-list">`;
+    for (const ex of result.examples) {
+      html += `<div><strong>${escapeHtml(ex.source)}</strong>：${escapeHtml(ex.target)}</div>`;
+    }
+    html += `</div></section>`;
+  }
+
+  // Footer
+  html += `<div class="${P}-dict-footer">`;
+  html += `<button class="${P}-dict-footer-btn ${P}-dict-copy-btn" title="${t(cachedLang, "bubble.copyTranslation")}">${COPY_ICON}</button>`;
+  html += `<button class="${P}-dict-footer-btn ${P}-dict-retranslate-btn" title="${t(cachedLang, "bubble.retranslate")}">${REFRESH_ICON}</button>`;
+  html += `<button class="${P}-dict-footer-btn ${P}-dict-settings-btn" title="${t(cachedLang, "bubble.openSettings")}">${SETTINGS_ICON}</button>`;
+  html += `</div>`;
+
+  html += `</div>`;
+  return html;
+}
+
+/** Attach click listeners to dictionary card footer buttons. */
+function attachDictFooterListeners(container: Element, retranslateFn?: () => void): void {
+  const copyBtn = container.querySelector(`.${BUBBLE_PREFIX}-dict-copy-btn`);
+  copyBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const translationEl = container.querySelector(`.${BUBBLE_PREFIX}-dict-main-translation`);
+    if (translationEl) {
+      navigator.clipboard.writeText(translationEl.textContent || "");
+      (copyBtn as HTMLElement).style.color = "#10b981";
+      setTimeout(() => { (copyBtn as HTMLElement).style.color = ""; }, 1000);
+    }
+  });
+
+  const retranslateBtn = container.querySelector(`.${BUBBLE_PREFIX}-dict-retranslate-btn`);
+  retranslateBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (isTranslating) return;
+    container.innerHTML = `<div class="${BUBBLE_PREFIX}-loading"><div class="${BUBBLE_PREFIX}-spinner"></div><span>${t(cachedLang, "bubble.translating")}</span></div>`;
+    if (retranslateFn) {
+      retranslateFn();
+    } else {
+      requestTranslation(savedSelectionText);
+    }
+  });
+
+  const settingsBtn = container.querySelector(`.${BUBBLE_PREFIX}-dict-settings-btn`);
+  settingsBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    chrome.runtime.sendMessage({ type: "OPEN_OPTIONS_PAGE" });
+  });
+}
+
 async function requestTranslation(text: string): Promise<void> {
   if (isTranslating) return;
   isTranslating = true;
@@ -1054,6 +1386,10 @@ async function requestTranslation(text: string): Promise<void> {
       payload: {
         text,
         ...(cachedSelectionTargetLang ? { targetLang: cachedSelectionTargetLang } : {}),
+        mode: "selection",
+        contextBefore: savedContextBefore,
+        contextAfter: savedContextAfter,
+        fullLineText: savedFullLineText,
       },
     });
 
@@ -1062,7 +1398,16 @@ async function requestTranslation(text: string): Promise<void> {
     if (!loadingEl) return;
 
     if (response?.success) {
-      loadingEl.innerHTML = `<div class="${BUBBLE_PREFIX}-translation">${escapeHtml(response.translation || "")}</div>`;
+      if (response.dictionaryResult) {
+        loadingEl.innerHTML = renderDictionaryCard(response.dictionaryResult, response.resolvedLang || "");
+        attachDictFooterListeners(loadingEl);
+      } else {
+        const trans = response.translation || "";
+        const resolvedLang = response.resolvedLang || "";
+        const langLabel = resolvedLang ? `<div style="font-size:11px;color:#9ca3af;margin-bottom:4px;">${escapeHtml(t(cachedLang, "bubble.translatedTo", { lang: resolvedLang }))}</div>` : "";
+        const hint = trans.trim() === text.trim() ? `<div style="font-size:11px;color:#9ca3af;margin-top:4px;">${t(cachedLang, "bubble.mayBeIdentifier")}</div>` : "";
+        loadingEl.innerHTML = `${langLabel}<div class="${BUBBLE_PREFIX}-translation">${escapeHtml(trans)}</div>${hint}`;
+      }
     } else {
       loadingEl.innerHTML = `<div class="${BUBBLE_PREFIX}-error"><span>⚠</span><span>${escapeHtml(response?.error || t(cachedLang, "bubble.translationFailed"))}</span></div>`;
     }
@@ -1381,6 +1726,10 @@ async function requestTranslationForPopup(text: string): Promise<void> {
       payload: {
         text,
         ...(cachedSelectionTargetLang ? { targetLang: cachedSelectionTargetLang } : {}),
+        mode: "selection",
+        contextBefore: savedContextBefore,
+        contextAfter: savedContextAfter,
+        fullLineText: savedFullLineText,
       },
     });
 
@@ -1389,7 +1738,17 @@ async function requestTranslationForPopup(text: string): Promise<void> {
     if (!resultEl) return;
 
     if (response?.success) {
-      resultEl.innerHTML = escapeHtml(response.translation || "");
+      if (response.dictionaryResult) {
+        resultEl.innerHTML = renderDictionaryCard(response.dictionaryResult, response.resolvedLang || "");
+        const srcTextArea = dragPopup?.querySelector(`.${BUBBLE_PREFIX}-popup-src`) as HTMLTextAreaElement | null;
+        attachDictFooterListeners(resultEl, srcTextArea ? () => requestTranslationForPopup(srcTextArea.value) : undefined);
+      } else {
+        const trans = response.translation || "";
+        const resolvedLang = response.resolvedLang || "";
+        const langLabel = resolvedLang ? `<div style="font-size:11px;color:#9ca3af;margin-bottom:4px;">${escapeHtml(t(cachedLang, "bubble.translatedTo", { lang: resolvedLang }))}</div>` : "";
+        const hint = trans.trim() === text.trim() ? `<div style="font-size:11px;color:#9ca3af;margin-top:4px;">${t(cachedLang, "bubble.mayBeIdentifier")}</div>` : "";
+        resultEl.innerHTML = `${langLabel}<div>${escapeHtml(trans)}</div>${hint}`;
+      }
     } else {
       resultEl.innerHTML = `<div class="${BUBBLE_PREFIX}-popup-error"><span>⚠</span><span>${escapeHtml(response?.error || t(cachedLang, "bubble.translationFailed"))}</span></div>`;
     }

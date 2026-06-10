@@ -256,6 +256,20 @@ body::-webkit-scrollbar-thumb:hover {
   font-style: italic;
 }
 
+/* Smart target language label */
+.ast-result-lang-label {
+  font-size: 11px;
+  color: var(--ast-muted);
+  margin-bottom: 4px;
+}
+
+/* Identifier hint (when translation === source) */
+.ast-result-hint {
+  font-size: 11px;
+  color: var(--ast-muted);
+  margin-top: 4px;
+}
+
 /* Loading */
 .ast-loading-inline {
   display: flex;

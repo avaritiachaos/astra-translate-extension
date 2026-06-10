@@ -49,6 +49,17 @@ export interface AstraSettings extends UserProviderSettings {
   floatingBallOpacity: number;
   floatingBallSize: number;
   popupScale: number;
+  // Smart Target Language
+  smartTargetEnabled: boolean;
+  secondaryTargetLang: string;
+  smartTargetMaxChars: number;
+  smartTargetMaxWords: number;
+  smartTargetMaxCjkChars: number;
+  sameLanguageToSecondaryEnabled: boolean;
+  sameLanguageMinPurity: number;
+  // Dictionary Mode
+  dictionaryModeEnabled: boolean;
+  dictionaryPrompt: string;
 }
 
 // ---------- Messages ----------
@@ -89,6 +100,10 @@ export interface TranslateTextMessage extends Message<{
   targetLang: string;
   sourceLang?: string;
   prompt?: string;
+  mode?: "selection" | "manual";
+  contextBefore?: string;
+  contextAfter?: string;
+  fullLineText?: string;
 }> {
   type: "TRANSLATE_TEXT";
 }
@@ -118,10 +133,24 @@ export interface OpenOptionsMessage extends Message {
 }
 
 // ---------- Responses ----------
+export interface DictionaryResult {
+  mode: "dictionary";
+  selectedText: string;
+  translation: string;
+  partOfSpeech: string;
+  pronunciation?: string;
+  meanings: string[];
+  contextMeaning: string;
+  examples: { source: string; target: string }[];
+  isTranslatable: boolean;
+}
+
 export interface TranslateResponse {
   success: boolean;
   translation?: string;
   error?: string;
+  resolvedLang?: string;
+  dictionaryResult?: DictionaryResult;
 }
 
 export interface TranslateBatchResponse {

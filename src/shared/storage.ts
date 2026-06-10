@@ -4,7 +4,7 @@
 
 import type { AstraSettings } from "./types";
 import { STORAGE_KEY, DEFAULT_TARGET_LANG } from "./constants";
-import { DEFAULT_SELECTION_PROMPT, DEFAULT_PAGE_PROMPT } from "./prompts";
+import { DEFAULT_SELECTION_PROMPT, DEFAULT_PAGE_PROMPT, DEFAULT_DICTIONARY_PROMPT } from "./prompts";
 
 export function getDefaultSettings(): AstraSettings {
   return {
@@ -31,6 +31,15 @@ export function getDefaultSettings(): AstraSettings {
     floatingBallOpacity: 0.8,
     floatingBallSize: 48,
     popupScale: 1.0,
+    smartTargetEnabled: true,
+    secondaryTargetLang: "English",
+    smartTargetMaxChars: 40,
+    smartTargetMaxWords: 8,
+    smartTargetMaxCjkChars: 20,
+    sameLanguageToSecondaryEnabled: true,
+    sameLanguageMinPurity: 0.82,
+    dictionaryModeEnabled: true,
+    dictionaryPrompt: DEFAULT_DICTIONARY_PROMPT,
   };
 }
 

@@ -10,7 +10,7 @@ const zhCN: MessageDict = {
   // ---- 通用 ----
   "app.name": "Astra Translate",
   "app.desc": "轻量、优雅、模型服务商中立的浏览器翻译插件。",
-  "app.version": "Astra Translate v2.0.0 · 模型服务商中立的浏览器翻译插件",
+  "app.version": "Astra Translate v3.0.0 · 模型服务商中立的浏览器翻译插件",
 
   // ---- Options 页面 ----
   "opt.provider": "服务商设置",
@@ -39,6 +39,19 @@ const zhCN: MessageDict = {
   "opt.batchSize": "页面翻译批量字符数",
   "opt.concurrency": "并发数",
   "opt.realtime": "实时页面翻译",
+
+  "opt.smartTargetEnabled": "智能目标语言",
+  "opt.smartTargetDescription": "若原文已接近默认目标语言，则自动翻译为第二目标语言；混合语言文本仍按默认目标语言翻译。",
+  "opt.secondaryTargetLang": "第二目标语言",
+  "opt.smartTargetMaxChars": "智能判断最大字符数",
+  "opt.smartTargetMaxCharsHint": "超过此字符数的短文本不启用智能切换",
+  "opt.sameLanguageToSecondary": "默认语言文本自动翻译为第二语言",
+  "opt.sameLanguageToSecondaryHint": "当选中文本几乎完全是默认目标语言时，自动翻译为第二目标语言。混合语言文本仍翻译为默认目标语言。",
+  "opt.sameLanguageMinPurity": "单语言纯度阈值",
+  "opt.sameLanguageMinPurityHint": "语言字符占比超过此值时触发切换，范围 0.5-0.99，默认 0.82",
+
+  "opt.dictionaryMode": "词典模式",
+  "opt.dictionaryModeDescription": "短词或短语显示词性、常见释义和语境说明。",
 
   "opt.floatingBall": "悬浮球设置",
   "opt.floatingBallEnable": "显示悬浮球",
@@ -95,6 +108,16 @@ const zhCN: MessageDict = {
   "bubble.translationFailed": "翻译失败",
   "bubble.connectFail": "无法连接到翻译服务。",
   "bubble.resize": "拖动缩放",
+  "bubble.translatedTo": "译文 · {lang}",
+  "bubble.mayBeIdentifier": "可能是名称、ID 或无需翻译的内容。",
+  "bubble.dictionary": "词典 · {lang}",
+  "bubble.partOfSpeech": "词性",
+  "bubble.currentContext": "当前语境",
+  "bubble.commonMeanings": "常见释义",
+  "bubble.commonCollocations": "常见搭配",
+  "bubble.notTranslatable": "该内容看起来像名称、用户名或 ID，通常无需翻译。",
+  "bubble.retranslate": "重新翻译",
+  "bubble.openSettings": "打开设置",
 
   // ---- 页面翻译浮层 ----
   "page.collecting": "正在收集文本…",
@@ -135,7 +158,7 @@ const enUS: MessageDict = {
   // ---- General ----
   "app.name": "Astra Translate",
   "app.desc": "A lightweight, elegant, provider-neutral browser translator.",
-  "app.version": "Astra Translate v2.0.0 · Provider-neutral browser translator",
+  "app.version": "Astra Translate v3.0.0 · Provider-neutral browser translator",
 
   // ---- Options ----
   "opt.provider": "Provider Settings",
@@ -164,6 +187,19 @@ const enUS: MessageDict = {
   "opt.batchSize": "Page Batch Size (chars)",
   "opt.concurrency": "Concurrency",
   "opt.realtime": "Real-time Page Translation",
+
+  "opt.smartTargetEnabled": "Smart Target Language",
+  "opt.smartTargetDescription": "Translate into the secondary target language when the source is already close to the default target language. Mixed-language text still uses the default target language.",
+  "opt.secondaryTargetLang": "Secondary Target Language",
+  "opt.smartTargetMaxChars": "Smart Detection Max Characters",
+  "opt.smartTargetMaxCharsHint": "Short texts longer than this will not use smart language switching",
+  "opt.sameLanguageToSecondary": "Auto-translate default language text to secondary",
+  "opt.sameLanguageToSecondaryHint": "When selected text is almost entirely in the default target language, translate it into the secondary target language. Mixed-language text still uses the default target language.",
+  "opt.sameLanguageMinPurity": "Language Purity Threshold",
+  "opt.sameLanguageMinPurityHint": "Trigger switch when language character ratio exceeds this value, range 0.5-0.99, default 0.82",
+
+  "opt.dictionaryMode": "Dictionary Mode",
+  "opt.dictionaryModeDescription": "Show part of speech, common meanings, and context notes for short words or phrases.",
 
   "opt.floatingBall": "Floating Ball",
   "opt.floatingBallEnable": "Show Floating Ball",
@@ -220,6 +256,16 @@ const enUS: MessageDict = {
   "bubble.translationFailed": "Translation failed",
   "bubble.connectFail": "Failed to connect to translation service.",
   "bubble.resize": "Drag to resize",
+  "bubble.translatedTo": "Translation · {lang}",
+  "bubble.mayBeIdentifier": "May be a name, ID, or content that doesn't need translation.",
+  "bubble.dictionary": "Dictionary · {lang}",
+  "bubble.partOfSpeech": "Part of Speech",
+  "bubble.currentContext": "Context",
+  "bubble.commonMeanings": "Common Meanings",
+  "bubble.commonCollocations": "Collocations",
+  "bubble.notTranslatable": "This looks like a name, username, or ID — usually doesn't need translation.",
+  "bubble.retranslate": "Retranslate",
+  "bubble.openSettings": "Open Settings",
 
   // ---- Page Translation ----
   "page.collecting": "Collecting text…",
