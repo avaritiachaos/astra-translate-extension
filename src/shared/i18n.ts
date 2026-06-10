@@ -2,7 +2,7 @@
 // Astra Translate – i18n (轻量国际化)
 // ============================================================
 
-export type UiLanguage = "zh-CN" | "en-US";
+export type UiLanguage = "zh-CN" | "en-US" | "ja-JP";
 
 type MessageDict = Record<string, string>;
 
@@ -10,7 +10,7 @@ const zhCN: MessageDict = {
   // ---- 通用 ----
   "app.name": "Astra Translate",
   "app.desc": "轻量、优雅、模型服务商中立的浏览器翻译插件。",
-  "app.version": "Astra Translate v3.0.0 · 模型服务商中立的浏览器翻译插件",
+  "app.version": "Astra Translate v3.0.4 · 模型服务商中立的浏览器翻译插件",
 
   // ---- Options 页面 ----
   "opt.provider": "服务商设置",
@@ -158,7 +158,7 @@ const enUS: MessageDict = {
   // ---- General ----
   "app.name": "Astra Translate",
   "app.desc": "A lightweight, elegant, provider-neutral browser translator.",
-  "app.version": "Astra Translate v3.0.0 · Provider-neutral browser translator",
+  "app.version": "Astra Translate v3.0.4 · Provider-neutral browser translator",
 
   // ---- Options ----
   "opt.provider": "Provider Settings",
@@ -302,9 +302,158 @@ const enUS: MessageDict = {
   "ball.close": "Hide Floating Ball",
 };
 
+const jaJP: MessageDict = {
+  // ---- 一般 ----
+  "app.name": "Astra Translate",
+  "app.desc": "軽量・エレガント・プロバイダー非依存のブラウザ翻訳拡張機能。",
+  "app.version": "Astra Translate v3.0.4 · プロバイダー非依存のブラウザ翻訳拡張機能",
+
+  // ---- Options ページ ----
+  "opt.provider": "プロバイダー設定",
+  "opt.providerPreset": "プロバイダープリセット",
+  "opt.apiFormat": "APIフォーマット",
+  "opt.baseUrl": "Base URL",
+  "opt.endpoint": "Endpoint",
+  "opt.model": "モデル",
+  "opt.apiKey": "API Key",
+  "opt.disableThinking": "思考モードを無効にして翻訳速度を向上",
+  "opt.testConnection": "接続テスト",
+  "opt.testing": "テスト中…",
+  "opt.testSuccess": "接続成功！モデル：{model}",
+  "opt.testFail": "接続失敗",
+  "opt.testSaveReminder": "設定の保存をお忘れなく。",
+  "opt.testAutoSaved": "設定は自動保存されました。",
+  "opt.uiLang": "UI言語",
+
+  "opt.translation": "翻訳設定",
+  "opt.defaultTargetLang": "手動入力ターゲット言語",
+  "opt.pageTargetLang": "ページ翻訳ターゲット言語",
+  "opt.selectionTargetLang": "選択翻訳ターゲット言語",
+  "opt.temperature": "Temperature",
+  "opt.temperatureHint": "低いほど安定、デフォルト 0.2",
+  "opt.timeout": "リクエストタイムアウト",
+  "opt.batchSize": "ページ翻訳バッチ文字数",
+  "opt.concurrency": "並行数",
+  "opt.realtime": "リアルタイムページ翻訳",
+
+  "opt.smartTargetEnabled": "スマートターゲット言語",
+  "opt.smartTargetDescription": "原文がデフォルトのターゲット言語に近い場合、自動的に第二ターゲット言語に翻訳します。混合言語テキストはデフォルトのターゲット言語のまま翻訳します。",
+  "opt.secondaryTargetLang": "第二ターゲット言語",
+  "opt.smartTargetMaxChars": "スマート判定最大文字数",
+  "opt.smartTargetMaxCharsHint": "この文字数を超える短いテキストはスマート切り替えを使用しません",
+  "opt.sameLanguageToSecondary": "デフォルト言語テキストを自動的に第二言語に翻訳",
+  "opt.sameLanguageToSecondaryHint": "選択テキストがほぼ完全にデフォルトターゲット言語の場合、第二ターゲット言語に翻訳します。混合言語テキストはデフォルトターゲット言語のまま翻訳します。",
+  "opt.sameLanguageMinPurity": "言語純度しきい値",
+  "opt.sameLanguageMinPurityHint": "言語文字比率がこの値を超えた場合に切り替えをトリガー、範囲 0.5-0.99、デフォルト 0.82",
+
+  "opt.dictionaryMode": "辞書モード",
+  "opt.dictionaryModeDescription": "短い単語やフレーズに品詞、一般的な意味、コンテキスト説明を表示します。",
+
+  "opt.floatingBall": "フローティングボール設定",
+  "opt.floatingBallEnable": "フローティングボールを表示",
+  "opt.floatingBallOpacity": "フローティングボールの透明度",
+  "opt.floatingBallSize": "フローティングボールのサイズ",
+  "opt.popupScale": "翻訳ポップアップのスケール",
+
+  "opt.prompt": "Prompt 設定",
+  "opt.selectionPrompt": "選択・手動翻訳 Prompt",
+  "opt.pagePrompt": "ページ翻訳 Prompt",
+  "opt.promptHint1": "{targetLang} をターゲット言語のプレースホルダーとして使用します。",
+  "opt.promptHint2": "{targetLang} をプレースホルダーとして使用します。モデルは有効な JSON を返す必要があります。",
+  "opt.resetPrompts": "デフォルト Prompt に戻す",
+
+  "opt.save": "設定を保存",
+  "opt.autoSaving": "保存中…",
+  "opt.reset": "デフォルト設定に戻す",
+  "opt.saved": "保存しました",
+  "opt.saveFailed": "保存に失敗しました",
+  "opt.geminiSoon": "Gemini-compatible（近日対応）",
+  "opt.anthropicSoon": "Anthropic-compatible（近日対応）",
+
+  // ---- Popup ページ ----
+  "popup.sourceLang": "ソース言語",
+  "popup.targetLang": "ターゲット言語",
+  "popup.auto": "自動検出",
+  "popup.translate": "翻訳",
+  "popup.translating": "翻訳中…",
+  "popup.clear": "クリア",
+  "popup.copy": "コピー",
+  "popup.copied": "コピーしました",
+  "popup.placeholder": "翻訳するテキストを入力",
+  "popup.resultPlaceholder": "翻訳結果がここに表示されます",
+  "popup.translatePage": "現在のページを翻訳",
+  "popup.restorePage": "現在のページを元に戻す",
+  "popup.pageTranslating": "ページを翻訳中…",
+  "popup.pageRestored": "元のページに戻しました",
+  "popup.openSettings": "設定を開く",
+  "popup.pageTranslation": "ページ翻訳",
+  "popup.noApiKey": "設定ページで API Key を設定してください",
+  "popup.connectFail": "翻訳サービスに接続できません。",
+  "popup.cannotAccess": "現在のページにアクセスできません。",
+  "popup.kbHint": "Ctrl+Enter で翻訳 · Esc でクリア",
+
+  // ---- Content 選択バブル ----
+  "bubble.title": "Astra Translate",
+  "bubble.translateSelection": "選択テキストを翻訳",
+  "bubble.source": "原文",
+  "bubble.copyTranslation": "翻訳をコピー",
+  "bubble.pin": "ピン留め",
+  "bubble.unpin": "ピン留め解除",
+  "bubble.close": "閉じる",
+  "bubble.translating": "翻訳中…",
+  "bubble.translationFailed": "翻訳に失敗しました",
+  "bubble.connectFail": "翻訳サービスに接続できません。",
+  "bubble.resize": "ドラッグしてリサイズ",
+  "bubble.translatedTo": "翻訳 · {lang}",
+  "bubble.mayBeIdentifier": "名前、ID、翻訳不要のコンテンツの可能性があります。",
+  "bubble.dictionary": "辞書 · {lang}",
+  "bubble.partOfSpeech": "品詞",
+  "bubble.currentContext": "現在のコンテキスト",
+  "bubble.commonMeanings": "一般的な意味",
+  "bubble.commonCollocations": "コロケーション",
+  "bubble.notTranslatable": "名前、ユーザー名、ID のようです。通常、翻訳は不要です。",
+  "bubble.retranslate": "再翻訳",
+  "bubble.openSettings": "設定を開く",
+
+  // ---- ページ翻訳オーバーレイ ----
+  "page.collecting": "テキストを収集中…",
+  "page.translating": "ページを翻訳中 {done} / {total}",
+  "page.translatingWithFail": "ページを翻訳中 {done} / {total}（{failed} 件失敗）",
+  "page.completed": "ページ翻訳完了 ✓",
+  "page.completedWithFail": "翻訳完了（{failed} 件失敗）",
+  "page.failed": "ページ翻訳に失敗しました",
+  "page.restored": "元のページに戻しました",
+
+  // ---- エラーメッセージ ----
+  "error.apiKeyMissing": "API Key がありません",
+  "error.apiKeyNotConfigured": "設定ページで API Key を入力してください。",
+  "error.unauthorized": "API Key が正しくないか、権限がありません。アカウント残高を確認してください。",
+  "error.rateLimit": "リクエスト頻度の制限に達しました。しばらく待ってから再試行してください。",
+  "error.serverUnavailable": "翻訳サービスが一時的に利用できません。後でもう一度お試しください。",
+  "error.timeout": "リクエストがタイムアウトしました。再試行するか、タイムアウト時間を増やしてください。",
+  "error.network": "ネットワーク接続に失敗しました。ネットワークを確認してください。",
+  "error.invalidResponse": "モデルが予期しないレスポンス形式を返しました。",
+  "error.translationFailed": "翻訳に失敗しました。再試行してください。",
+  "error.batchFailed": "バッチ翻訳に失敗しました。再試行してください。",
+  "error.invalidBatchResponse": "モデルが無効な JSON 形式を返しました。再試行してください。",
+  "error.httpError": "リクエスト失敗、ステータスコード：{status}",
+  "error.unknown": "不明なエラー",
+  "error.geminiNotImplemented": "Gemini-compatible API はまだ実装されていません。OpenAI-compatible プロバイダーをご利用ください。",
+  "error.anthropicNotImplemented": "Anthropic-compatible API はまだ実装されていません。OpenAI-compatible プロバイダーをご利用ください。",
+  "error.unknownApiFormat": "不明な API フォーマット：{format}",
+
+  // ---- フローティングボール ----
+  "ball.translatePage": "ページを翻訳",
+  "ball.settings": "設定",
+  "ball.opacity": "透明度",
+  "ball.size": "サイズ",
+  "ball.close": "フローティングボールを非表示",
+};
+
 const messages: Record<UiLanguage, MessageDict> = {
   "zh-CN": zhCN,
   "en-US": enUS,
+  "ja-JP": jaJP,
 };
 
 /**

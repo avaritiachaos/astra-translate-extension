@@ -1,5 +1,7 @@
 # Astra Translate
 
+[中文](README.md) · [日本語](README_JP.md)
+
 > A lightweight, provider-neutral browser translator for selection, manual, and full-page translation.
 
 <p align="center">

@@ -1,6 +1,6 @@
 # Astra Translate
 
-[English README](README_EN.md)
+[English](README_EN.md) · [日本語](README_JP.md)
 
 > 轻量、优雅、模型服务商中立的浏览器翻译扩展。
 
@@ -16,7 +16,7 @@
 - **全页翻译** — 一键翻译整个页面，支持实时增量翻译，随时可中断
 - **服务商中立** — 支持任何 OpenAI-compatible API（DeepSeek、OpenAI、Groq 等）
 - **暗色模式** — 自动跟随系统主题
-- **多语言界面** — 支持中文 / English
+- **多语言界面** — 支持中文 / English / 日本語
 - **隐私优先** — API Key 本地存储，不收集任何数据
 
 ## 🚀 快速开始
