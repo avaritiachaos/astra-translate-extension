@@ -1,5 +1,7 @@
 # Astra Translate
 
+[English README](README_EN.md)
+
 > 轻量、优雅、模型服务商中立的浏览器翻译扩展。
 
 <p align="center">
