@@ -1,73 +1,106 @@
 # Astra Translate
 
-> A lightweight, elegant, provider-neutral browser translator.
+> A lightweight, provider-neutral browser translator for selection, manual, and full-page translation.
 
 <p align="center">
   <img src="public/icons/icon128.png" alt="Astra Translate" width="96" />
 </p>
 
-## ✨ Features
+## Features
 
-- **Minimalist Design** — No clutter, focused on translation
-- **Selection Translation** — Select text to translate with a floating icon + draggable popup
-- **Context Menu** — Right-click to translate selected text
-- **Full Page Translation** — Translate entire pages with real-time incremental updates
-- **Provider Neutral** — Works with any OpenAI-compatible API (DeepSeek, OpenAI, Groq, etc.)
-- **Dark Mode** — Follows system theme automatically
-- **Multi-language UI** — Chinese / English
+- **Selection translation**: select text and translate it from the inline icon, context menu, or `Alt+T`.
+- **Manual translation popup**: translate typed or pasted text from the extension popup.
+- **Full-page translation**: translate visible page text and keep translating lazy-loaded content while staying on the same page.
+- **Persistent translation cache**: repeated source text can be served locally without another API request when provider, model, prompt, and target language match.
+- **Smarter page progress**: page translation reports real completed item counts with smaller batches for visible progress.
+- **SPA navigation safety**: page translation stops when a single-page app navigates to a different route.
+- **Floating ball**: quick page translation entry point with drag, size, opacity, and auto-recovery after page navigation.
+- **Provider-neutral API support**: works with OpenAI-compatible providers such as DeepSeek and custom endpoints.
+- **Dictionary mode**: short words and phrases can return concise dictionary-style explanations.
+- **Privacy-first local settings**: API keys and translation cache are stored in `chrome.storage.local`.
 
-## 🚀 Quick Start
+## Quick Start
 
-### Install
-
-1. Download or clone this repository
-2. Install dependencies and build:
+Install dependencies and build the extension:
 
 ```bash
 npm install
 npm run build
 ```
 
-3. Open Chrome and go to `chrome://extensions/`
-4. Enable "Developer mode"
-5. Click "Load unpacked" and select the `dist` folder
+Load it in Chrome:
 
-### Configure
+1. Open `chrome://extensions/`.
+2. Enable **Developer mode**.
+3. Click **Load unpacked**.
+4. Select the generated `dist` folder.
 
-1. Click the extension icon → Open Settings
-2. Choose a provider preset (e.g. DeepSeek) or customize
-3. Enter your API Key
-4. Click "Test Connection" — settings auto-save on success
+## Configuration
 
-## 📖 Usage
+1. Open the extension settings page.
+2. Choose a provider preset, or configure a custom OpenAI-compatible endpoint.
+3. Enter your API key.
+4. Click **Test Connection**. A successful test saves the settings automatically.
 
-| Action | Description |
-|--------|-------------|
-| Select text | A translation icon appears — click to translate |
-| Right-click menu | Select text → "Translate selection with Astra" |
-| `Alt+T` | Keyboard shortcut to translate selection |
-| Extension icon | Open popup for manual translation |
-| Full page | Popup footer → "Translate Current Page" |
+## Usage
 
-## 🛠 Tech Stack
+| Action | Result |
+| --- | --- |
+| Select text | Shows a translation icon near the selection |
+| Right-click selected text | Opens the Astra context-menu translation action |
+| `Alt+T` | Translates the current selection |
+| Extension icon | Opens the manual translation popup |
+| Floating ball | Starts full-page translation |
+| Page translation restore | Restores original page text where tracked |
 
-- **TypeScript** + **React 18** (Popup / Options)
-- **Vanilla DOM** (Content Script, zero dependencies)
-- **Vite 5** build
-- **Chrome Manifest V3**
+## Translation Cache
 
-## 📁 Project Structure
+Astra uses a local exact-match cache before calling the provider. The cache key includes:
 
+- translation mode
+- provider, model, base URL, and endpoint
+- target language
+- resolved system prompt
+- normalized source text
+- dictionary context, when dictionary mode is used
+
+This avoids stale or incorrect reuse when you change model, provider, prompt, target language, or dictionary context.
+
+## Development
+
+```bash
+npm install
+npm run build
 ```
+
+Project layout:
+
+```text
 src/
-├── background/     # Service Worker (message routing, API calls)
-├── content/        # Content Script (selection, popup, page translation)
-├── popup/          # Popup UI (React)
-├── options/        # Settings UI (React)
-├── shared/         # Shared modules (types, utils, i18n)
-└── styles/         # Theme variables
+  background/   Service worker, provider calls, translation cache
+  content/      Selection bubble, floating ball, page translation
+  options/      Settings UI
+  popup/        Manual translation popup
+  shared/       Types, prompts, storage, utilities, i18n
+public/
+  manifest.json Chrome extension manifest
 ```
 
-## 📄 License
+## Release Build
+
+Build the extension and package the `dist` folder as a zip file for upload to GitHub Releases or browser extension stores.
+
+```bash
+npm run build
+```
+
+## Privacy
+
+- Text is sent only to the API provider you configure.
+- API keys are stored in `chrome.storage.local`.
+- Translation cache entries are stored locally in the browser profile.
+- Password inputs, code blocks, scripts, and other unsafe page regions are skipped by the page translator.
+
+## License
 
 MIT License

@@ -18,6 +18,13 @@ import { translateViaProvider } from "./providerClient";
 import { ProviderRequestError, AstraError } from "./errors";
 import { extractJson } from "../shared/utils";
 import { resolveTargetLanguageForText, resolveTranslationMode } from "../shared/languageDetect";
+import {
+  createTranslationCacheKey,
+  getCachedTranslation,
+  getCachedTranslations,
+  setCachedTranslation,
+  setCachedTranslations,
+} from "./translationCache";
 
 /**
  * Handle all messages from popup / options / content scripts.
@@ -115,10 +122,6 @@ async function handleTranslateText(
   const settings = await getSettings();
   const lang = getLang(settings);
 
-  if (!settings.apiKey) {
-    return { success: false, error: t(lang, "error.apiKeyNotConfigured") };
-  }
-
   const { text, targetLang, prompt, mode, contextBefore, contextAfter, fullLineText } = msg.payload!;
 
   // Smart target language resolution:
@@ -152,9 +155,33 @@ async function handleTranslateText(
     /\{\{targetLang\}\}/g,
     finalTargetLang
   );
+  const cacheKey = await createTranslationCacheKey({
+    mode: effectiveMode === "selection" ? "selection" : "manual",
+    text,
+    targetLang: finalTargetLang,
+    systemPrompt,
+    settings,
+  });
+  const cached = await getCachedTranslation(cacheKey, settings);
+  if (cached) {
+    return {
+      success: true,
+      translation: cached.translation,
+      resolvedLang: cached.resolvedLang || finalTargetLang,
+    };
+  }
+
+  if (!settings.apiKey) {
+    return { success: false, error: t(lang, "error.apiKeyNotConfigured") };
+  }
 
   try {
     const translation = await translateViaProvider(settings, systemPrompt, text, lang);
+    await setCachedTranslation(
+      cacheKey,
+      { translation, resolvedLang: finalTargetLang },
+      settings
+    );
     return { success: true, translation, resolvedLang: finalTargetLang };
   } catch (err) {
     return {
@@ -187,6 +214,29 @@ async function handleDictionaryTranslation(
     contextAfter,
     fullLineText,
   });
+  const cacheKey = await createTranslationCacheKey({
+    mode: "dictionary",
+    text,
+    targetLang,
+    systemPrompt,
+    settings,
+    contextBefore,
+    contextAfter,
+    fullLineText,
+  });
+  const cached = await getCachedTranslation(cacheKey, settings);
+  if (cached) {
+    return {
+      success: true,
+      translation: cached.translation,
+      resolvedLang: cached.resolvedLang || targetLang,
+      dictionaryResult: cached.dictionaryResult,
+    };
+  }
+
+  if (!settings.apiKey) {
+    return { success: false, error: t(lang, "error.apiKeyNotConfigured") };
+  }
 
   try {
     const raw = await translateViaProvider(settings, systemPrompt, userContent, lang);
@@ -219,15 +269,26 @@ async function handleDictionaryTranslation(
       if (parsed.pronunciation && typeof parsed.pronunciation !== "string") {
         (parsed as any).pronunciation = undefined;
       }
+      const translation = parsed.translation || text;
+      await setCachedTranslation(
+        cacheKey,
+        { translation, resolvedLang: targetLang, dictionaryResult: parsed },
+        settings
+      );
       return {
         success: true,
-        translation: parsed.translation || text,
+        translation,
         resolvedLang: targetLang,
         dictionaryResult: parsed,
       };
     }
 
     // JSON parse failed or invalid format — fall back to plain translation
+    await setCachedTranslation(
+      cacheKey,
+      { translation: raw, resolvedLang: targetLang },
+      settings
+    );
     return {
       success: true,
       translation: raw,
@@ -249,19 +310,53 @@ async function handleTranslateBatch(
   const settings = await getSettings();
   const lang = getLang(settings);
 
+  const { items, targetLang, prompt } = msg.payload!;
+  const finalTargetLang = targetLang || settings.defaultTargetLang;
+  const systemPrompt = (prompt || settings.pagePrompt).replace(
+    /\{\{targetLang\}\}/g,
+    finalTargetLang
+  );
+  const cacheRecords = await Promise.all(items.map(async (item) => ({
+    item,
+    key: await createTranslationCacheKey({
+      mode: "page",
+      text: item.text,
+      targetLang: finalTargetLang,
+      systemPrompt,
+      settings,
+    }),
+  })));
+  const cached = await getCachedTranslations(
+    cacheRecords.map((record) => record.key),
+    settings
+  );
+  const translatedById = new Map<string, string>();
+  const misses: typeof cacheRecords = [];
+
+  for (const record of cacheRecords) {
+    const hit = cached.get(record.key);
+    if (hit) {
+      translatedById.set(record.item.id, hit.translation);
+    } else {
+      misses.push(record);
+    }
+  }
+
+  if (misses.length === 0) {
+    return {
+      success: true,
+      items: items.map((item) => ({ id: item.id, text: translatedById.get(item.id) || item.text })),
+    };
+  }
+
   if (!settings.apiKey) {
     return { success: false, error: t(lang, "error.apiKeyNotConfigured") };
   }
 
-  const { items, targetLang, prompt } = msg.payload!;
-  const systemPrompt = (prompt || settings.pagePrompt).replace(
-    /\{\{targetLang\}\}/g,
-    targetLang || settings.defaultTargetLang
-  );
-
+  const requestItems = misses.map((record) => record.item);
   const userInput = JSON.stringify({
-    targetLang: targetLang || settings.defaultTargetLang,
-    items,
+    targetLang: finalTargetLang,
+    items: requestItems,
   });
 
   try {
@@ -288,7 +383,28 @@ async function handleTranslateBatch(
       };
     }
 
-    return { success: true, items: parsed.items };
+    const missById = new Map(misses.map((record) => [record.item.id, record]));
+    const cacheWrites: Array<{ key: string; value: { translation: string; resolvedLang: string } }> = [];
+
+    for (const translated of parsed.items) {
+      translatedById.set(translated.id, translated.text);
+      const record = missById.get(translated.id);
+      if (record) {
+        cacheWrites.push({
+          key: record.key,
+          value: { translation: translated.text, resolvedLang: finalTargetLang },
+        });
+      }
+    }
+
+    await setCachedTranslations(cacheWrites, settings);
+
+    return {
+      success: true,
+      items: items
+        .filter((item) => translatedById.has(item.id))
+        .map((item) => ({ id: item.id, text: translatedById.get(item.id)! })),
+    };
   } catch (err) {
     return {
       success: false,

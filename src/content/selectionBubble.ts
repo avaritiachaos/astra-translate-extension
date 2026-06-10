@@ -295,6 +295,11 @@ export function injectThemeVars(): void {
       border-radius: 2px;
       transition: width 200ms ease-out;
     }
+    .${BUBBLE_PREFIX}-progress-scroll {
+      padding: 10px 14px;
+      cursor: default;
+      pointer-events: none;
+    }
     @media (prefers-color-scheme: dark) {
       .${BUBBLE_PREFIX}-progress-fill { background: #818cf8; }
     }
@@ -329,31 +334,6 @@ export function injectThemeVars(): void {
         background: #2d1b1b;
         color: #f87171;
         border-color: #4a2020;
-      }
-    }
-    /* ---- Scroll translation hint ---- */
-    .${BUBBLE_PREFIX}-scroll-hint {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      z-index: 2147483645;
-      background: rgba(99, 102, 241, 0.9);
-      color: #fff;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      font-size: 12px;
-      font-weight: 500;
-      box-shadow: 0 2px 12px rgba(99, 102, 241, 0.3);
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 400ms ease-out;
-      animation: ${BUBBLE_PREFIX}-bubble-in 200ms ease-out;
-    }
-    @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-scroll-hint {
-        background: rgba(79, 70, 229, 0.9);
-        box-shadow: 0 2px 12px rgba(79, 70, 229, 0.4);
       }
     }
     /* ---- Draggable Popup (context menu / selection button) ---- */

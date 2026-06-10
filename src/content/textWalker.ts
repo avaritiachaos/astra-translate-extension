@@ -100,7 +100,6 @@ function isTranslatableText(text: string): boolean {
  */
 export function collectTextNodes(root: HTMLElement): CollectedNode[] {
   const collected: CollectedNode[] = [];
-  const seen = new Set<string>();
 
   const walker = document.createTreeWalker(
     root,
@@ -119,11 +118,6 @@ export function collectTextNodes(root: HTMLElement): CollectedNode[] {
   while ((node = walker.nextNode() as Text | null)) {
     const text = node.textContent?.trim() || "";
     if (!text) continue;
-
-    // Deduplicate identical texts
-    const key = text;
-    if (seen.has(key)) continue;
-    seen.add(key);
 
     collected.push({
       id: uid(),

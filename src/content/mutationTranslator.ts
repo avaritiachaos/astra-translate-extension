@@ -77,14 +77,10 @@ export class MutationTranslator {
 
     // Collect translatable text from these nodes
     const collected: CollectedNode[] = [];
-    const seen = new Set<string>();
-
     for (const node of nodes) {
       if (!node.parentElement) continue;
       const text = (node as Text).textContent?.trim() || "";
       if (!text || text.length < 2) continue;
-      if (seen.has(text)) continue;
-      seen.add(text);
 
       collected.push({
         id: Math.random().toString(36).slice(2, 10),

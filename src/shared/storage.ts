@@ -40,6 +40,8 @@ export function getDefaultSettings(): AstraSettings {
     sameLanguageMinPurity: 0.82,
     dictionaryModeEnabled: true,
     dictionaryPrompt: DEFAULT_DICTIONARY_PROMPT,
+    enableTranslationCache: true,
+    translationCacheMaxEntries: 5000,
   };
 }
 

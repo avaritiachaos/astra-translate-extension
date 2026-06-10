@@ -16,10 +16,28 @@ import {
   setPopupScale,
 } from "./selectionBubble";
 import { PageTranslator } from "./pageTranslator";
-import { initFloatingBall, updateFloatingBall } from "./floatingBall";
+import { ensureFloatingBallMounted, initFloatingBall, updateFloatingBall } from "./floatingBall";
 import type { UiLanguage } from "../shared/i18n";
 
 let pageTranslator: PageTranslator | null = null;
+let pageTranslatorPageKey = currentPageKey();
+
+function currentPageKey(): string {
+  return `${window.location.origin}${window.location.pathname}${window.location.search}`;
+}
+
+function monitorPageState(): void {
+  ensureFloatingBallMounted();
+
+  const pageKey = currentPageKey();
+  if (pageKey === pageTranslatorPageKey) return;
+
+  pageTranslatorPageKey = pageKey;
+  if (pageTranslator) {
+    pageTranslator.abort();
+    pageTranslator = null;
+  }
+}
 
 // ---- Selection handling ----
 
@@ -143,6 +161,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 });
 
 async function startPageTranslation(): Promise<void> {
+  const startPageKey = currentPageKey();
+
   if (pageTranslator) {
     pageTranslator.restore();
     pageTranslator = null;
@@ -167,6 +187,9 @@ async function startPageTranslation(): Promise<void> {
     // Use defaults
   }
 
+  if (startPageKey !== currentPageKey()) return;
+
+  pageTranslatorPageKey = startPageKey;
   pageTranslator = new PageTranslator({
     targetLang,
     batchSize,
@@ -188,6 +211,7 @@ async function startPageTranslation(): Promise<void> {
 
 prefetchLang();
 initBubbleClose();
+window.setInterval(monitorPageState, 500);
 
 // Initialize floating ball
 chrome.runtime.sendMessage({ type: "GET_SETTINGS" }).then((settings) => {

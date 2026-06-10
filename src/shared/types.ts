@@ -60,6 +60,9 @@ export interface AstraSettings extends UserProviderSettings {
   // Dictionary Mode
   dictionaryModeEnabled: boolean;
   dictionaryPrompt: string;
+  // Translation Cache
+  enableTranslationCache: boolean;
+  translationCacheMaxEntries: number;
 }
 
 // ---------- Messages ----------

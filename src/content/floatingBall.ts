@@ -14,6 +14,7 @@ let cachedLang: UiLanguage = "zh-CN";
 let currentOpacity = 0.8;
 let currentSize = 48;
 let isEnabled = true;
+let hasInitialized = false;
 let onTranslatePage: (() => void) | null = null;
 
 // Drag state
@@ -37,8 +38,20 @@ export function initFloatingBall(opts: {
   currentSize = opts.size || 48;
   isEnabled = opts.enabled;
   onTranslatePage = opts.onTranslatePage || null;
+  hasInitialized = true;
 
   if (isEnabled) {
+    show();
+  }
+}
+
+/** Recreate injected floating-ball UI if the page removed it during navigation. */
+export function ensureFloatingBallMounted(): void {
+  if (!hasInitialized) return;
+  if (!isEnabled) return;
+  if (!ball || !ball.isConnected || ball.ownerDocument !== document) {
+    ball = null;
+    closeSettingsPanel();
     show();
   }
 }
@@ -50,6 +63,7 @@ export function updateFloatingBall(opts: {
   size?: number;
   lang?: UiLanguage;
 }): void {
+  hasInitialized = true;
   if (opts.lang !== undefined) cachedLang = opts.lang;
   if (opts.opacity !== undefined) currentOpacity = opts.opacity;
   if (opts.size !== undefined) currentSize = opts.size;
@@ -81,6 +95,9 @@ function applyBallStyles(el: HTMLElement): void {
 }
 
 function show(): void {
+  if (ball && (!ball.isConnected || ball.ownerDocument !== document)) {
+    ball = null;
+  }
   if (ball) return;
   injectThemeVars();
   createBall();

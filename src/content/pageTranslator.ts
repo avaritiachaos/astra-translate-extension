@@ -13,20 +13,28 @@ import { debounce } from "../shared/utils";
 const AST_PREFIX = "ast";
 const MAX_RETRIES = 1;
 const SCROLL_DEBOUNCE_MS = 1500;
+const MAX_BATCH_NODES = 8;
+
+function currentPageKey(): string {
+  return `${window.location.origin}${window.location.pathname}${window.location.search}`;
+}
 
 export class PageTranslator {
   private nodeMap: Map<string, CollectedNode> = new Map();
   private translationCache: Map<string, string> = new Map();
+  private translatedTexts: Set<string> = new Set();
+  private processedTextNodes: WeakSet<Text> = new WeakSet();
   private originalTexts: WeakMap<Text, string> = new WeakMap();
   private progressEl: HTMLElement | null = null;
-  private scrollHintEl: HTMLElement | null = null;
-  private scrollHintTimer: ReturnType<typeof setTimeout> | null = null;
+  private progressHideTimer: ReturnType<typeof setTimeout> | null = null;
   private mutationTranslator: MutationTranslator;
   private targetLang: string;
   private batchSize: number;
   private concurrency: number;
+  private enableRealtime: boolean;
   private aborted = false;
   private initialDone = false;
+  private pageKey = "";
   private statusCallback?: (status: PageTranslateStatus) => void;
   private lang: UiLanguage = "zh-CN";
   private debouncedScrollScan: () => void;
@@ -43,6 +51,7 @@ export class PageTranslator {
     this.targetLang = opts.targetLang || "Simplified Chinese";
     this.batchSize = opts.batchSize || 4000;
     this.concurrency = opts.concurrency || 2;
+    this.enableRealtime = opts.enableRealtime ?? true;
     this.statusCallback = opts.onStatus;
     this.lang = opts.lang || "zh-CN";
 
@@ -56,6 +65,7 @@ export class PageTranslator {
   async start(): Promise<void> {
     this.aborted = false;
     this.initialDone = false;
+    this.pageKey = currentPageKey();
     this.showProgress({ phase: "collecting", total: 0, completed: 0, failed: 0 });
 
     const nodes = collectTextNodes(document.body);
@@ -66,16 +76,19 @@ export class PageTranslator {
 
     for (const n of nodes) {
       this.nodeMap.set(n.id, n);
+      this.processedTextNodes.add(n.node);
       this.originalTexts.set(n.node, n.node.textContent || "");
     }
 
     this.showProgress({ phase: "translating", total: nodes.length, completed: 0, failed: 0 });
 
-    // Start MutationTranslator immediately to catch dynamically added nodes
-    this.mutationTranslator.start();
+    if (this.enableRealtime) {
+      // Start MutationTranslator immediately to catch dynamically added nodes.
+      this.mutationTranslator.start();
 
-    // Start scroll-based detection for lazy-loaded content
-    this.startScrollDetection();
+      // Start scroll-based detection for lazy-loaded content.
+      this.startScrollDetection();
+    }
 
     const batches = this.createBatches(nodes);
     let completed = 0;
@@ -87,7 +100,7 @@ export class PageTranslator {
     for (let i = 0; i < this.concurrency; i++) {
       workers.push(
         (async () => {
-          while (queue.length > 0 && !this.aborted) {
+          while (queue.length > 0 && this.isActiveOnCurrentPage()) {
             const batch = queue.shift()!;
             const result = await this.translateBatch(batch);
             completed += result.completed;
@@ -133,6 +146,8 @@ export class PageTranslator {
 
     this.nodeMap.clear();
     this.translationCache.clear();
+    this.translatedTexts.clear();
+    this.processedTextNodes = new WeakSet();
     this.removeProgress();
   }
 
@@ -163,22 +178,28 @@ export class PageTranslator {
    * the initial pass and wasn't picked up by the MutationObserver.
    */
   private scanForNewNodes(): void {
-    if (this.aborted) return;
+    if (!this.isActiveOnCurrentPage()) return;
 
     const allNodes = collectTextNodes(document.body);
     const newNodes: CollectedNode[] = [];
 
     for (const n of allNodes) {
-      // Skip nodes we already know about
-      if (this.nodeMap.has(n.id)) continue;
+      // Skip text nodes this translator has already handled.
+      if (this.processedTextNodes.has(n.node)) continue;
 
       const text = n.originalText;
+      if (this.translatedTexts.has(text)) {
+        this.processedTextNodes.add(n.node);
+        this.nodeMap.set(n.id, n);
+        continue;
+      }
+
       // Check if this exact text was already translated (same content, different node)
       const cachedTranslation = this.translationCache.get(text);
       if (cachedTranslation) {
         // Same text as something already translated — apply cached translation
-        this.originalTexts.set(n.node, n.node.textContent || "");
-        n.node.textContent = cachedTranslation;
+        this.processedTextNodes.add(n.node);
+        this.applyTranslation(n, cachedTranslation);
         this.nodeMap.set(n.id, n);
         continue;
       }
@@ -188,6 +209,7 @@ export class PageTranslator {
       const currentText = n.node.textContent?.trim() || "";
       if (currentText !== text) {
         // Text was already changed (possibly translated by mutation translator)
+        this.processedTextNodes.add(n.node);
         this.nodeMap.set(n.id, n);
         continue;
       }
@@ -199,7 +221,9 @@ export class PageTranslator {
     }
 
     if (newNodes.length > 0) {
-      this.showScrollHint(newNodes.length);
+      if (this.initialDone) {
+        this.showScrollHint(newNodes.length);
+      }
       this.translateNodes(newNodes);
     }
   }
@@ -211,7 +235,9 @@ export class PageTranslator {
 
     for (const node of nodes) {
       const textLen = node.originalText.length;
-      if (currentSize + textLen > this.batchSize && currentBatch.length > 0) {
+      const exceedsTextBudget = currentSize + textLen > this.batchSize;
+      const exceedsNodeBudget = currentBatch.length >= MAX_BATCH_NODES;
+      if ((exceedsTextBudget || exceedsNodeBudget) && currentBatch.length > 0) {
         batches.push(currentBatch);
         currentBatch = [];
         currentSize = 0;
@@ -228,7 +254,9 @@ export class PageTranslator {
   }
 
   private async translateBatch(batch: CollectedNode[]): Promise<{ completed: number; failed: number }> {
-    const uncached: CollectedNode[] = [];
+    if (!this.isActiveOnCurrentPage()) return { completed: 0, failed: 0 };
+
+    const uncachedByText: Map<string, CollectedNode[]> = new Map();
     let cachedCount = 0;
 
     for (const node of batch) {
@@ -237,15 +265,24 @@ export class PageTranslator {
         this.applyTranslation(node, cached);
         cachedCount++;
       } else {
-        uncached.push(node);
+        const existing = uncachedByText.get(node.originalText);
+        if (existing) {
+          existing.push(node);
+        } else {
+          uncachedByText.set(node.originalText, [node]);
+        }
       }
     }
 
-    if (uncached.length === 0) {
+    if (uncachedByText.size === 0) {
       return { completed: cachedCount, failed: 0 };
     }
 
-    const items = uncached.map((n) => ({ id: n.id, text: n.originalText }));
+    const items = Array.from(uncachedByText, ([text, nodes]) => ({ id: nodes[0].id, text }));
+    const uncachedCount = Array.from(uncachedByText.values()).reduce(
+      (sum, nodes) => sum + nodes.length,
+      0
+    );
 
     let retries = 0;
 
@@ -256,35 +293,63 @@ export class PageTranslator {
           payload: { items, targetLang: this.targetLang },
         });
 
+        if (!this.isActiveOnCurrentPage()) return { completed: cachedCount, failed: 0 };
+
         if (response?.success && response.items) {
           let completed = cachedCount;
-          let failed = 0;
+          let translatedCount = 0;
 
           for (const translated of response.items) {
-            const original = batch.find((n) => n.id === translated.id);
-            if (original) {
-              this.translationCache.set(original.originalText, translated.text);
-              this.applyTranslation(original, translated.text);
-              completed++;
+            const source = items.find((item) => item.id === translated.id);
+            if (!source) continue;
+
+            const originals = uncachedByText.get(source.text);
+            if (originals) {
+              this.translationCache.set(source.text, translated.text);
+              for (const original of originals) {
+                this.applyTranslation(original, translated.text);
+                completed++;
+                translatedCount++;
+              }
             }
           }
 
+          const failed = Math.max(0, uncachedCount - translatedCount);
           return { completed, failed };
         } else {
           retries++;
         }
       } catch {
+        if (!this.isActiveOnCurrentPage()) return { completed: cachedCount, failed: 0 };
         retries++;
       }
     }
 
-    return { completed: cachedCount, failed: uncached.length };
+    return { completed: cachedCount, failed: uncachedCount };
   }
 
   private async translateNodes(nodes: CollectedNode[]): Promise<void> {
-    const batches = this.createBatches(nodes);
+    if (!this.isActiveOnCurrentPage()) return;
+
+    const pendingNodes: CollectedNode[] = [];
+    for (const node of nodes) {
+      if (this.processedTextNodes.has(node.node)) continue;
+
+      this.processedTextNodes.add(node.node);
+      this.nodeMap.set(node.id, node);
+      if (!this.originalTexts.has(node.node)) {
+        this.originalTexts.set(node.node, node.node.textContent || "");
+      }
+
+      if (this.translatedTexts.has(node.originalText)) continue;
+      pendingNodes.push(node);
+    }
+
+    if (pendingNodes.length === 0) return;
+
+    const batches = this.createBatches(pendingNodes);
     for (const batch of batches) {
-      if (this.aborted) return;
+      if (!this.isActiveOnCurrentPage()) return;
       await this.translateBatch(batch);
     }
   }
@@ -294,6 +359,10 @@ export class PageTranslator {
       this.originalTexts.set(node.node, node.node.textContent || "");
     }
     node.node.textContent = translated;
+    const translatedText = translated.trim();
+    if (translatedText) {
+      this.translatedTexts.add(translatedText);
+    }
   }
 
   private showProgress(status: PageTranslateStatus): void {
@@ -302,8 +371,12 @@ export class PageTranslator {
     if (!this.progressEl) {
       injectThemeVars();
       this.progressEl = document.createElement("div");
-      this.progressEl.className = `${AST_PREFIX}-progress`;
       document.body.appendChild(this.progressEl);
+    }
+    this.progressEl.className = `${AST_PREFIX}-progress`;
+
+    if (status.phase !== "done") {
+      this.clearProgressHideTimer();
     }
 
     let text = "";
@@ -324,7 +397,7 @@ export class PageTranslator {
           ? t(this.lang, "page.completedWithFail", { failed: status.failed })
           : t(this.lang, "page.completed");
         progress = 100;
-        setTimeout(() => this.removeProgress(), 3000);
+        this.scheduleProgressRemoval(3000);
         break;
       case "error":
         text = `${t(this.lang, "page.failed")}: ${status.error || t(this.lang, "error.unknown")}`;
@@ -357,33 +430,45 @@ export class PageTranslator {
 
   /** Show a brief, subtle hint when scroll-based translation detects new content. */
   private showScrollHint(count: number): void {
-    if (!this.scrollHintEl) {
+    if (!this.progressEl) {
       injectThemeVars();
-      this.scrollHintEl = document.createElement("div");
-      this.scrollHintEl.className = `${AST_PREFIX}-scroll-hint`;
-      document.body.appendChild(this.scrollHintEl);
+      this.progressEl = document.createElement("div");
+      document.body.appendChild(this.progressEl);
     }
 
-    this.scrollHintEl.textContent = `⟳ ${t(this.lang, "page.translating", { done: 0, total: count })}`;
-    this.scrollHintEl.style.opacity = "1";
+    this.progressEl.className = `${AST_PREFIX}-progress ${AST_PREFIX}-progress-scroll`;
+    this.progressEl.innerHTML = `
+      <div class="${AST_PREFIX}-spinner"></div>
+      <div>${t(this.lang, "page.translating", { done: 0, total: count })}</div>
+    `;
 
-    if (this.scrollHintTimer) clearTimeout(this.scrollHintTimer);
-    this.scrollHintTimer = setTimeout(() => {
-      if (this.scrollHintEl) {
-        this.scrollHintEl.style.opacity = "0";
-        setTimeout(() => {
-          this.scrollHintEl?.remove();
-          this.scrollHintEl = null;
-        }, 400);
-      }
-    }, 2500);
+    this.scheduleProgressRemoval(2500);
+  }
+
+  private isActiveOnCurrentPage(): boolean {
+    if (this.aborted) return false;
+    if (this.pageKey && this.pageKey !== currentPageKey()) {
+      this.abort();
+      return false;
+    }
+    return true;
+  }
+
+  private clearProgressHideTimer(): void {
+    if (this.progressHideTimer) {
+      clearTimeout(this.progressHideTimer);
+      this.progressHideTimer = null;
+    }
+  }
+
+  private scheduleProgressRemoval(ms: number): void {
+    this.clearProgressHideTimer();
+    this.progressHideTimer = setTimeout(() => this.removeProgress(), ms);
   }
 
   private removeProgress(): void {
+    this.clearProgressHideTimer();
     this.progressEl?.remove();
     this.progressEl = null;
-    if (this.scrollHintTimer) clearTimeout(this.scrollHintTimer);
-    this.scrollHintEl?.remove();
-    this.scrollHintEl = null;
   }
 }
