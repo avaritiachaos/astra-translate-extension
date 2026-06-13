@@ -2,107 +2,195 @@
 
 [中文](README.md) · [日本語](README_JP.md)
 
-> A lightweight, provider-neutral browser translator for selection, manual, and full-page translation.
-
 <p align="center">
   <img src="public/icons/icon128.png" alt="Astra Translate" width="96" />
 </p>
 
-## Features
+<p align="center">
+  <b>A lightweight, elegant, provider-neutral browser translator</b><br/>
+  Bring your own LLM API — translate more accurately, more cheaply, your way. No login, no subscription, no ads.
+</p>
 
-- **Selection translation**: select text and translate it from the inline icon, context menu, or `Alt+T`.
-- **Manual translation popup**: translate typed or pasted text from the extension popup.
-- **Full-page translation**: translate visible page text and keep translating lazy-loaded content while staying on the same page.
-- **Persistent translation cache**: repeated source text can be served locally without another API request when provider, model, prompt, and target language match.
-- **Smarter page progress**: page translation reports real completed item counts with smaller batches for visible progress.
-- **SPA navigation safety**: page translation stops when a single-page app navigates to a different route.
-- **Floating ball**: quick page translation entry point with drag, size, opacity, and auto-recovery after page navigation.
-- **Provider-neutral API support**: works with OpenAI-compatible providers such as DeepSeek and custom endpoints.
-- **Dictionary mode**: short words and phrases can return concise dictionary-style explanations.
-- **Privacy-first local settings**: API keys and translation cache are stored in `chrome.storage.local`.
+<p align="center">
+  <img src="https://img.shields.io/badge/version-3.0.5-7C5CFF" alt="version" />
+  <img src="https://img.shields.io/badge/Manifest-V3-4F46E5" alt="manifest v3" />
+  <img src="https://img.shields.io/badge/TypeScript-React_18-3178C6" alt="tech" />
+  <img src="https://img.shields.io/badge/license-MIT-3FB950" alt="license" />
+</p>
 
-## Quick Start
+---
 
-Install dependencies and build the extension:
+## Why Astra?
+
+Most translation extensions push you to sign in, buy a membership, or limit
+your usage — or they bury you in ads. Astra does the opposite: **it doesn't
+hold you hostage; it just translates well.**
+
+- 🔑 **Bring your own API** — connect DeepSeek and other LLMs, pay per use
+- 🚫 **No login / no subscription / no ads** — install, paste a key, go
+- 💸 **Permanent cache** — repeated text returns instantly, with no second charge
+- 🎨 **Adjustable translation style** — make the model translate in the tone you like
+- 🔒 **Privacy-first** — your API key stays in local storage; no data collection
+
+---
+
+## ✨ Features
+
+### Multiple ways to translate
+- **Selection translation** — select text, get a floating ball, click to translate; the popup is draggable
+- **Context-menu translation** — right-click selected text to translate
+- **Keyboard shortcut** — `Alt+T` translates the current selection
+- **Full-page translation** — translate the whole page in one click; interrupt and restore anytime
+- **Manual translation** — open the popup and paste any text
+
+### Smart & automatic (on by default)
+- **Smart target language** — English selection → Chinese, Chinese selection → English; no manual direction switching
+- **Same-language purity check** — automatically avoids pointless "same-language" translations and wasted tokens
+- **Soft / hard content protection** — URLs, emails, paths, code, and hashes are detected and skipped; usernames / IDs are kept intact; password fields and code blocks are never translated
+- **Persistent cache** — built-in SHA-256 dedup cache (5000 entries by default, LRU); translated text returns instantly at zero extra cost
+- **Real-time incremental translation** — full-page mode keeps up with dynamically loaded and lazy-loaded content
+
+### Dictionary mode
+Selecting a word or short phrase returns not just a translation but its **part
+of speech, common meanings, context-specific explanation, examples, and
+pronunciation** — and it recognizes names / IDs and leaves them unchanged.
+Great for looking up words and reading foreign articles.
+
+### Highly customizable
+- **Three independent target languages** — set separate languages for full-page, selection, and default translation
+- **Custom prompts (style)** — both selection and page prompts are editable for any tone: formal, idiomatic, playful, academic
+- **Tune the UI** — floating ball size / opacity, popup scale, concurrency, batch size, timeout, and temperature
+
+### Provider-neutral
+Works with any **OpenAI-compatible** API (DeepSeek, OpenAI, Groq, local models,
+etc.). Freely set the base URL and model name. Gemini / Anthropic adapters are
+planned.
+
+### Experience details
+- **Trilingual UI** — 简体中文 / English / 日本語
+- **Automatic dark mode** — follows the system theme
+- **Auto-save settings** — changes persist immediately; a successful connection test saves automatically
+- **20 target languages** — Chinese, English, Japanese, Korean, French, German, Spanish, Russian, Arabic, and more
+
+---
+
+## 📸 Preview
+
+> Drop demo screenshots into `docs/screenshots/`, then uncomment below.
+
+<!--
+<p align="center">
+  <img src="docs/screenshots/page.png" width="45%" alt="Full-page translation" />
+  <img src="docs/screenshots/dict.png" width="45%" alt="Dictionary mode" />
+</p>
+-->
+
+---
+
+## 🚀 Quick Start
+
+### Option 1: Use the packaged build (recommended for most users)
+
+1. Download the provided package and **unzip** it (you'll get an extension folder containing `manifest.json`)
+2. Open the extensions page: `chrome://extensions` (Chrome) or `edge://extensions` (Edge)
+3. Enable **Developer mode**
+4. Click **Load unpacked** and select the unzipped extension folder
+
+> ⚠️ Browsers cannot load a `.zip` directly — always unzip first, then load the folder.
+
+### Option 2: Build from source (developers)
 
 ```bash
 npm install
 npm run build
 ```
 
-Load it in Chrome:
+The build output is in `dist/`. Load the `dist` folder following steps 2–4 above.
 
-1. Open `chrome://extensions/`.
-2. Enable **Developer mode**.
-3. Click **Load unpacked**.
-4. Select the generated `dist` folder.
+### Configuration
 
-## Configuration
+1. Click the extension icon → **Open Settings**
+2. Choose the DeepSeek **provider preset** (or a custom OpenAI-compatible endpoint)
+3. Enter your **API Key** (create one at <https://platform.deepseek.com> after signing up and topping up)
+4. Click **Test Connection** — it saves automatically on success
 
-1. Open the extension settings page.
-2. Choose a provider preset, or configure a custom OpenAI-compatible endpoint.
-3. Enter your API key.
-4. Click **Test Connection**. A successful test saves the settings automatically.
+---
 
-## Usage
+## 📖 Usage
 
 | Action | Result |
-| --- | --- |
-| Select text | Shows a translation icon near the selection |
-| Right-click selected text | Opens the Astra context-menu translation action |
-| `Alt+T` | Translates the current selection |
-| Extension icon | Opens the manual translation popup |
-| Floating ball | Starts full-page translation |
-| Page translation restore | Restores original page text where tracked |
+|--------|--------|
+| Select text | A floating ball appears — click to translate |
+| Right-click selection | "Translate selection with Astra" |
+| `Alt+T` | Translate the current selection |
+| Extension icon | Open the popup to type / paste and translate |
+| Full-page translation | Popup → "Translate Current Page"; "Restore" brings back the original |
+| Look up a word | Select a word; the popup shows part of speech / meanings / examples / pronunciation |
 
-## Translation Cache
+---
 
-Astra uses a local exact-match cache before calling the provider. The cache key includes:
+## ⚙️ Settings Reference
 
-- translation mode
-- provider, model, base URL, and endpoint
-- target language
-- resolved system prompt
-- normalized source text
-- dictionary context, when dictionary mode is used
+| Group | Setting | Default | Notes |
+|-------|---------|---------|-------|
+| Provider | Preset / Base URL / Endpoint / Model / API Key | DeepSeek · `deepseek-v4-flash` | OpenAI-compatible |
+| Provider | Disable thinking | On | Speeds up / saves cost on thinking-capable models |
+| Translation | Default / Page / Selection target language | Simplified Chinese | Three independent settings |
+| Translation | Temperature | 0.2 | Lower is more stable |
+| Translation | Smart target language | On | Auto-detects direction |
+| Translation | Secondary target / smart max chars | English / 40 | Reverse translation for short text |
+| Translation | Same-language → secondary / min purity | On / 0.82 | Avoids same-language translation |
+| Translation | Dictionary mode | On | Shows POS / meanings / examples for short words |
+| Translation | Timeout / batch size / concurrency | 30s / 4000 / 2 | Full-page performance tuning |
+| Translation | Real-time translation | On | Keeps up with dynamic / lazy content |
+| Floating ball | Enable / size / opacity | On / 48px / 80% | |
+| Floating ball | Popup scale | 100% | 80%–180% |
+| Prompts | Selection / page prompt | Built-in defaults | Customize style; supports the `{{targetLang}}` placeholder |
 
-This avoids stale or incorrect reuse when you change model, provider, prompt, target language, or dictionary context.
+> The translation cache is a built-in capability, on by default (~5000 entries, LRU). No configuration needed.
 
-## Development
+---
 
-```bash
-npm install
-npm run build
+## 🔒 Privacy
+
+- Text is sent only to the API provider **you** configure
+- The extension collects, stores, and transmits no user data
+- API keys are stored in `chrome.storage.local` and never sent to third parties
+- Password inputs and code blocks are never translated
+
+---
+
+## 🛠 Tech Stack
+
+- **TypeScript** + **React 18** (popup / options)
+- **Vanilla DOM** content script (zero runtime deps — small and fast to inject)
+- **Vite 5** build
+- **Chrome Manifest V3**
+
+---
+
+## 📁 Project Structure
+
 ```
-
-Project layout:
-
-```text
 src/
-  background/   Service worker, provider calls, translation cache
-  content/      Selection bubble, floating ball, page translation
-  options/      Settings UI
-  popup/        Manual translation popup
-  shared/       Types, prompts, storage, utilities, i18n
-public/
-  manifest.json Chrome extension manifest
+├── background/     # Service worker (message routing, API calls, translation cache)
+├── content/        # Content script (selection bubble, floating ball, popup, page translation)
+├── popup/          # Popup UI (React)
+├── options/        # Settings UI (React)
+├── shared/         # Shared modules (types, i18n, prompts, language detection, storage)
+└── styles/         # Theme variables
 ```
 
-## Release Build
+---
 
-Build the extension and package the `dist` folder as a zip file for upload to GitHub Releases or browser extension stores.
+## 🗺 Roadmap
 
-```bash
-npm run build
-```
+- [ ] Native Gemini / Anthropic adapters
+- [ ] More provider presets
+- [ ] Translation history & favorites
 
-## Privacy
+---
 
-- Text is sent only to the API provider you configure.
-- API keys are stored in `chrome.storage.local`.
-- Translation cache entries are stored locally in the browser profile.
-- Password inputs, code blocks, scripts, and other unsafe page regions are skipped by the page translator.
+## 📄 License
 
-## License
-
-MIT License
+[MIT](LICENSE) License — free to use, modify, and distribute; just keep the copyright notice.

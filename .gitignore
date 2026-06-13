@@ -12,3 +12,6 @@ dist/
 .DS_Store
 Thumbs.db
 *.zip
+
+# 本地资料目录，不入库
+商品交付/
