@@ -9,14 +9,91 @@ import { MutationTranslator } from "./mutationTranslator";
 import { injectThemeVars } from "./selectionBubble";
 import { t, type UiLanguage } from "../shared/i18n";
 import { debounce } from "../shared/utils";
+import { PAGE_SEGMENT_SEPARATOR } from "../shared/constants";
 
 const AST_PREFIX = "ast";
 const MAX_RETRIES = 1;
 const SCROLL_DEBOUNCE_MS = 1500;
+// Shorter debounce for draining the viewport queue so scrolled-in content
+// translates promptly without thrashing layout on every scroll tick.
+const DRAIN_DEBOUNCE_MS = 250;
 const MAX_BATCH_NODES = 8;
+// If the model fails to preserve segment separators this many times in a row
+// (e.g. a provider that strips them), stop grouping for the rest of the session.
+const GROUP_FAILURE_LIMIT = 5;
 
 function currentPageKey(): string {
   return `${window.location.origin}${window.location.pathname}${window.location.search}`;
+}
+
+/** Vertical margin (in px) treated as "near the viewport" — about one screen
+ * above and below, so scrolling reveals already-translated content. */
+function viewportMargin(): number {
+  return window.innerHeight || document.documentElement.clientHeight || 800;
+}
+
+/** Is a laid-out rect within (or near) the vertical viewport? Unit-agnostic so
+ * both text-node and block-level callers can share it. */
+function rectInViewport(rect: DOMRect, margin: number): boolean {
+  if (rect.width === 0 && rect.height === 0) return false;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 800;
+  return rect.top < vh + margin && rect.bottom > -margin;
+}
+
+/** Is the text node's containing element within (or near) the viewport? */
+function nodeInViewport(node: Text, margin: number): boolean {
+  const el = node.parentElement;
+  if (!el) return false;
+  return rectInViewport(el.getBoundingClientRect(), margin);
+}
+
+// Inline tags do not start a new block — text flows across them. Anything else
+// (P, LI, DIV, TD, …) is treated as a block boundary for grouping.
+const INLINE_TAGS = new Set([
+  "A", "ABBR", "B", "BDI", "BDO", "BR", "CITE", "CODE", "DATA", "DFN", "EM",
+  "I", "KBD", "MARK", "Q", "RP", "RT", "RUBY", "S", "SAMP", "SMALL", "SPAN",
+  "STRONG", "SUB", "SUP", "TIME", "U", "VAR", "WBR", "FONT", "INS", "DEL",
+  "NOBR", "TT", "BIG", "LABEL", "OUTPUT",
+]);
+
+/** Nearest ancestor element that is a block (non-inline) boundary. Text nodes
+ * sharing the same one belong to the same passage and translate together. */
+function nearestBlockAncestor(node: Text): Element | null {
+  let el = node.parentElement;
+  while (el && INLINE_TAGS.has(el.tagName)) el = el.parentElement;
+  return el;
+}
+
+/**
+ * Group document-ordered nodes into runs that share a block ancestor, so each
+ * run can be translated as one coherent passage. Only consecutive same-block
+ * nodes group (collectTextNodes returns document order, so a block's fragments
+ * are contiguous).
+ */
+function groupNodesByBlock(nodes: CollectedNode[]): CollectedNode[][] {
+  const groups: CollectedNode[][] = [];
+  let current: CollectedNode[] = [];
+  let currentBlock: Element | null = null;
+
+  for (const n of nodes) {
+    const block = nearestBlockAncestor(n.node);
+    if (current.length > 0 && block === currentBlock) {
+      current.push(n);
+    } else {
+      if (current.length > 0) groups.push(current);
+      current = [n];
+      currentBlock = block;
+    }
+  }
+  if (current.length > 0) groups.push(current);
+  return groups;
+}
+
+/** The single string sent to the API for a group: fragments joined by the
+ * separator (a lone fragment is sent as-is, with no separator). */
+function compositeText(group: CollectedNode[]): string {
+  if (group.length === 1) return group[0].originalText;
+  return group.map((n) => n.originalText).join(PAGE_SEGMENT_SEPARATOR);
 }
 
 export class PageTranslator {
@@ -32,6 +109,7 @@ export class PageTranslator {
   private batchSize: number;
   private concurrency: number;
   private enableRealtime: boolean;
+  private wholePage: boolean;
   private aborted = false;
   private initialDone = false;
   private pageKey = "";
@@ -39,12 +117,21 @@ export class PageTranslator {
   private lang: UiLanguage = "zh-CN";
   private debouncedScrollScan: () => void;
   private onScrollBound: (() => void) | null = null;
+  private debouncedDrain: () => void;
+  private onResizeBound: (() => void) | null = null;
+  // Nodes collected but not yet translated, awaiting scroll into view.
+  private deferred: Map<string, CollectedNode> = new Map();
+  // Adaptive grouping kill-switch: flipped on after repeated separator-preserve
+  // failures so the session degrades gracefully to per-node translation.
+  private groupingDisabled = false;
+  private groupFailureStreak = 0;
 
   constructor(opts: {
     targetLang: string;
     batchSize?: number;
     concurrency?: number;
     enableRealtime?: boolean;
+    translateWholePage?: boolean;
     lang?: UiLanguage;
     onStatus?: (status: PageTranslateStatus) => void;
   }) {
@@ -52,6 +139,7 @@ export class PageTranslator {
     this.batchSize = opts.batchSize || 4000;
     this.concurrency = opts.concurrency || 2;
     this.enableRealtime = opts.enableRealtime ?? true;
+    this.wholePage = opts.translateWholePage ?? false;
     this.statusCallback = opts.onStatus;
     this.lang = opts.lang || "zh-CN";
 
@@ -60,11 +148,14 @@ export class PageTranslator {
     });
 
     this.debouncedScrollScan = debounce(() => this.scanForNewNodes(), SCROLL_DEBOUNCE_MS);
+    this.debouncedDrain = debounce(() => this.drainDeferred(), DRAIN_DEBOUNCE_MS);
   }
 
   async start(): Promise<void> {
     this.aborted = false;
     this.initialDone = false;
+    this.groupingDisabled = false;
+    this.groupFailureStreak = 0;
     this.pageKey = currentPageKey();
     this.showProgress({ phase: "collecting", total: 0, completed: 0, failed: 0 });
 
@@ -80,17 +171,54 @@ export class PageTranslator {
       this.originalTexts.set(n.node, n.node.textContent || "");
     }
 
-    this.showProgress({ phase: "translating", total: nodes.length, completed: 0, failed: 0 });
-
     if (this.enableRealtime) {
       // Start MutationTranslator immediately to catch dynamically added nodes.
       this.mutationTranslator.start();
+    }
+    // Scroll/resize detection drives both the deferred-queue drain and
+    // lazy-loaded content detection.
+    this.startScrollDetection();
 
-      // Start scroll-based detection for lazy-loaded content.
-      this.startScrollDetection();
+    // Viewport-first: translate what the user can see now (plus ~1 screen of
+    // margin); defer the rest until it scrolls into view, so we don't spend
+    // tokens on parts of a long page the user may never read. When the user
+    // opts into whole-page translation, everything is translated up front.
+    const margin = viewportMargin();
+    const visible: CollectedNode[] = [];
+    for (const n of nodes) {
+      if (this.wholePage || nodeInViewport(n.node, margin)) {
+        visible.push(n);
+      } else {
+        this.deferred.set(n.id, n);
+      }
     }
 
-    const batches = this.createBatches(nodes);
+    // Fallback: if nothing measured as visible (e.g. layout not settled yet on
+    // a deep-linked anchor), translate the first screenful rather than nothing.
+    let initialNodes = visible;
+    if (initialNodes.length === 0) {
+      initialNodes = nodes.slice(0, MAX_BATCH_NODES * this.concurrency);
+      for (const n of initialNodes) this.deferred.delete(n.id);
+    }
+
+    this.showProgress({ phase: "translating", total: initialNodes.length, completed: 0, failed: 0 });
+
+    await this.runPrioritizedBatches(initialNodes);
+
+    if (this.aborted) return;
+
+    this.initialDone = true;
+  }
+
+  /**
+   * Translate a prioritized set of nodes (the initial viewport pass) with the
+   * configured concurrency, driving the main progress bar and finishing with a
+   * "done" status.
+   */
+  private async runPrioritizedBatches(nodes: CollectedNode[]): Promise<void> {
+    const total = nodes.length;
+    const groups = this.buildGroups(nodes);
+    const batches = this.createBatches(groups);
     let completed = 0;
     let failed = 0;
 
@@ -105,12 +233,7 @@ export class PageTranslator {
             const result = await this.translateBatch(batch);
             completed += result.completed;
             failed += result.failed;
-            this.showProgress({
-              phase: "translating",
-              total: nodes.length,
-              completed,
-              failed,
-            });
+            this.showProgress({ phase: "translating", total, completed, failed });
           }
         })()
       );
@@ -120,14 +243,53 @@ export class PageTranslator {
 
     if (this.aborted) return;
 
-    this.initialDone = true;
+    this.showProgress({ phase: "done", total, completed, failed });
+  }
 
-    this.showProgress({
-      phase: "done",
-      total: nodes.length,
-      completed,
-      failed,
-    });
+  /**
+   * Translate a set of deferred nodes that just scrolled into view. Uses the
+   * subtle scroll hint rather than taking over the main progress bar.
+   */
+  private async runDeferredBatches(nodes: CollectedNode[]): Promise<void> {
+    const groups = this.buildGroups(nodes);
+    const batches = this.createBatches(groups);
+    const queue = [...batches];
+    const workers: Promise<void>[] = [];
+
+    for (let i = 0; i < this.concurrency; i++) {
+      workers.push(
+        (async () => {
+          while (queue.length > 0 && this.isActiveOnCurrentPage()) {
+            await this.translateBatch(queue.shift()!);
+          }
+        })()
+      );
+    }
+
+    await Promise.all(workers);
+  }
+
+  /**
+   * Move deferred nodes that have scrolled into view out of the queue and
+   * translate them. Called (debounced) on scroll and resize.
+   */
+  private drainDeferred(): void {
+    if (!this.isActiveOnCurrentPage()) return;
+    if (this.deferred.size === 0) return;
+
+    const margin = viewportMargin();
+    const nowVisible: CollectedNode[] = [];
+    for (const [id, n] of this.deferred) {
+      if (nodeInViewport(n.node, margin)) {
+        nowVisible.push(n);
+        this.deferred.delete(id);
+      }
+    }
+
+    if (nowVisible.length > 0) {
+      this.showScrollHint(nowVisible.length);
+      this.runDeferredBatches(nowVisible);
+    }
   }
 
   restore(): void {
@@ -145,6 +307,7 @@ export class PageTranslator {
     }
 
     this.nodeMap.clear();
+    this.deferred.clear();
     this.translationCache.clear();
     this.translatedTexts.clear();
     this.processedTextNodes = new WeakSet();
@@ -158,17 +321,29 @@ export class PageTranslator {
     this.removeProgress();
   }
 
-  /** Start listening for scroll events to detect lazy-loaded content. */
+  /** Start listening for scroll/resize to translate content as it enters view. */
   private startScrollDetection(): void {
-    this.onScrollBound = () => this.debouncedScrollScan();
+    this.onScrollBound = () => {
+      // Draining the deferred queue is core to viewport-first translation and
+      // always runs. Scanning for lazy-loaded *new* DOM is the realtime feature.
+      this.debouncedDrain();
+      if (this.enableRealtime) this.debouncedScrollScan();
+    };
     window.addEventListener("scroll", this.onScrollBound, { passive: true });
+
+    this.onResizeBound = () => this.debouncedDrain();
+    window.addEventListener("resize", this.onResizeBound, { passive: true });
   }
 
-  /** Stop scroll detection. */
+  /** Stop scroll/resize detection. */
   private stopScrollDetection(): void {
     if (this.onScrollBound) {
       window.removeEventListener("scroll", this.onScrollBound);
       this.onScrollBound = null;
+    }
+    if (this.onResizeBound) {
+      window.removeEventListener("resize", this.onResizeBound);
+      this.onResizeBound = null;
     }
   }
 
@@ -228,22 +403,38 @@ export class PageTranslator {
     }
   }
 
-  private createBatches(nodes: CollectedNode[]): CollectedNode[][] {
-    const batches: CollectedNode[][] = [];
-    let currentBatch: CollectedNode[] = [];
+  /** Group nodes by block for sentence context — unless grouping was adaptively
+   * disabled this session, in which case each node is its own (singleton) group. */
+  private buildGroups(nodes: CollectedNode[]): CollectedNode[][] {
+    return this.groupingDisabled ? nodes.map((n) => [n]) : groupNodesByBlock(nodes);
+  }
+
+  /** Record a multi-fragment group whose separator split failed; trip the
+   * kill-switch after too many in a row. */
+  private noteGroupFailure(): void {
+    this.groupFailureStreak++;
+    if (this.groupFailureStreak >= GROUP_FAILURE_LIMIT) {
+      this.groupingDisabled = true;
+    }
+  }
+
+  /** Pack block-groups into batches under the char budget and group-count cap. */
+  private createBatches(groups: CollectedNode[][]): CollectedNode[][][] {
+    const batches: CollectedNode[][][] = [];
+    let currentBatch: CollectedNode[][] = [];
     let currentSize = 0;
 
-    for (const node of nodes) {
-      const textLen = node.originalText.length;
-      const exceedsTextBudget = currentSize + textLen > this.batchSize;
-      const exceedsNodeBudget = currentBatch.length >= MAX_BATCH_NODES;
-      if ((exceedsTextBudget || exceedsNodeBudget) && currentBatch.length > 0) {
+    for (const group of groups) {
+      const groupLen = group.reduce((sum, n) => sum + n.originalText.length, 0);
+      const exceedsTextBudget = currentSize + groupLen > this.batchSize;
+      const exceedsCountBudget = currentBatch.length >= MAX_BATCH_NODES;
+      if ((exceedsTextBudget || exceedsCountBudget) && currentBatch.length > 0) {
         batches.push(currentBatch);
         currentBatch = [];
         currentSize = 0;
       }
-      currentBatch.push(node);
-      currentSize += textLen;
+      currentBatch.push(group);
+      currentSize += groupLen;
     }
 
     if (currentBatch.length > 0) {
@@ -253,34 +444,59 @@ export class PageTranslator {
     return batches;
   }
 
-  private async translateBatch(batch: CollectedNode[]): Promise<{ completed: number; failed: number }> {
+  /**
+   * Apply a translated composite to a group's nodes. For a multi-fragment group
+   * the composite is split on the separator and each segment maps back to its
+   * node 1:1 — inline elements are never moved, so they're preserved. Returns
+   * false WITHOUT mutating when the split doesn't line up (wrong segment count,
+   * or a dropped segment), so the caller can fall back to per-node translation
+   * rather than risk garbling the passage.
+   */
+  private applyGroup(group: CollectedNode[], translated: string): boolean {
+    if (group.length === 1) {
+      this.applyTranslation(group[0], translated);
+      return true;
+    }
+
+    const segments = translated.split(PAGE_SEGMENT_SEPARATOR);
+    if (segments.length !== group.length) return false;
+    for (let i = 0; i < group.length; i++) {
+      if (group[i].originalText.trim() !== "" && segments[i].trim() === "") {
+        return false;
+      }
+    }
+
+    for (let i = 0; i < group.length; i++) {
+      this.applyTranslation(group[i], segments[i]);
+    }
+    return true;
+  }
+
+  private async translateBatch(batch: CollectedNode[][]): Promise<{ completed: number; failed: number }> {
     if (!this.isActiveOnCurrentPage()) return { completed: 0, failed: 0 };
 
-    const uncachedByText: Map<string, CollectedNode[]> = new Map();
-    let cachedCount = 0;
+    const uncachedByText: Map<string, CollectedNode[][]> = new Map();
+    let completed = 0;
 
-    for (const node of batch) {
-      const cached = this.translationCache.get(node.originalText);
-      if (cached) {
-        this.applyTranslation(node, cached);
-        cachedCount++;
+    for (const group of batch) {
+      const composite = compositeText(group);
+      const cached = this.translationCache.get(composite);
+      if (cached !== undefined && this.applyGroup(group, cached)) {
+        completed += group.length;
       } else {
-        const existing = uncachedByText.get(node.originalText);
-        if (existing) {
-          existing.push(node);
-        } else {
-          uncachedByText.set(node.originalText, [node]);
-        }
+        const existing = uncachedByText.get(composite);
+        if (existing) existing.push(group);
+        else uncachedByText.set(composite, [group]);
       }
     }
 
     if (uncachedByText.size === 0) {
-      return { completed: cachedCount, failed: 0 };
+      return { completed, failed: 0 };
     }
 
-    const items = Array.from(uncachedByText, ([text, nodes]) => ({ id: nodes[0].id, text }));
+    const items = Array.from(uncachedByText, ([text, groups]) => ({ id: groups[0][0].id, text }));
     const uncachedCount = Array.from(uncachedByText.values()).reduce(
-      (sum, nodes) => sum + nodes.length,
+      (sum, groups) => sum + groups.reduce((s, g) => s + g.length, 0),
       0
     );
 
@@ -293,25 +509,42 @@ export class PageTranslator {
           payload: { items, targetLang: this.targetLang },
         });
 
-        if (!this.isActiveOnCurrentPage()) return { completed: cachedCount, failed: 0 };
+        if (!this.isActiveOnCurrentPage()) return { completed, failed: 0 };
 
         if (response?.success && response.items) {
-          let completed = cachedCount;
           let translatedCount = 0;
+          const needFallback: CollectedNode[][] = [];
 
           for (const translated of response.items) {
             const source = items.find((item) => item.id === translated.id);
             if (!source) continue;
 
-            const originals = uncachedByText.get(source.text);
-            if (originals) {
-              this.translationCache.set(source.text, translated.text);
-              for (const original of originals) {
-                this.applyTranslation(original, translated.text);
-                completed++;
-                translatedCount++;
+            const groups = uncachedByText.get(source.text);
+            if (!groups) continue;
+
+            let cachedOnce = false;
+            for (const group of groups) {
+              if (this.applyGroup(group, translated.text)) {
+                if (!cachedOnce) {
+                  this.translationCache.set(source.text, translated.text);
+                  cachedOnce = true;
+                }
+                completed += group.length;
+                translatedCount += group.length;
+                if (group.length > 1) this.groupFailureStreak = 0;
+              } else {
+                // Separator split didn't line up — retry these nodes one by one.
+                needFallback.push(group);
+                if (group.length > 1) this.noteGroupFailure();
               }
             }
+          }
+
+          for (const group of needFallback) {
+            if (!this.isActiveOnCurrentPage()) break;
+            const fb = await this.translateBatch(group.map((n) => [n]));
+            completed += fb.completed;
+            translatedCount += fb.completed;
           }
 
           const failed = Math.max(0, uncachedCount - translatedCount);
@@ -320,12 +553,12 @@ export class PageTranslator {
           retries++;
         }
       } catch {
-        if (!this.isActiveOnCurrentPage()) return { completed: cachedCount, failed: 0 };
+        if (!this.isActiveOnCurrentPage()) return { completed, failed: 0 };
         retries++;
       }
     }
 
-    return { completed: cachedCount, failed: uncachedCount };
+    return { completed, failed: uncachedCount };
   }
 
   private async translateNodes(nodes: CollectedNode[]): Promise<void> {
@@ -347,7 +580,8 @@ export class PageTranslator {
 
     if (pendingNodes.length === 0) return;
 
-    const batches = this.createBatches(pendingNodes);
+    const groups = this.buildGroups(pendingNodes);
+    const batches = this.createBatches(groups);
     for (const batch of batches) {
       if (!this.isActiveOnCurrentPage()) return;
       await this.translateBatch(batch);

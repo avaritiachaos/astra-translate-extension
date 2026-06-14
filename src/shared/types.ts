@@ -45,6 +45,9 @@ export interface AstraSettings extends UserProviderSettings {
   batchSize: number;
   concurrency: number;
   enableRealtimePageTranslate: boolean;
+  /** Translate the entire page at once. When false (default), translation is
+   * viewport-first: only the visible area is translated, the rest as you scroll. */
+  translateWholePage: boolean;
   enableFloatingBall: boolean;
   floatingBallOpacity: number;
   floatingBallSize: number;

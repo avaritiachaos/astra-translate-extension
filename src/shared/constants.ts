@@ -6,6 +6,16 @@ import type { ProviderPreset } from "./types";
 
 export const AST_PREFIX = "ast";
 
+/**
+ * Separator joining multiple text fragments of one block into a single
+ * page-translation item, so the model translates them with full-sentence
+ * context. A Private-Use-Area char (U+E000) that never occurs in real page
+ * text and that models reliably pass through verbatim. The content script
+ * splits the translated item back on this char and writes each segment to its
+ * original text node (inline tags are never moved, so they are preserved).
+ */
+export const PAGE_SEGMENT_SEPARATOR = String.fromCharCode(0xe000);
+
 export const DEFAULT_PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: "deepseek",

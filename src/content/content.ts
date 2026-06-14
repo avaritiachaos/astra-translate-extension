@@ -172,6 +172,7 @@ async function startPageTranslation(): Promise<void> {
   let batchSize = 4000;
   let concurrency = 2;
   let enableRealtime = true;
+  let translateWholePage = false;
   let lang: UiLanguage = "zh-CN";
 
   try {
@@ -181,6 +182,7 @@ async function startPageTranslation(): Promise<void> {
       batchSize = settings.batchSize || batchSize;
       concurrency = settings.concurrency || concurrency;
       enableRealtime = settings.enableRealtimePageTranslate ?? enableRealtime;
+      translateWholePage = settings.translateWholePage ?? translateWholePage;
       lang = settings.uiLanguage || lang;
     }
   } catch {
@@ -195,6 +197,7 @@ async function startPageTranslation(): Promise<void> {
     batchSize,
     concurrency,
     enableRealtime,
+    translateWholePage,
     lang,
     onStatus: (status) => {
       chrome.runtime.sendMessage({

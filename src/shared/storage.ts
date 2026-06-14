@@ -32,6 +32,7 @@ export function getDefaultSettings(): AstraSettings {
     batchSize: 4000,
     concurrency: 2,
     enableRealtimePageTranslate: true,
+    translateWholePage: false,
     enableFloatingBall: true,
     floatingBallOpacity: 0.8,
     floatingBallSize: 48,

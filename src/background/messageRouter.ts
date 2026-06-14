@@ -17,6 +17,7 @@ import { getSettings, saveSettings } from "../shared/storage";
 import { translateViaProvider } from "./providerClient";
 import { ProviderRequestError, AstraError } from "./errors";
 import { extractJson } from "../shared/utils";
+import { PAGE_SEGMENT_SEPARATOR } from "../shared/constants";
 import { resolveTargetLanguageForText, classifySelectedText, detectNonTranslatableKind, isSoftIdentifier } from "../shared/languageDetect";
 import {
   createTranslationCacheKey,
@@ -328,10 +329,22 @@ async function handleTranslateBatch(
 
   const { items, targetLang, prompt } = msg.payload!;
   const finalTargetLang = targetLang || settings.defaultTargetLang;
-  const systemPrompt = (prompt || settings.pagePrompt).replace(
+  let systemPrompt = (prompt || settings.pagePrompt).replace(
     /\{\{targetLang\}\}/g,
     finalTargetLang
   );
+
+  // When any item bundles several block fragments (joined by the separator),
+  // append a hard rule so the model preserves the separators exactly — this
+  // holds even if the user has customized their page prompt. The content side
+  // splits on these to map each segment back to its original text node.
+  if (items.some((item) => item.text.includes(PAGE_SEGMENT_SEPARATOR))) {
+    systemPrompt +=
+      `\n\n- Some items contain a separator character (U+E000) joining fragments of one passage. ` +
+      `Keep EXACTLY the same number of these separators in each such item, in the same order. ` +
+      `Translate the text between separators together as one coherent passage, but return each ` +
+      `fragment's translation in its own segment. Never add, remove, merge, reorder, or output an empty segment.`;
+  }
   const cacheRecords = await Promise.all(items.map(async (item) => ({
     item,
     key: await createTranslationCacheKey({

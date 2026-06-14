@@ -548,6 +548,19 @@ export default function Options() {
             </div>
           </div>
         </div>
+
+        <div className="ast-toggle-row" style={{ marginTop: 12 }}>
+          <span className="ast-toggle-label">{t(lang, "opt.translateWholePage")}</span>
+          <input
+            type="checkbox"
+            className="ast-toggle"
+            checked={settings.translateWholePage}
+            onChange={(e) => update("translateWholePage", e.target.checked)}
+          />
+        </div>
+        <div className="ast-form-hint" style={{ marginTop: -4 }}>
+          {t(lang, "opt.translateWholePageDescription")}
+        </div>
       </div>
 
       {/* Floating Ball Card */}

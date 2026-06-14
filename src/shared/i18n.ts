@@ -39,6 +39,8 @@ const zhCN: MessageDict = {
   "opt.batchSize": "页面翻译批量字符数",
   "opt.concurrency": "并发数",
   "opt.realtime": "实时页面翻译",
+  "opt.translateWholePage": "整页翻译",
+  "opt.translateWholePageDescription": "开启后立即翻译整个页面；关闭则只翻译当前可见区域，随滚动逐步翻译，更省 API 用量。",
 
   "opt.smartTargetEnabled": "智能目标语言",
   "opt.smartTargetDescription": "若原文已接近默认目标语言，则自动翻译为第二目标语言；混合语言文本仍按默认目标语言翻译。",
@@ -197,6 +199,8 @@ const enUS: MessageDict = {
   "opt.batchSize": "Page Batch Size (chars)",
   "opt.concurrency": "Concurrency",
   "opt.realtime": "Real-time Page Translation",
+  "opt.translateWholePage": "Translate entire page",
+  "opt.translateWholePageDescription": "When on, translate the whole page at once. When off, only the visible area is translated, with the rest translated as you scroll — saving API usage.",
 
   "opt.smartTargetEnabled": "Smart Target Language",
   "opt.smartTargetDescription": "Translate into the secondary target language when the source is already close to the default target language. Mixed-language text still uses the default target language.",
@@ -355,6 +359,8 @@ const jaJP: MessageDict = {
   "opt.batchSize": "ページ翻訳バッチ文字数",
   "opt.concurrency": "並行数",
   "opt.realtime": "リアルタイムページ翻訳",
+  "opt.translateWholePage": "ページ全体を翻訳",
+  "opt.translateWholePageDescription": "オンにするとページ全体を一度に翻訳します。オフの場合は表示中の領域のみ翻訳し、スクロールに応じて順次翻訳します（API 使用量を節約）。",
 
   "opt.smartTargetEnabled": "スマートターゲット言語",
   "opt.smartTargetDescription": "原文がデフォルトのターゲット言語に近い場合、自動的に第二ターゲット言語に翻訳します。混合言語テキストはデフォルトのターゲット言語のまま翻訳します。",
