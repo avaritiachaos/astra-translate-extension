@@ -15,3 +15,7 @@ Thumbs.db
 
 # 本地资料目录，不入库
 商品交付/
+
+# 漫画翻译探索：测试图(版权)与生成的叠层结果，不入库
+_vision_test/manga.png
+_vision_test/result.html
