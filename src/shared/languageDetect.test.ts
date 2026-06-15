@@ -52,6 +52,26 @@ test("regression: prose paragraph with parenthetical URL + 'new' is translatable
   assert.equal(classifySelectedText(BUG_PARAGRAPH, "manual", SETTINGS), "translate");
 });
 
+// The v4.0.1 bug: the same shape but LONGER — a second URL with a "?token=…"
+// query string adds a third code symbol ("="), so the raw count of >= 3 tripped
+// and the whole error message was refused translation. Density, not count, is the
+// real signal: this paragraph is ~0.006 symbols/char, far below any real snippet.
+const CYBER_PARAGRAPH =
+  "API Error: Claude Code is unable to respond to this request, which appears " +
+  "to violate our Usage Policy (https://www.anthropic.com/legal/aup). This request " +
+  "triggered cyber-related safeguards. To request an adjustment pursuant to our " +
+  "Cyber Verification Program based on how you use Claude, fill out " +
+  "https://claude.com/form/cyber-use-case?token=8d5glJ-pNoJTXZ5jAkiCshhAcWhq6KetKL1 " +
+  "To learn more about the program or provide feedback, visit o… Please double press " +
+  "esc to edit your last message or start a new session for Claude Code to assist " +
+  "with a different task.";
+
+test("regression: long error message with two URLs + 'new' is translatable", () => {
+  assert.equal(isProbablyCodeLike(CYBER_PARAGRAPH), false);
+  assert.equal(isHardNonTranslatable(CYBER_PARAGRAPH), false);
+  assert.equal(classifySelectedText(CYBER_PARAGRAPH, "manual", SETTINGS), "translate");
+});
+
 test("regression: short prose with a keyword + single paren is not code", () => {
   // "new" + "(...)" but it is plainly a sentence.
   assert.equal(isProbablyCodeLike("Please start a new session (it helps)."), false);
