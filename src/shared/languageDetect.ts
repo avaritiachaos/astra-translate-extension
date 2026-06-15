@@ -32,9 +32,18 @@ export function isProbablyCodeLike(text: string): boolean {
   // Fat-arrow is a strong, prose-rare code signal.
   if (t.includes("=>")) return true;
   // Brackets / statement terminators combined with a code keyword.
+  // Guard against prose: a natural-language sentence can contain "(...)" (e.g. a
+  // parenthetical URL) plus an ordinary word like "new"/"class"/"return", which
+  // would otherwise be misread as code and wrongly skipped. Misclassifying code
+  // as translatable is cheap (the prompt preserves it); misclassifying prose as
+  // code blocks a legitimate translation. So require a dense code signature here
+  // (>= 3 code symbols, as in `const x = foo();`), not a single stray paren.
   if (/[{}();]/.test(t) &&
       (t.includes("function ") || /\b(const|let|var|return|import|export|new|class)\b/.test(t))) {
-    return true;
+    const codeSymbols = (t.match(/[{}();=]/g) || []).length;
+    if (codeSymbols >= 3) {
+      return true;
+    }
   }
   // Looks like a shell command.
   if (/^(npm|npx|yarn|pnpm|pip3?|git|docker|kubectl|curl|wget|sudo|apt(?:-get)?|brew|cd|ls|cat|grep|chmod|chown|mkdir|rm|mv|cp|ssh|scp|make|cargo|go|python3?|node|deno|bun)\s/.test(t)) {
