@@ -40,8 +40,17 @@ export function isProbablyCodeLike(text: string): boolean {
   // (>= 3 code symbols, as in `const x = foo();`), not a single stray paren.
   if (/[{}();]/.test(t) &&
       (t.includes("function ") || /\b(const|let|var|return|import|export|new|class)\b/.test(t))) {
+    // Density matters, not just the raw count. A genuine inline snippet is short
+    // and symbol-dense (`const a = b(); return a;` ≈ 0.2 symbols/char); a prose
+    // paragraph that merely contains a parenthetical URL and a "?token=" query
+    // string is long and symbol-sparse (≈ 0.006). A raw count of >= 3 alone is
+    // fragile: a long error message picks up its third symbol from a second URL
+    // and gets refused translation. Requiring a density floor as well stops long
+    // prose that happens to carry a stray "(", ")" or "=" plus an ordinary
+    // keyword ("new", "class") from being mistaken for code.
     const codeSymbols = (t.match(/[{}();=]/g) || []).length;
-    if (codeSymbols >= 3) {
+    const density = codeSymbols / t.length;
+    if (codeSymbols >= 3 && density >= 0.08) {
       return true;
     }
   }
