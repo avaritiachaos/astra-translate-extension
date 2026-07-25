@@ -2,7 +2,11 @@
 // Astra Translate – Background Service Worker
 // ============================================================
 
-import { handleMessage } from "./messageRouter";
+import { handleMessage, handleTranslateBatchStream } from "./messageRouter";
+import {
+  TRANSLATE_BATCH_STREAM_PORT,
+  type TranslateBatchStreamRequest,
+} from "../shared/types";
 
 /** Check if a tab URL is accessible for scripting (not chrome://, edge://, about:, etc.). */
 function isInjectableUrl(url?: string): boolean {
@@ -53,6 +57,39 @@ chrome.runtime.onMessage.addListener(
     return true;
   }
 );
+
+// Streaming page-batch translation over a long-lived port.
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== TRANSLATE_BATCH_STREAM_PORT) return;
+
+  const abort = new AbortController();
+  port.onDisconnect.addListener(() => abort.abort());
+
+  port.onMessage.addListener((msg: TranslateBatchStreamRequest) => {
+    if (msg?.type !== "TRANSLATE_BATCH_STREAM") return;
+    handleTranslateBatchStream(
+      msg,
+      (event) => {
+        try {
+          port.postMessage(event);
+        } catch {
+          // Port closed mid-stream.
+        }
+      },
+      abort.signal
+    ).catch((err) => {
+      try {
+        port.postMessage({
+          type: "done",
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      } catch {
+        // ignore
+      }
+    });
+  });
+});
 
 // Context menu for selection translation
 // Remove all first to avoid "duplicate id" errors when the service worker

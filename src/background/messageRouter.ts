@@ -6,6 +6,8 @@ import type {
   Message,
   TranslateTextMessage,
   TranslateBatchMessage,
+  TranslateBatchStreamEvent,
+  TranslateBatchStreamRequest,
   TestProviderResponse,
   TranslateResponse,
   TranslateBatchResponse,
@@ -14,7 +16,7 @@ import type {
 } from "../shared/types";
 import { t, type UiLanguage } from "../shared/i18n";
 import { getSettings, saveSettings } from "../shared/storage";
-import { translateViaProvider } from "./providerClient";
+import { translateViaProvider, translateViaProviderStream } from "./providerClient";
 import { ProviderRequestError, AstraError } from "./errors";
 import { extractJson } from "../shared/utils";
 import { PAGE_SEGMENT_SEPARATOR } from "../shared/constants";
@@ -26,6 +28,13 @@ import {
   setCachedTranslation,
   setCachedTranslations,
 } from "./translationCache";
+import {
+  clearSiteLexicon,
+  getSiteLexiconMap,
+  getSiteLexiconStats,
+  learnSiteLexiconPairs,
+} from "./siteLexiconStore";
+import { StreamBatchItemParser } from "../shared/streamBatchParser";
 
 /**
  * Handle all messages from popup / options / content scripts.
@@ -52,6 +61,52 @@ export async function handleMessage(
 
     case "TRANSLATE_BATCH":
       return handleTranslateBatch(msg as TranslateBatchMessage);
+
+    case "GET_SITE_LEXICON": {
+      const payload = (msg as Message<{ host: string; targetLang: string }>).payload;
+      if (!payload?.host || !payload?.targetLang) {
+        return { success: true, map: {} as Record<string, string> };
+      }
+      const lexSettings = await getSettings();
+      if (lexSettings.enableSiteLexicon === false) {
+        return { success: true, map: {} as Record<string, string> };
+      }
+      const map = await getSiteLexiconMap(payload.host, payload.targetLang);
+      return { success: true, map };
+    }
+
+    case "LEARN_SITE_LEXICON": {
+      const payload = (msg as Message<{
+        host: string;
+        targetLang: string;
+        pairs: Array<{ source: string; translation: string }>;
+      }>).payload;
+      if (!payload?.host || !payload?.targetLang || !payload.pairs?.length) {
+        return { success: true, learned: 0 };
+      }
+      // Honour user setting — skip learning when disabled.
+      const lexSettings = await getSettings();
+      if (lexSettings.enableSiteLexicon === false) {
+        return { success: true, learned: 0 };
+      }
+      const result = await learnSiteLexiconPairs(
+        payload.host,
+        payload.targetLang,
+        payload.pairs
+      );
+      return { success: true, ...result };
+    }
+
+    case "CLEAR_SITE_LEXICON": {
+      const payload = (msg as Message<{ host?: string }>).payload;
+      const result = await clearSiteLexicon(payload?.host);
+      return { success: true, ...result };
+    }
+
+    case "GET_SITE_LEXICON_STATS": {
+      const stats = await getSiteLexiconStats();
+      return { success: true, ...stats };
+    }
 
     case "OPEN_OPTIONS_PAGE":
       chrome.runtime.openOptionsPage();
@@ -321,17 +376,15 @@ async function handleDictionaryTranslation(
   }
 }
 
-async function handleTranslateBatch(
-  msg: TranslateBatchMessage
-): Promise<TranslateBatchResponse> {
-  const settings = await getSettings();
-  const lang = getLang(settings);
-
-  const { items, targetLang, prompt } = msg.payload!;
-  const finalTargetLang = targetLang || settings.defaultTargetLang;
+function buildPageSystemPrompt(
+  settings: AstraSettings,
+  targetLang: string,
+  items: { id: string; text: string }[],
+  prompt?: string
+): string {
   let systemPrompt = (prompt || settings.pagePrompt).replace(
     /\{\{targetLang\}\}/g,
-    finalTargetLang
+    targetLang
   );
 
   // When any item bundles several block fragments (joined by the separator),
@@ -345,22 +398,103 @@ async function handleTranslateBatch(
       `Translate the text between separators together as one coherent passage, but return each ` +
       `fragment's translation in its own segment. Never add, remove, merge, reorder, or output an empty segment.`;
   }
-  const cacheRecords = await Promise.all(items.map(async (item) => ({
-    item,
-    key: await createTranslationCacheKey({
-      mode: "page",
-      text: item.text,
-      targetLang: finalTargetLang,
-      systemPrompt,
-      settings,
-    }),
-  })));
+  return systemPrompt;
+}
+
+async function handleTranslateBatch(
+  msg: TranslateBatchMessage
+): Promise<TranslateBatchResponse> {
+  const settings = await getSettings();
+  const lang = getLang(settings);
+
+  const { items, targetLang, prompt } = msg.payload!;
+  const finalTargetLang = targetLang || settings.defaultTargetLang;
+  const systemPrompt = buildPageSystemPrompt(settings, finalTargetLang, items, prompt);
+
+  const prepared = await prepareBatchCache(items, finalTargetLang, systemPrompt, settings);
+  if (prepared.misses.length === 0) {
+    return {
+      success: true,
+      items: items.map((item) => ({
+        id: item.id,
+        text: prepared.translatedById.get(item.id) || item.text,
+      })),
+    };
+  }
+
+  if (!settings.apiKey) {
+    return { success: false, error: t(lang, "error.apiKeyNotConfigured") };
+  }
+
+  const requestItems = prepared.misses.map((record) => record.item);
+  const userInput = JSON.stringify({
+    targetLang: finalTargetLang,
+    items: requestItems,
+  });
+
+  try {
+    const raw = await translateViaProvider(settings, systemPrompt, userInput, lang);
+    const parsed = parseBatchResponse(raw);
+    if (!parsed) {
+      return { success: false, error: t(lang, "error.invalidBatchResponse") };
+    }
+
+    await commitBatchResults(
+      parsed,
+      prepared,
+      finalTargetLang,
+      settings
+    );
+
+    return {
+      success: true,
+      items: items
+        .filter((item) => prepared.translatedById.has(item.id))
+        .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! })),
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof ProviderRequestError || err instanceof AstraError
+        ? err.message
+        : t(lang, "error.batchFailed"),
+    };
+  }
+}
+
+type CacheRecord = {
+  item: { id: string; text: string };
+  key: string;
+};
+
+async function prepareBatchCache(
+  items: { id: string; text: string }[],
+  finalTargetLang: string,
+  systemPrompt: string,
+  settings: AstraSettings
+): Promise<{
+  translatedById: Map<string, string>;
+  misses: CacheRecord[];
+  missById: Map<string, CacheRecord>;
+}> {
+  const cacheRecords = await Promise.all(
+    items.map(async (item) => ({
+      item,
+      key: await createTranslationCacheKey({
+        mode: "page",
+        text: item.text,
+        targetLang: finalTargetLang,
+        systemPrompt,
+        settings,
+      }),
+    }))
+  );
   const cached = await getCachedTranslations(
     cacheRecords.map((record) => record.key),
     settings
   );
   const translatedById = new Map<string, string>();
-  const misses: typeof cacheRecords = [];
+  const misses: CacheRecord[] = [];
 
   for (const record of cacheRecords) {
     const hit = cached.get(record.key);
@@ -371,75 +505,222 @@ async function handleTranslateBatch(
     }
   }
 
-  if (misses.length === 0) {
-    return {
+  return {
+    translatedById,
+    misses,
+    missById: new Map(misses.map((r) => [r.item.id, r])),
+  };
+}
+
+function parseBatchResponse(
+  raw: string
+): { items: { id: string; text: string }[] } | null {
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.items && Array.isArray(parsed.items)) return parsed;
+  } catch {
+    const jsonStr = extractJson(raw);
+    if (jsonStr) {
+      try {
+        const parsed = JSON.parse(jsonStr);
+        if (parsed?.items && Array.isArray(parsed.items)) return parsed;
+      } catch {
+        // give up
+      }
+    }
+  }
+  return null;
+}
+
+async function commitBatchResults(
+  parsed: { items: { id: string; text: string }[] },
+  prepared: {
+    translatedById: Map<string, string>;
+    missById: Map<string, CacheRecord>;
+  },
+  finalTargetLang: string,
+  settings: AstraSettings
+): Promise<void> {
+  const cacheWrites: Array<{
+    key: string;
+    value: { translation: string; resolvedLang: string };
+  }> = [];
+
+  for (const translated of parsed.items) {
+    if (typeof translated?.id !== "string" || typeof translated?.text !== "string") {
+      continue;
+    }
+    prepared.translatedById.set(translated.id, translated.text);
+    const record = prepared.missById.get(translated.id);
+    if (record) {
+      cacheWrites.push({
+        key: record.key,
+        value: { translation: translated.text, resolvedLang: finalTargetLang },
+      });
+    }
+  }
+
+  await setCachedTranslations(cacheWrites, settings);
+}
+
+/**
+ * Streaming batch translation over a long-lived port.
+ * Emits {type:"item"} as each JSON object completes, then {type:"done"}.
+ */
+export async function handleTranslateBatchStream(
+  msg: TranslateBatchStreamRequest,
+  post: (event: TranslateBatchStreamEvent) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const settings = await getSettings();
+  const lang = getLang(settings);
+  const payload = msg.payload;
+  if (!payload?.items?.length) {
+    post({ type: "done", success: false, error: t(lang, "error.batchFailed"), items: [] });
+    return;
+  }
+
+  const { items, targetLang, prompt } = payload;
+  const finalTargetLang = targetLang || settings.defaultTargetLang;
+  const systemPrompt = buildPageSystemPrompt(settings, finalTargetLang, items, prompt);
+
+  const prepared = await prepareBatchCache(items, finalTargetLang, systemPrompt, settings);
+
+  // Emit cache hits immediately so the page paints without waiting for the model.
+  for (const [id, text] of prepared.translatedById) {
+    post({ type: "item", id, text });
+  }
+
+  if (prepared.misses.length === 0) {
+    post({
+      type: "done",
       success: true,
-      items: items.map((item) => ({ id: item.id, text: translatedById.get(item.id) || item.text })),
-    };
+      items: items.map((item) => ({
+        id: item.id,
+        text: prepared.translatedById.get(item.id) || item.text,
+      })),
+    });
+    return;
   }
 
   if (!settings.apiKey) {
-    return { success: false, error: t(lang, "error.apiKeyNotConfigured") };
+    post({
+      type: "done",
+      success: false,
+      error: t(lang, "error.apiKeyNotConfigured"),
+      items: items
+        .filter((item) => prepared.translatedById.has(item.id))
+        .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! })),
+    });
+    return;
   }
 
-  const requestItems = misses.map((record) => record.item);
+  const requestItems = prepared.misses.map((record) => record.item);
   const userInput = JSON.stringify({
     targetLang: finalTargetLang,
     items: requestItems,
   });
 
-  try {
-    const raw = await translateViaProvider(settings, systemPrompt, userInput, lang);
+  const parser = new StreamBatchItemParser();
+  const streamedIds = new Set<string>();
 
-    let parsed: { items: { id: string; text: string }[] } | null = null;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      const jsonStr = extractJson(raw);
-      if (jsonStr) {
-        try {
-          parsed = JSON.parse(jsonStr);
-        } catch {
-          // Give up
+  try {
+    const raw = await translateViaProviderStream(
+      settings,
+      systemPrompt,
+      userInput,
+      (delta) => {
+        const news = parser.push(delta);
+        for (const item of news) {
+          if (streamedIds.has(item.id)) continue;
+          streamedIds.add(item.id);
+          prepared.translatedById.set(item.id, item.text);
+          post({ type: "item", id: item.id, text: item.text });
+        }
+      },
+      lang,
+      signal
+    );
+
+    // Catch any trailing complete objects.
+    for (const item of parser.finish()) {
+      if (streamedIds.has(item.id)) continue;
+      streamedIds.add(item.id);
+      prepared.translatedById.set(item.id, item.text);
+      post({ type: "item", id: item.id, text: item.text });
+    }
+
+    // Prefer full JSON parse when possible (more reliable id/text mapping).
+    const parsed = parseBatchResponse(raw) || parseBatchResponse(parser.raw);
+    if (parsed) {
+      for (const item of parsed.items) {
+        if (typeof item?.id !== "string" || typeof item?.text !== "string") continue;
+        if (!prepared.translatedById.has(item.id)) {
+          prepared.translatedById.set(item.id, item.text);
+          post({ type: "item", id: item.id, text: item.text });
+        } else {
+          // Prefer final parse text if it differs (model corrected mid-stream).
+          prepared.translatedById.set(item.id, item.text);
         }
       }
-    }
-
-    if (!parsed?.items || !Array.isArray(parsed.items)) {
-      return {
+      await commitBatchResults(parsed, prepared, finalTargetLang, settings);
+    } else if (streamedIds.size > 0) {
+      // Partial stream success without a final parse — cache what we have.
+      await commitBatchResults(
+        {
+          items: Array.from(streamedIds, (id) => ({
+            id,
+            text: prepared.translatedById.get(id)!,
+          })),
+        },
+        prepared,
+        finalTargetLang,
+        settings
+      );
+    } else {
+      post({
+        type: "done",
         success: false,
         error: t(lang, "error.invalidBatchResponse"),
-      };
+        items: items
+          .filter((item) => prepared.translatedById.has(item.id))
+          .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! })),
+      });
+      return;
     }
 
-    const missById = new Map(misses.map((record) => [record.item.id, record]));
-    const cacheWrites: Array<{ key: string; value: { translation: string; resolvedLang: string } }> = [];
-
-    for (const translated of parsed.items) {
-      translatedById.set(translated.id, translated.text);
-      const record = missById.get(translated.id);
-      if (record) {
-        cacheWrites.push({
-          key: record.key,
-          value: { translation: translated.text, resolvedLang: finalTargetLang },
-        });
-      }
-    }
-
-    await setCachedTranslations(cacheWrites, settings);
-
-    return {
+    post({
+      type: "done",
       success: true,
       items: items
-        .filter((item) => translatedById.has(item.id))
-        .map((item) => ({ id: item.id, text: translatedById.get(item.id)! })),
-    };
+        .filter((item) => prepared.translatedById.has(item.id))
+        .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! })),
+    });
   } catch (err) {
-    return {
-      success: false,
-      error: err instanceof ProviderRequestError || err instanceof AstraError
-        ? err.message
-        : t(lang, "error.batchFailed"),
-    };
+    const partial = items
+      .filter((item) => prepared.translatedById.has(item.id))
+      .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! }));
+
+    // Cache whatever streamed successfully before the error.
+    if (partial.length > 0) {
+      await commitBatchResults(
+        { items: partial.filter((p) => prepared.missById.has(p.id)) },
+        prepared,
+        finalTargetLang,
+        settings
+      ).catch(() => {});
+    }
+
+    post({
+      type: "done",
+      success: partial.length > 0,
+      error:
+        partial.length > 0
+          ? undefined
+          : err instanceof ProviderRequestError || err instanceof AstraError
+            ? err.message
+            : t(lang, "error.batchFailed"),
+      items: partial,
+    });
   }
 }
