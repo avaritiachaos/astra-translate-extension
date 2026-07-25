@@ -698,12 +698,19 @@ async function commitBatchResults(
  */
 export async function handleTranslateBatchStream(
   msg: TranslateBatchStreamRequest,
-  post: (event: TranslateBatchStreamEvent) => void,
+  rawPost: (event: TranslateBatchStreamEvent) => void,
   signal?: AbortSignal
 ): Promise<void> {
   const settings = await getSettings();
   const lang = getLang(settings);
   const payload = msg.payload;
+  const requestId =
+    typeof payload?.requestId === "string" ? payload.requestId : undefined;
+  // Tag every event with the caller's correlation id so a port that ever
+  // carries more than one request can't cross wires.
+  const post = (event: TranslateBatchStreamEvent): void => {
+    rawPost(requestId ? { ...event, requestId } : event);
+  };
   const items = sanitizeBatchItems(payload?.items);
   if (!items.length) {
     post({

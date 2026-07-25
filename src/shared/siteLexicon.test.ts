@@ -1,11 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  countStorePhrases,
   emptySiteLexiconStore,
   isLearnableUiPair,
   lookupInStore,
   lookupInStoreWithKeys,
   touchLearnedPair,
+  trimStoreTotal,
   upsertLearnedPair,
   SITE_LEXICON_MAX_PER_HOST_LANG,
 } from "./siteLexicon.ts";
@@ -63,6 +65,34 @@ describe("siteLexicon", () => {
     }
     // "old" was learned first but used last — it must survive the trim.
     assert.equal(lookupInStoreWithKeys(store, "a.com", "zh", "old"), "旧");
+  });
+
+  it("trimStoreTotal evicts least-recently-used hosts wholesale", () => {
+    const store = emptySiteLexiconStore();
+    const fill = (host: string, base: number) => {
+      for (let i = 0; i < 5; i++) {
+        upsertLearnedPair(store, host, "zh", `word${i}`, `词${i}`, base + i);
+      }
+    };
+    fill("cold.com", 1000);
+    fill("warm.com", 5000);
+    fill("hot.com", 9000);
+    assert.equal(countStorePhrases(store), 15);
+
+    const evicted = trimStoreTotal(store, 8);
+    // cold.com (5) alone isn't enough to reach 8 → warm.com goes too.
+    assert.equal(evicted, 10);
+    assert.equal(countStorePhrases(store), 5);
+    assert.equal(store.hosts["cold.com"], undefined);
+    assert.equal(store.hosts["warm.com"], undefined);
+    assert.equal(lookupInStoreWithKeys(store, "hot.com", "zh", "word0"), "词0");
+  });
+
+  it("trimStoreTotal is a no-op under the cap", () => {
+    const store = emptySiteLexiconStore();
+    upsertLearnedPair(store, "a.com", "zh", "hi", "你好", 1000);
+    assert.equal(trimStoreTotal(store, 100), 0);
+    assert.equal(countStorePhrases(store), 1);
   });
 });
 

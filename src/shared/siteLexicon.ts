@@ -17,6 +17,9 @@ export const SITE_LEXICON_SCHEMA_VERSION = 1;
 export const SITE_LEXICON_MAX_CHARS = 48;
 /** Cap phrases per host+lang to bound storage. */
 export const SITE_LEXICON_MAX_PER_HOST_LANG = 400;
+/** Global cap across all hosts/langs — bounds total chrome.storage usage
+ * (shares the 10MB local quota with the translation cache). */
+export const SITE_LEXICON_MAX_TOTAL = 20_000;
 
 export interface SiteLexiconEntry {
   translation: string;
@@ -201,4 +204,52 @@ export function flattenHostLang(
     out[k] = v.translation;
   }
   return out;
+}
+
+/** Total phrases across every host and language. */
+export function countStorePhrases(store: SiteLexiconStore): number {
+  let n = 0;
+  for (const langs of Object.values(store.hosts)) {
+    for (const bucket of Object.values(langs)) {
+      n += Object.keys(bucket).length;
+    }
+  }
+  return n;
+}
+
+/**
+ * Evict least-recently-USED hosts (wholesale) until the store holds at most
+ * `max` phrases. A host's recency is its most recent entry — evicting whole
+ * cold hosts keeps hot sites intact instead of churning entries everywhere.
+ * Returns the number of phrases evicted.
+ */
+export function trimStoreTotal(
+  store: SiteLexiconStore,
+  max = SITE_LEXICON_MAX_TOTAL
+): number {
+  let total = countStorePhrases(store);
+  if (total <= max) return 0;
+
+  const hostRecency: Array<{ host: string; latest: number; count: number }> = [];
+  for (const [host, langs] of Object.entries(store.hosts)) {
+    let latest = 0;
+    let count = 0;
+    for (const bucket of Object.values(langs)) {
+      for (const entry of Object.values(bucket)) {
+        if (entry.lastUsedAt > latest) latest = entry.lastUsedAt;
+        count += 1;
+      }
+    }
+    hostRecency.push({ host, latest, count });
+  }
+  hostRecency.sort((a, b) => a.latest - b.latest);
+
+  let evicted = 0;
+  for (const h of hostRecency) {
+    if (total <= max) break;
+    delete store.hosts[h.host];
+    total -= h.count;
+    evicted += h.count;
+  }
+  return evicted;
 }

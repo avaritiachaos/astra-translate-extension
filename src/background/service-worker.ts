@@ -114,6 +114,10 @@ chrome.runtime.onConnect.addListener((port) => {
             error: err instanceof Error ? err.message : String(err),
             errorCode: "UNKNOWN",
             items: [],
+            requestId:
+              typeof msg?.payload?.requestId === "string"
+                ? msg.payload.requestId
+                : undefined,
           });
         } catch {
           // ignore

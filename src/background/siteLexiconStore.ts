@@ -7,7 +7,9 @@ import {
   flattenHostLang,
   SITE_LEXICON_STORAGE_KEY,
   SITE_LEXICON_SCHEMA_VERSION,
+  SITE_LEXICON_MAX_TOTAL,
   touchLearnedPair,
+  trimStoreTotal,
   upsertLearnedPair,
   type SiteLexiconStore,
 } from "../shared/siteLexicon";
@@ -22,7 +24,15 @@ async function loadStore(): Promise<SiteLexiconStore> {
 }
 
 async function saveStore(store: SiteLexiconStore): Promise<void> {
-  await chrome.storage.local.set({ [SITE_LEXICON_STORAGE_KEY]: store });
+  try {
+    await chrome.storage.local.set({ [SITE_LEXICON_STORAGE_KEY]: store });
+  } catch {
+    // Most likely QUOTA_BYTES (the 10MB local quota is shared with the
+    // translation cache). Shed the least-recently-used half and try once
+    // more — losing cold entries beats the lexicon failing forever.
+    trimStoreTotal(store, Math.floor(SITE_LEXICON_MAX_TOTAL / 2));
+    await chrome.storage.local.set({ [SITE_LEXICON_STORAGE_KEY]: store });
+  }
 }
 
 // All mutations run through one promise chain: the store is a single storage
@@ -61,7 +71,11 @@ export async function learnSiteLexiconPairs(
         learned += 1;
       }
     }
-    if (learned > 0) await saveStore(store);
+    if (learned > 0) {
+      // Enforce the global cap before persisting — evicts cold hosts first.
+      trimStoreTotal(store);
+      await saveStore(store);
+    }
     return { learned };
   });
 }

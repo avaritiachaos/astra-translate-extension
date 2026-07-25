@@ -50,6 +50,13 @@ function currentPageKey(): string {
   return `${window.location.origin}${window.location.pathname}${window.location.search}`;
 }
 
+/** Correlation id for one streaming batch request over the port protocol. */
+let streamRequestSeq = 0;
+function nextStreamRequestId(): string {
+  streamRequestSeq += 1;
+  return `astra-${Date.now().toString(36)}-${streamRequestSeq}`;
+}
+
 /** Escape text interpolated into progress-UI innerHTML. The error branch can
  * carry provider-derived message text — never trust it as markup. */
 function escapeHtml(s: string): string {
@@ -960,6 +967,8 @@ export class PageTranslator {
       const applied = new Map<string, string>();
       const needFallback: CollectedNode[][] = [];
       let settled = false;
+      let doneReceived = false;
+      const requestId = nextStreamRequestId();
 
       const settle = (result: {
         completed: number;
@@ -978,6 +987,10 @@ export class PageTranslator {
 
       port.onDisconnect.addListener(() => {
         if (settled) return;
+        // After "done" the fallback loop owns settling (it runs over
+        // sendMessage, not this port) — an idle-SW port teardown must not
+        // discard its progress by settling early with stale counts.
+        if (doneReceived) return;
         // Unexpected disconnect mid-stream — if we got nothing, reject to fall back.
         if (translatedCount === 0) {
           settled = true;
@@ -992,6 +1005,8 @@ export class PageTranslator {
       });
 
       port.onMessage.addListener((event: TranslateBatchStreamEvent) => {
+        // Ignore events correlated to a different request on this port.
+        if (event.requestId && event.requestId !== requestId) return;
         if (!this.isActiveOnCurrentPage()) {
           settle({ completed, failed: 0, outcome: "fail" });
           return;
@@ -1012,6 +1027,7 @@ export class PageTranslator {
         }
 
         if (event.type === "done") {
+          doneReceived = true;
           // Apply any items only present in the final payload.
           for (const item of event.items || []) {
             const r = this.applyStreamedItem(
@@ -1085,7 +1101,7 @@ export class PageTranslator {
       try {
         port.postMessage({
           type: "TRANSLATE_BATCH_STREAM",
-          payload: { items, targetLang: this.targetLang },
+          payload: { items, targetLang: this.targetLang, requestId },
         });
       } catch (err) {
         settled = true;

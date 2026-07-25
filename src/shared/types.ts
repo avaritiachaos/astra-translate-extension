@@ -113,11 +113,14 @@ export interface TranslateBatchStreamRequest {
     items: { id: string; text: string }[];
     targetLang: string;
     prompt?: string;
+    /** Correlates events with this request if a port ever carries more than
+     * one — events are echoed back tagged with the same id. */
+    requestId?: string;
   };
 }
 
 export type TranslateBatchStreamEvent =
-  | { type: "item"; id: string; text: string }
+  | { type: "item"; id: string; text: string; requestId?: string }
   | {
       type: "done";
       success: boolean;
@@ -126,6 +129,7 @@ export type TranslateBatchStreamEvent =
       /** Structured provider error code (e.g. RATE_LIMIT / TIMEOUT / AUTH_ERROR)
        * so the content side can classify without sniffing localized text. */
       errorCode?: string;
+      requestId?: string;
     };
 
 export interface Message<T = unknown> {
