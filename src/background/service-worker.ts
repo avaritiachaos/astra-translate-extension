@@ -42,9 +42,35 @@ async function ensureContentScriptAndSend(
   }
 }
 
+// ---- MV3 idle keepalive -------------------------------------------------
+// Chrome tears the service worker down after ~30s without extension activity.
+// A slow provider request (long prefill, backoff sleeps) has no chrome.* calls
+// of its own, so we tick a trivial extension API while work is in flight —
+// each call resets the idle timer.
+let keepaliveUsers = 0;
+let keepaliveTimer: ReturnType<typeof setInterval> | undefined;
+
+function acquireKeepalive(): void {
+  keepaliveUsers += 1;
+  if (!keepaliveTimer) {
+    keepaliveTimer = setInterval(() => {
+      void chrome.runtime.getPlatformInfo();
+    }, 20_000);
+  }
+}
+
+function releaseKeepalive(): void {
+  keepaliveUsers = Math.max(0, keepaliveUsers - 1);
+  if (keepaliveUsers === 0 && keepaliveTimer) {
+    clearInterval(keepaliveTimer);
+    keepaliveTimer = undefined;
+  }
+}
+
 // Listen for messages from popup, options, and content scripts
 chrome.runtime.onMessage.addListener(
   (msg, sender, sendResponse) => {
+    acquireKeepalive();
     handleMessage(msg, sender)
       .then((result) => sendResponse(result))
       .catch((err) => {
@@ -53,7 +79,8 @@ chrome.runtime.onMessage.addListener(
           success: false,
           error: err instanceof Error ? err.message : String(err),
         });
-      });
+      })
+      .finally(releaseKeepalive);
     return true;
   }
 );
@@ -67,6 +94,7 @@ chrome.runtime.onConnect.addListener((port) => {
 
   port.onMessage.addListener((msg: TranslateBatchStreamRequest) => {
     if (msg?.type !== "TRANSLATE_BATCH_STREAM") return;
+    acquireKeepalive();
     handleTranslateBatchStream(
       msg,
       (event) => {
@@ -77,17 +105,21 @@ chrome.runtime.onConnect.addListener((port) => {
         }
       },
       abort.signal
-    ).catch((err) => {
-      try {
-        port.postMessage({
-          type: "done",
-          success: false,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      } catch {
-        // ignore
-      }
-    });
+    )
+      .catch((err) => {
+        try {
+          port.postMessage({
+            type: "done",
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+            errorCode: "UNKNOWN",
+            items: [],
+          });
+        } catch {
+          // ignore
+        }
+      })
+      .finally(releaseKeepalive);
   });
 });
 

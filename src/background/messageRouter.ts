@@ -33,15 +33,55 @@ import {
   getSiteLexiconMap,
   getSiteLexiconStats,
   learnSiteLexiconPairs,
+  touchSiteLexiconPairs,
 } from "./siteLexiconStore";
-import { StreamBatchItemParser } from "../shared/streamBatchParser";
+import { siteLexiconHost } from "../shared/siteLexicon";
+import { StreamBatchItemParser, topLevelJsonObjects } from "../shared/streamBatchParser";
+
+/** Hostname of the page a message came from (content scripts only). */
+function senderHost(sender?: chrome.runtime.MessageSender): string | null {
+  const url = sender?.url || sender?.tab?.url;
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (u.protocol === "http:" || u.protocol === "https:") {
+      return u.hostname.toLowerCase();
+    }
+  } catch {
+    // Malformed sender URL — treat as unknown.
+  }
+  return null;
+}
+
+/** True when the message came from one of our own extension pages (options / popup). */
+function isExtensionPageSender(sender?: chrome.runtime.MessageSender): boolean {
+  const url = sender?.url;
+  return !!url && url.startsWith(`chrome-extension://${chrome.runtime.id}/`);
+}
+
+/**
+ * Site-lexicon messages must not let one origin read or write another origin's
+ * entries: a content script may only touch the host it runs on; only our own
+ * extension pages may target arbitrary hosts (or clear everything).
+ */
+function isLexiconHostAllowed(
+  requestedHost: string,
+  sender?: chrome.runtime.MessageSender
+): boolean {
+  if (isExtensionPageSender(sender)) return true;
+  const pageHost = senderHost(sender);
+  if (!pageHost) return false;
+  return (
+    requestedHost === pageHost || requestedHost === siteLexiconHost(pageHost)
+  );
+}
 
 /**
  * Handle all messages from popup / options / content scripts.
  */
 export async function handleMessage(
   msg: Message,
-  _sender?: chrome.runtime.MessageSender
+  sender?: chrome.runtime.MessageSender
 ): Promise<unknown> {
   switch (msg.type) {
     case "GET_SETTINGS":
@@ -64,7 +104,13 @@ export async function handleMessage(
 
     case "GET_SITE_LEXICON": {
       const payload = (msg as Message<{ host: string; targetLang: string }>).payload;
-      if (!payload?.host || !payload?.targetLang) {
+      if (
+        !payload?.host ||
+        typeof payload.host !== "string" ||
+        typeof payload.targetLang !== "string" ||
+        !payload.targetLang ||
+        !isLexiconHostAllowed(payload.host, sender)
+      ) {
         return { success: true, map: {} as Record<string, string> };
       }
       const lexSettings = await getSettings();
@@ -81,7 +127,22 @@ export async function handleMessage(
         targetLang: string;
         pairs: Array<{ source: string; translation: string }>;
       }>).payload;
-      if (!payload?.host || !payload?.targetLang || !payload.pairs?.length) {
+      if (
+        !payload?.host ||
+        typeof payload.host !== "string" ||
+        typeof payload.targetLang !== "string" ||
+        !payload.targetLang ||
+        !Array.isArray(payload.pairs) ||
+        !isLexiconHostAllowed(payload.host, sender)
+      ) {
+        return { success: true, learned: 0 };
+      }
+      // Drop malformed entries instead of letting one bad pair reject the batch.
+      const pairs = payload.pairs.filter(
+        (p): p is { source: string; translation: string } =>
+          !!p && typeof p.source === "string" && typeof p.translation === "string"
+      );
+      if (!pairs.length) {
         return { success: true, learned: 0 };
       }
       // Honour user setting — skip learning when disabled.
@@ -92,14 +153,52 @@ export async function handleMessage(
       const result = await learnSiteLexiconPairs(
         payload.host,
         payload.targetLang,
-        payload.pairs
+        pairs
+      );
+      return { success: true, ...result };
+    }
+
+    case "TOUCH_SITE_LEXICON": {
+      // Usage bookkeeping so bucket eviction is LRU by *use*, not by learn time.
+      const payload = (msg as Message<{
+        host: string;
+        targetLang: string;
+        sources: string[];
+      }>).payload;
+      if (
+        !payload?.host ||
+        typeof payload.host !== "string" ||
+        typeof payload.targetLang !== "string" ||
+        !payload.targetLang ||
+        !Array.isArray(payload.sources) ||
+        !isLexiconHostAllowed(payload.host, sender)
+      ) {
+        return { success: true, touched: 0 };
+      }
+      const sources = payload.sources.filter(
+        (s): s is string => typeof s === "string" && !!s
+      );
+      if (!sources.length) return { success: true, touched: 0 };
+      const result = await touchSiteLexiconPairs(
+        payload.host,
+        payload.targetLang,
+        sources
       );
       return { success: true, ...result };
     }
 
     case "CLEAR_SITE_LEXICON": {
       const payload = (msg as Message<{ host?: string }>).payload;
-      const result = await clearSiteLexicon(payload?.host);
+      const host = typeof payload?.host === "string" ? payload.host : undefined;
+      // A full wipe (no host) is an options-page action only; content scripts
+      // may clear just their own host.
+      if (!host && !isExtensionPageSender(sender)) {
+        return { success: false, cleared: 0 };
+      }
+      if (host && !isLexiconHostAllowed(host, sender)) {
+        return { success: false, cleared: 0 };
+      }
+      const result = await clearSiteLexicon(host);
       return { success: true, ...result };
     }
 
@@ -401,13 +500,31 @@ function buildPageSystemPrompt(
   return systemPrompt;
 }
 
+/** Keep only well-formed {id, text} items — one malformed element must not
+ * turn the whole batch into an opaque TypeError for the page. */
+function sanitizeBatchItems(raw: unknown): { id: string; text: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (it): it is { id: string; text: string } =>
+      !!it &&
+      typeof (it as { id?: unknown }).id === "string" &&
+      typeof (it as { text?: unknown }).text === "string"
+  );
+}
+
 async function handleTranslateBatch(
   msg: TranslateBatchMessage
 ): Promise<TranslateBatchResponse> {
   const settings = await getSettings();
   const lang = getLang(settings);
 
-  const { items, targetLang, prompt } = msg.payload!;
+  const items = sanitizeBatchItems(msg.payload?.items);
+  if (!items.length) {
+    return { success: false, error: t(lang, "error.batchFailed"), errorCode: "PARSE_ERROR" };
+  }
+  const targetLang =
+    typeof msg.payload?.targetLang === "string" ? msg.payload.targetLang : "";
+  const prompt = typeof msg.payload?.prompt === "string" ? msg.payload.prompt : undefined;
   const finalTargetLang = targetLang || settings.defaultTargetLang;
   const systemPrompt = buildPageSystemPrompt(settings, finalTargetLang, items, prompt);
 
@@ -423,7 +540,11 @@ async function handleTranslateBatch(
   }
 
   if (!settings.apiKey) {
-    return { success: false, error: t(lang, "error.apiKeyNotConfigured") };
+    return {
+      success: false,
+      error: t(lang, "error.apiKeyNotConfigured"),
+      errorCode: "API_KEY_MISSING",
+    };
   }
 
   const requestItems = prepared.misses.map((record) => record.item);
@@ -436,7 +557,11 @@ async function handleTranslateBatch(
     const raw = await translateViaProvider(settings, systemPrompt, userInput, lang);
     const parsed = parseBatchResponse(raw);
     if (!parsed) {
-      return { success: false, error: t(lang, "error.invalidBatchResponse") };
+      return {
+        success: false,
+        error: t(lang, "error.invalidBatchResponse"),
+        errorCode: "PARSE_ERROR",
+      };
     }
 
     await commitBatchResults(
@@ -458,6 +583,7 @@ async function handleTranslateBatch(
       error: err instanceof ProviderRequestError || err instanceof AstraError
         ? err.message
         : t(lang, "error.batchFailed"),
+      errorCode: err instanceof AstraError ? err.code : "UNKNOWN",
     };
   }
 }
@@ -519,13 +645,16 @@ function parseBatchResponse(
     const parsed = JSON.parse(raw);
     if (parsed?.items && Array.isArray(parsed.items)) return parsed;
   } catch {
-    const jsonStr = extractJson(raw);
-    if (jsonStr) {
+    // Model output may precede/wrap the JSON (echoed input, prose, fences).
+    // Try each balanced top-level object, LAST first — the real answer
+    // follows any echo of the input.
+    const candidates = topLevelJsonObjects(raw);
+    for (let i = candidates.length - 1; i >= 0; i--) {
       try {
-        const parsed = JSON.parse(jsonStr);
+        const parsed = JSON.parse(candidates[i]);
         if (parsed?.items && Array.isArray(parsed.items)) return parsed;
       } catch {
-        // give up
+        // keep looking
       }
     }
   }
@@ -575,12 +704,21 @@ export async function handleTranslateBatchStream(
   const settings = await getSettings();
   const lang = getLang(settings);
   const payload = msg.payload;
-  if (!payload?.items?.length) {
-    post({ type: "done", success: false, error: t(lang, "error.batchFailed"), items: [] });
+  const items = sanitizeBatchItems(payload?.items);
+  if (!items.length) {
+    post({
+      type: "done",
+      success: false,
+      error: t(lang, "error.batchFailed"),
+      errorCode: "PARSE_ERROR",
+      items: [],
+    });
     return;
   }
 
-  const { items, targetLang, prompt } = payload;
+  const targetLang =
+    typeof payload.targetLang === "string" ? payload.targetLang : "";
+  const prompt = typeof payload.prompt === "string" ? payload.prompt : undefined;
   const finalTargetLang = targetLang || settings.defaultTargetLang;
   const systemPrompt = buildPageSystemPrompt(settings, finalTargetLang, items, prompt);
 
@@ -608,6 +746,7 @@ export async function handleTranslateBatchStream(
       type: "done",
       success: false,
       error: t(lang, "error.apiKeyNotConfigured"),
+      errorCode: "API_KEY_MISSING",
       items: items
         .filter((item) => prepared.translatedById.has(item.id))
         .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! })),
@@ -624,54 +763,59 @@ export async function handleTranslateBatchStream(
   const parser = new StreamBatchItemParser();
   const streamedIds = new Set<string>();
 
+  // Only ids we actually asked the model for — hallucinated or cache-hit ids
+  // must not overwrite prepared results. Later completions of the same id
+  // (echoed input followed by the real answer) overwrite and re-emit.
+  const applyStreamItem = (item: { id: string; text: string }): void => {
+    if (!prepared.missById.has(item.id)) return;
+    if (prepared.translatedById.get(item.id) === item.text) return;
+    streamedIds.add(item.id);
+    prepared.translatedById.set(item.id, item.text);
+    post({ type: "item", id: item.id, text: item.text });
+  };
+
   try {
     const raw = await translateViaProviderStream(
       settings,
       systemPrompt,
       userInput,
       (delta) => {
-        const news = parser.push(delta);
-        for (const item of news) {
-          if (streamedIds.has(item.id)) continue;
-          streamedIds.add(item.id);
-          prepared.translatedById.set(item.id, item.text);
-          post({ type: "item", id: item.id, text: item.text });
-        }
+        for (const item of parser.push(delta)) applyStreamItem(item);
       },
       lang,
       signal
     );
 
     // Catch any trailing complete objects.
-    for (const item of parser.finish()) {
-      if (streamedIds.has(item.id)) continue;
-      streamedIds.add(item.id);
-      prepared.translatedById.set(item.id, item.text);
-      post({ type: "item", id: item.id, text: item.text });
-    }
+    for (const item of parser.finish()) applyStreamItem(item);
 
     // Prefer full JSON parse when possible (more reliable id/text mapping).
     const parsed = parseBatchResponse(raw) || parseBatchResponse(parser.raw);
     if (parsed) {
       for (const item of parsed.items) {
         if (typeof item?.id !== "string" || typeof item?.text !== "string") continue;
-        if (!prepared.translatedById.has(item.id)) {
-          prepared.translatedById.set(item.id, item.text);
-          post({ type: "item", id: item.id, text: item.text });
-        } else {
-          // Prefer final parse text if it differs (model corrected mid-stream).
-          prepared.translatedById.set(item.id, item.text);
-        }
+        if (!prepared.missById.has(item.id)) continue;
+        const prev = prepared.translatedById.get(item.id);
+        if (prev === item.text) continue;
+        // New item, or the model corrected an earlier streamed value in the
+        // final JSON — (re-)emit so the page applies the final text too.
+        prepared.translatedById.set(item.id, item.text);
+        post({ type: "item", id: item.id, text: item.text });
       }
       await commitBatchResults(parsed, prepared, finalTargetLang, settings);
     } else if (streamedIds.size > 0) {
-      // Partial stream success without a final parse — cache what we have.
+      // Stream items completed but the envelope never parsed — cache what we
+      // verifiably extracted (the parser only accepts objects inside "items").
+      // Identity "translations" are excluded here: without a final parse we
+      // cannot tell a legitimately unchanged label from an echoed input, and
+      // caching original→original poisons every future visit.
+      const sourceById = new Map(requestItems.map((it) => [it.id, it.text]));
       await commitBatchResults(
         {
           items: Array.from(streamedIds, (id) => ({
             id,
             text: prepared.translatedById.get(id)!,
-          })),
+          })).filter((it) => it.text !== sourceById.get(it.id)),
         },
         prepared,
         finalTargetLang,
@@ -682,6 +826,7 @@ export async function handleTranslateBatchStream(
         type: "done",
         success: false,
         error: t(lang, "error.invalidBatchResponse"),
+        errorCode: "PARSE_ERROR",
         items: items
           .filter((item) => prepared.translatedById.has(item.id))
           .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! })),
@@ -689,9 +834,16 @@ export async function handleTranslateBatchStream(
       return;
     }
 
+    // Success only when every requested miss actually got a translation —
+    // ids the model dropped must surface as a failure, not vanish silently.
+    const missingCount = requestItems.filter(
+      (item) => !prepared.translatedById.has(item.id)
+    ).length;
     post({
       type: "done",
-      success: true,
+      success: missingCount === 0,
+      error: missingCount === 0 ? undefined : t(lang, "error.invalidBatchResponse"),
+      errorCode: missingCount === 0 ? undefined : "PARSE_ERROR",
       items: items
         .filter((item) => prepared.translatedById.has(item.id))
         .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! })),
@@ -701,25 +853,34 @@ export async function handleTranslateBatchStream(
       .filter((item) => prepared.translatedById.has(item.id))
       .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! }));
 
-    // Cache whatever streamed successfully before the error.
+    // Cache whatever streamed successfully before the error — but not
+    // identity "translations" (indistinguishable from an echoed input when
+    // the stream never finished cleanly).
     if (partial.length > 0) {
+      const sourceById = new Map(items.map((it) => [it.id, it.text]));
       await commitBatchResults(
-        { items: partial.filter((p) => prepared.missById.has(p.id)) },
+        {
+          items: partial.filter(
+            (p) => prepared.missById.has(p.id) && p.text !== sourceById.get(p.id)
+          ),
+        },
         prepared,
         finalTargetLang,
         settings
       ).catch(() => {});
     }
 
+    // Honest failure: partial items still ship (the page keeps them), but the
+    // real error + code always surface — a cache hit or a half-finished stream
+    // must never turn a 401/429 into "success".
     post({
       type: "done",
-      success: partial.length > 0,
+      success: false,
       error:
-        partial.length > 0
-          ? undefined
-          : err instanceof ProviderRequestError || err instanceof AstraError
-            ? err.message
-            : t(lang, "error.batchFailed"),
+        err instanceof ProviderRequestError || err instanceof AstraError
+          ? err.message
+          : t(lang, "error.batchFailed"),
+      errorCode: err instanceof AstraError ? err.code : "UNKNOWN",
       items: partial,
     });
   }

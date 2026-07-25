@@ -92,6 +92,7 @@ export type MessageType =
   | "TRANSLATE_BATCH"
   | "GET_SITE_LEXICON"
   | "LEARN_SITE_LEXICON"
+  | "TOUCH_SITE_LEXICON"
   | "CLEAR_SITE_LEXICON"
   | "GET_SITE_LEXICON_STATS"
   | "PAGE_TRANSLATE_START"
@@ -122,6 +123,9 @@ export type TranslateBatchStreamEvent =
       success: boolean;
       items: { id: string; text: string }[];
       error?: string;
+      /** Structured provider error code (e.g. RATE_LIMIT / TIMEOUT / AUTH_ERROR)
+       * so the content side can classify without sniffing localized text. */
+      errorCode?: string;
     };
 
 export interface Message<T = unknown> {
@@ -216,6 +220,8 @@ export interface TranslateBatchResponse {
   success: boolean;
   items?: { id: string; text: string }[];
   error?: string;
+  /** Structured provider error code (e.g. RATE_LIMIT / TIMEOUT / AUTH_ERROR). */
+  errorCode?: string;
 }
 
 export interface TestProviderResponse {

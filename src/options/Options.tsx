@@ -168,6 +168,9 @@ export default function Options() {
 
   const handleClearHostLexicon = useCallback(
     async (host: string) => {
+      // Irreversible — same confirmation bar as the clear-all action.
+      const ok = window.confirm(t(lang, "opt.clearHostLexiconConfirm", { host }));
+      if (!ok) return;
       setClearingLexicon(true);
       try {
         const res = await chrome.runtime.sendMessage({
@@ -748,6 +751,11 @@ export default function Options() {
                   </button>
                 </li>
               ))}
+              {siteStats.hosts.length > 12 && (
+                <li style={{ padding: "4px 0", color: "#9ca3af", fontSize: 12 }}>
+                  {t(lang, "opt.moreHosts", { count: siteStats.hosts.length - 12 })}
+                </li>
+              )}
             </ul>
           )}
         </div>

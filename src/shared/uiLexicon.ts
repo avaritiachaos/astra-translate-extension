@@ -5,9 +5,11 @@
 // words appear immediately without waiting for a model round-trip.
 // Only exact (normalized) short phrases match; prose never hits this.
 
-/** Normalize for lookup: trim, collapse space, case-fold. */
+/** Normalize for lookup: trim, collapse space, case-fold. Locale-independent
+ * lowercase — toLocaleLowerCase on tr/az systems maps I→ı and breaks every
+ * latin key (login, sign in, …). */
 export function normalizeUiKey(text: string): string {
-  return text.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  return text.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 type TargetMap = Record<string, string>;
@@ -171,7 +173,7 @@ const ENTRIES: LexiconEntry[] = [
     },
   },
   {
-    sources: ["settings", "options", "preferences", "настройки", "設定", "设置", "設定"],
+    sources: ["settings", "options", "preferences", "настройки", "設定", "设置"],
     targets: {
       "Simplified Chinese": "设置",
       "Traditional Chinese": "設定",
@@ -226,13 +228,13 @@ const ENTRIES: LexiconEntry[] = [
     },
   },
   {
-    // Include "имя" / "имя:" — on login forms this is almost always "username".
+    // Bare "имя" is NOT here on purpose: outside login forms it means "name"
+    // (profile fields, form labels) — a wrong instant gloss is worse than
+    // waiting for the model. Only the unambiguous phrase maps to "username".
     sources: [
       "username",
       "user name",
       "login name",
-      "имя",
-      "имя:",
       "имя пользователя",
       "ユーザー名",
       "用户名",
@@ -270,7 +272,9 @@ const ENTRIES: LexiconEntry[] = [
     },
   },
   {
-    sources: ["name", "name:", "名前", "名称", "姓名"],
+    // "姓名" is NOT a source: it's already correct Simplified Chinese —
+    // rewriting it to "名称" would degrade a fine label.
+    sources: ["name", "name:", "名前"],
     targets: {
       "Simplified Chinese": "名称",
       "Traditional Chinese": "名稱",

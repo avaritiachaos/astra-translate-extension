@@ -7,9 +7,10 @@
 
 export const SITE_LEXICON_STORAGE_KEY = "astra_site_lexicon_v1";
 
-/** Same normalization as the global UI lexicon. */
+/** Same normalization as the global UI lexicon. Locale-independent lowercase:
+ * toLocaleLowerCase would break every latin key on tr/az systems (İ→i̇, I→ı). */
 function normalizeUiKey(text: string): string {
-  return text.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  return text.trim().replace(/\s+/g, " ").toLowerCase();
 }
 export const SITE_LEXICON_SCHEMA_VERSION = 1;
 /** Max characters for a learnable phrase (matches UI lexicon). */
@@ -38,11 +39,9 @@ export function emptySiteLexiconStore(): SiteLexiconStore {
   return { version: SITE_LEXICON_SCHEMA_VERSION, hosts: {} };
 }
 
-/** Hostname for storage (no port). Empty for non-http pages. */
+/** Hostname for storage (no port), lowercased. */
 export function siteLexiconHost(hostname?: string): string {
-  const h = (hostname || "").trim().toLowerCase();
-  if (!h || h === "localhost") return h;
-  return h;
+  return (hostname || "").trim().toLowerCase();
 }
 
 /**
@@ -66,27 +65,18 @@ export function isLearnableUiPair(source: string, translation: string): boolean 
   return true;
 }
 
+/**
+ * Look up a learned translation. Tries the same key set the writer uses
+ * (upsertLearnedPair stores under the colon-stripped key), so "Имя:" finds
+ * the entry learned from "Имя".
+ */
 export function lookupInStore(
   store: SiteLexiconStore,
   host: string,
   targetLang: string,
   source: string
 ): string | null {
-  const h = siteLexiconHost(host);
-  if (!h) return null;
-  const key = normalizeUiKey(source);
-  if (!key) return null;
-  const entry = store.hosts[h]?.[targetLang]?.[key];
-  if (!entry?.translation) return null;
-
-  // Preserve trailing colon like the global UI lexicon.
-  const trimmed = source.trim();
-  let out = entry.translation;
-  if (/[:：]\s*$/.test(trimmed) && !/[:：]\s*$/.test(out)) {
-    out += trimmed.includes("：") ? "：" : ":";
-  }
-  // Also try without colon key if full key missed — handled by normalize keys below.
-  return out;
+  return lookupInStoreWithKeys(store, host, targetLang, source);
 }
 
 /** Keys to try: full normalized text and without trailing colon. */
@@ -173,26 +163,28 @@ function trimHostLangBucket(
     });
 }
 
-/** Touch hit counter when a learned entry is used. */
+/** Touch usage stats when a learned entry is applied. Returns true on hit —
+ * keeping lastUsedAt fresh is what makes bucket eviction truly LRU. */
 export function touchLearnedPair(
   store: SiteLexiconStore,
   host: string,
   targetLang: string,
   source: string,
   now = Date.now()
-): void {
+): boolean {
   const h = siteLexiconHost(host);
-  if (!h) return;
+  if (!h) return false;
   const bucket = store.hosts[h]?.[targetLang];
-  if (!bucket) return;
+  if (!bucket) return false;
   for (const key of siteLexiconKeys(source)) {
     const entry = bucket[key];
     if (entry) {
       entry.lastUsedAt = now;
       entry.hits += 1;
-      return;
+      return true;
     }
   }
+  return false;
 }
 
 /** Flat map for content-script session use. */

@@ -55,6 +55,10 @@ const zhCN: MessageDict = {
   "opt.clearSiteLexiconConfirm": "确定清除所有站点学到的短语？此操作不可撤销。",
   "opt.clearSiteLexiconDone": "已清除 {count} 条短语",
   "opt.clearThisHost": "清除",
+  "opt.clearHostLexiconConfirm": "确定清除 {host} 学到的全部短语？此操作不可撤销。",
+  "opt.moreHosts": "还有 {count} 个站点未显示，可用上方按钮整体清除",
+  "opt.showKey": "显示 API Key",
+  "opt.hideKey": "隐藏 API Key",
   "opt.refreshStats": "刷新统计",
 
   "opt.smartTargetEnabled": "智能目标语言",
@@ -111,7 +115,7 @@ const zhCN: MessageDict = {
   "popup.noApiKey": "请先在设置页配置 API Key",
   "popup.connectFail": "无法连接到翻译服务。",
   "popup.cannotAccess": "无法访问当前页面。",
-  "popup.kbHint": "Ctrl+Enter 翻译 · Esc 清空",
+  "popup.kbHint": "Enter 翻译 · Shift+Enter 换行 · Esc 清空",
 
   // ---- Content 划词气泡 ----
   "bubble.title": "Astra Translate",
@@ -230,6 +234,10 @@ const enUS: MessageDict = {
   "opt.clearSiteLexiconConfirm": "Clear every learned site phrase? This cannot be undone.",
   "opt.clearSiteLexiconDone": "Cleared {count} phrases",
   "opt.clearThisHost": "Clear",
+  "opt.clearHostLexiconConfirm": "Clear all phrases learned for {host}? This cannot be undone.",
+  "opt.moreHosts": "{count} more hosts not shown — use the button above to clear everything",
+  "opt.showKey": "Show API Key",
+  "opt.hideKey": "Hide API Key",
   "opt.refreshStats": "Refresh stats",
 
   "opt.smartTargetEnabled": "Smart Target Language",
@@ -286,7 +294,7 @@ const enUS: MessageDict = {
   "popup.noApiKey": "Please configure API Key in settings first.",
   "popup.connectFail": "Failed to connect to translation service.",
   "popup.cannotAccess": "Cannot access the current page.",
-  "popup.kbHint": "Ctrl+Enter to translate · Esc to clear",
+  "popup.kbHint": "Enter to translate · Shift+Enter for newline · Esc to clear",
 
   // ---- Content Bubble ----
   "bubble.title": "Astra Translate",
@@ -405,6 +413,10 @@ const jaJP: MessageDict = {
   "opt.clearSiteLexiconConfirm": "学習済みのサイトフレーズをすべて消去しますか？元に戻せません。",
   "opt.clearSiteLexiconDone": "{count} フレーズを消去しました",
   "opt.clearThisHost": "消去",
+  "opt.clearHostLexiconConfirm": "{host} で学習したフレーズをすべて消去しますか？元に戻せません。",
+  "opt.moreHosts": "他 {count} サイトは表示されていません。上のボタンで一括消去できます",
+  "opt.showKey": "API Key を表示",
+  "opt.hideKey": "API Key を隠す",
   "opt.refreshStats": "統計を更新",
 
   "opt.smartTargetEnabled": "スマートターゲット言語",
@@ -461,7 +473,7 @@ const jaJP: MessageDict = {
   "popup.noApiKey": "設定ページで API Key を設定してください",
   "popup.connectFail": "翻訳サービスに接続できません。",
   "popup.cannotAccess": "現在のページにアクセスできません。",
-  "popup.kbHint": "Ctrl+Enter で翻訳 · Esc でクリア",
+  "popup.kbHint": "Enter で翻訳 · Shift+Enter で改行 · Esc でクリア",
 
   // ---- Content 選択バブル ----
   "bubble.title": "Astra Translate",

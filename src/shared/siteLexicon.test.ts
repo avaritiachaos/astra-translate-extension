@@ -3,8 +3,11 @@ import assert from "node:assert/strict";
 import {
   emptySiteLexiconStore,
   isLearnableUiPair,
+  lookupInStore,
   lookupInStoreWithKeys,
+  touchLearnedPair,
   upsertLearnedPair,
+  SITE_LEXICON_MAX_PER_HOST_LANG,
 } from "./siteLexicon.ts";
 
 describe("siteLexicon", () => {
@@ -40,4 +43,26 @@ describe("siteLexicon", () => {
       null
     );
   });
+
+  it("lookupInStore finds entries learned from a colon-suffixed label", () => {
+    const store = emptySiteLexiconStore();
+    // upsert strips the trailing colon before keying — lookup must match.
+    upsertLearnedPair(store, "a.com", "Simplified Chinese", "Имя:", "名字:");
+    assert.equal(lookupInStore(store, "a.com", "Simplified Chinese", "Имя:"), "名字:");
+    assert.equal(lookupInStore(store, "a.com", "Simplified Chinese", "имя"), "名字:");
+  });
+
+  it("touchLearnedPair refreshes lastUsedAt so eviction is LRU by use", () => {
+    const store = emptySiteLexiconStore();
+    upsertLearnedPair(store, "a.com", "zh", "old", "旧", 1000);
+    assert.equal(touchLearnedPair(store, "a.com", "zh", "old", 5000), true);
+    assert.equal(touchLearnedPair(store, "a.com", "zh", "missing", 5000), false);
+    // Fill past the cap with newer-learned but never-used entries.
+    for (let i = 0; i < SITE_LEXICON_MAX_PER_HOST_LANG; i++) {
+      upsertLearnedPair(store, "a.com", "zh", `k${i}`, `v${i}`, 2000 + i);
+    }
+    // "old" was learned first but used last — it must survive the trim.
+    assert.equal(lookupInStoreWithKeys(store, "a.com", "zh", "old"), "旧");
+  });
 });
+

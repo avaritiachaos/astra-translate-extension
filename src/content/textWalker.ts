@@ -268,10 +268,14 @@ function collectUiAttrTargets(
   if (!caches.options.translateUiControls) return [];
 
   const collected: CollectedNode[] = [];
-  const inputs = root.querySelectorAll("input");
+  // querySelectorAll only matches descendants — a dynamically added control
+  // arrives with the input/textarea itself as the walk root, so include it.
+  const inputs: HTMLInputElement[] = root instanceof HTMLInputElement ? [root] : [];
+  for (const input of root.querySelectorAll("input")) {
+    if (input instanceof HTMLInputElement) inputs.push(input);
+  }
 
   for (const input of inputs) {
-    if (!(input instanceof HTMLInputElement)) continue;
     // Attribute targets still respect chrome / hidden / our own UI, but not
     // the INPUT-as-tag skip (that's only for text-node walking).
     if (isAttrHostSkipped(input, caches)) continue;
@@ -279,14 +283,19 @@ function collectUiAttrTargets(
     const type = (input.type || "text").toLowerCase();
 
     if (BUTTON_INPUT_TYPES.has(type)) {
-      // Prefer the attribute (static HTML label); fall back to the property.
-      const value = input.getAttribute("value") ?? input.value ?? "";
-      if (isTranslatableText(value)) {
-        collected.push({
-          id: uid(),
-          originalText: value,
-          target: { type: "attr", element: input, attr: "value" },
-        });
+      // A named submit's value is form data (`name=value` accompanies the
+      // submission) — translating it would change what the server receives.
+      const submitsValue = type === "submit" && input.hasAttribute("name");
+      if (!submitsValue) {
+        // Prefer the attribute (static HTML label); fall back to the property.
+        const value = input.getAttribute("value") ?? input.value ?? "";
+        if (isTranslatableText(value)) {
+          collected.push({
+            id: uid(),
+            originalText: value,
+            target: { type: "attr", element: input, attr: "value" },
+          });
+        }
       }
     }
 
@@ -303,8 +312,12 @@ function collectUiAttrTargets(
   }
 
   // <textarea placeholder="..."> is also a common UI hint.
+  const textareas: HTMLTextAreaElement[] =
+    root instanceof HTMLTextAreaElement ? [root] : [];
   for (const ta of root.querySelectorAll("textarea")) {
-    if (!(ta instanceof HTMLTextAreaElement)) continue;
+    if (ta instanceof HTMLTextAreaElement) textareas.push(ta);
+  }
+  for (const ta of textareas) {
     if (isAttrHostSkipped(ta, caches)) continue;
     const placeholder = ta.getAttribute("placeholder") || "";
     if (isTranslatableText(placeholder)) {

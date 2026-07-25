@@ -20,8 +20,17 @@ describe("uiLexicon", () => {
   });
 
   it("preserves trailing colons on form labels", () => {
-    assert.equal(lookupUiLexicon("Имя:", "Simplified Chinese"), "用户名:");
     assert.equal(lookupUiLexicon("Пароль:", "Simplified Chinese"), "密码:");
+    assert.equal(lookupUiLexicon("Имя пользователя:", "Simplified Chinese"), "用户名:");
+  });
+
+  it('leaves ambiguous bare "Имя" to the model (name vs username)', () => {
+    assert.equal(lookupUiLexicon("Имя", "Simplified Chinese"), null);
+    assert.equal(lookupUiLexicon("Имя:", "Simplified Chinese"), null);
+  });
+
+  it('does not rewrite already-correct "姓名"', () => {
+    assert.equal(lookupUiLexicon("姓名", "Simplified Chinese"), null);
   });
 
   it("maps to English and Japanese targets", () => {

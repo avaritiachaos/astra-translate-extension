@@ -36,25 +36,19 @@ export class MutationTranslator {
     this.active = true;
 
     this.observer = new MutationObserver((mutations) => {
+      // Record only — the (expensive) collection walk happens once per
+      // debounce window in processPending, not synchronously per mutation.
       for (const mutation of mutations) {
-        if (mutation.type === "childList") {
-          for (const node of mutation.addedNodes) {
-            if (node.nodeType === Node.TEXT_NODE) {
-              if (!this.processedNodes.has(node)) {
-                this.pendingNodes.add(node);
-              }
-            } else if (node.nodeType === Node.ELEMENT_NODE) {
-              // Collect text nodes (and optional UI attrs) from newly added subtree
-              const el = node as HTMLElement;
-              const textNodes = collectTextNodes(el, this.collectOptions);
-              for (const tn of textNodes) {
-                const host =
-                  tn.target.type === "text" ? tn.target.node : tn.target.element;
-                if (!this.processedNodes.has(host)) {
-                  this.pendingNodes.add(host);
-                }
-              }
-            }
+        if (mutation.type !== "childList") continue;
+        for (const node of mutation.addedNodes) {
+          if (
+            node.nodeType !== Node.TEXT_NODE &&
+            node.nodeType !== Node.ELEMENT_NODE
+          ) {
+            continue;
+          }
+          if (!this.processedNodes.has(node)) {
+            this.pendingNodes.add(node);
           }
         }
       }
@@ -74,48 +68,33 @@ export class MutationTranslator {
   private processPending(): void {
     if (this.pendingNodes.size === 0) return;
 
-    const nodes = Array.from(this.pendingNodes);
+    const pending = Array.from(this.pendingNodes);
     this.pendingNodes.clear();
 
-    // Mark as processed
-    for (const node of nodes) {
-      this.processedNodes.add(node);
+    // Reduce to a minimal set of collection roots: a text node is hosted by
+    // its parent, and roots nested inside another pending root collapse into
+    // that ancestor — each added subtree gets walked exactly once.
+    const rootSet = new Set<HTMLElement>();
+    for (const node of pending) {
+      if (this.processedNodes.has(node)) continue;
+      const el =
+        node.nodeType === Node.TEXT_NODE
+          ? (node as Text).parentElement
+          : (node as HTMLElement);
+      if (el && el.isConnected) rootSet.add(el);
     }
+    const allRoots = Array.from(rootSet);
+    const roots = allRoots.filter(
+      (el) => !allRoots.some((other) => other !== el && other.contains(el))
+    );
 
-    // Re-collect properly (text + optional UI attrs) from each host.
     const collected: CollectedNode[] = [];
-    const seen = new Set<string>();
-
-    for (const node of nodes) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const textNode = node as Text;
-        if (!textNode.parentElement) continue;
-        // Collect from parent so we pick up sibling attrs if needed; filter to this text.
-        const fromParent = collectTextNodes(
-          textNode.parentElement,
-          this.collectOptions
-        );
-        for (const c of fromParent) {
-          if (c.target.type === "text" && c.target.node === textNode) {
-            if (!seen.has(c.id)) {
-              seen.add(c.id);
-              collected.push(c);
-            }
-          }
-        }
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const el = node as HTMLElement;
-        if (!el.isConnected) continue;
-        const fromEl = collectTextNodes(el, this.collectOptions);
-        for (const c of fromEl) {
-          if (!seen.has(c.id)) {
-            seen.add(c.id);
-            collected.push(c);
-          }
-        }
-      }
+    for (const root of roots) {
+      collected.push(...collectTextNodes(root, this.collectOptions));
     }
 
+    // A parent walk can sweep up untouched siblings; downstream translation
+    // skips targets it has already processed, so those dedupe there.
     if (collected.length > 0) {
       this.onNewNodes(collected);
     }

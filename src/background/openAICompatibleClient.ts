@@ -45,7 +45,8 @@ const MAX_TRANSIENT_RETRIES = 3;
 function buildRequestParts(
   settings: UserProviderSettings,
   messages: ChatMessage[],
-  stream: boolean
+  stream: boolean,
+  lang: UiLanguage = "zh-CN"
 ): {
   url: string;
   headers: Record<string, string>;
@@ -54,11 +55,8 @@ function buildRequestParts(
 } {
   const { baseUrl, endpoint, apiKey, model, temperature, disableThinking, providerId } = settings;
   if (!apiKey) {
-    throw new ProviderRequestError(
-      // lang resolved by caller for message — use English fallback only if thrown early
-      "API key not configured",
-      "API_KEY_MISSING"
-    );
+    // Callers pre-check, but keep a localized safety net for new call sites.
+    throw new ProviderRequestError(t(lang, "error.apiKeyNotConfigured"), "API_KEY_MISSING");
   }
 
   const url = `${baseUrl.replace(/\/+$/, "")}${endpoint}`;
@@ -96,7 +94,7 @@ export async function openAIChat(
     throw new ProviderRequestError(t(lang, "error.apiKeyNotConfigured"), "API_KEY_MISSING");
   }
 
-  const { url, headers, body } = buildRequestParts(settings, messages, false);
+  const { url, headers, body } = buildRequestParts(settings, messages, false, lang);
   let thinkingEnabled = body.thinking != null;
 
   let lastError: unknown;
@@ -114,6 +112,8 @@ export async function openAIChat(
       });
 
       if (!res.ok) {
+        // Drop the error body — we only act on the status / headers.
+        void res.body?.cancel().catch(() => {});
         if (thinkingEnabled && res.status === 400) {
           thinkingEnabled = false;
           delete body.thinking;
@@ -192,7 +192,7 @@ export async function openAIChatStream(
     throw new ProviderRequestError(t(lang, "error.apiKeyNotConfigured"), "API_KEY_MISSING");
   }
 
-  const { url, headers, body } = buildRequestParts(settings, messages, true);
+  const { url, headers, body } = buildRequestParts(settings, messages, true, lang);
   let thinkingEnabled = body.thinking != null;
   let lastError: unknown;
 
@@ -205,7 +205,14 @@ export async function openAIChatStream(
     const onAbort = () => controller.abort();
     signal?.addEventListener("abort", onAbort, { once: true });
 
-    const timeoutId = setTimeout(() => controller.abort(), settings.timeoutMs);
+    // Idle timeout: arms for time-to-first-byte, then re-arms on every chunk.
+    // A slow model streaming a large batch must not be cut off just because
+    // the *total* stream time exceeds timeoutMs — only a silent stall aborts.
+    let timeoutId = setTimeout(() => controller.abort(), settings.timeoutMs);
+    const rearmTimeout = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => controller.abort(), settings.timeoutMs);
+    };
     let emittedAny = false;
     let full = "";
 
@@ -218,6 +225,8 @@ export async function openAIChatStream(
       });
 
       if (!res.ok) {
+        // Drop the error body — we only act on the status / headers.
+        void res.body?.cancel().catch(() => {});
         if (thinkingEnabled && res.status === 400) {
           thinkingEnabled = false;
           delete body.thinking;
@@ -252,39 +261,50 @@ export async function openAIChatStream(
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let lineBuf = "";
+      let sawDone = false;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        lineBuf += decoder.decode(value, { stream: true });
+      try {
+        while (!sawDone) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          rearmTimeout();
+          lineBuf += decoder.decode(value, { stream: true });
 
-        let nl: number;
-        while ((nl = lineBuf.indexOf("\n")) >= 0) {
-          let line = lineBuf.slice(0, nl);
-          lineBuf = lineBuf.slice(nl + 1);
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (!line || line.startsWith(":")) continue;
-          if (!line.startsWith("data:")) continue;
-          const data = line.slice(5).trim();
-          if (data === "[DONE]") {
-            lineBuf = "";
-            break;
-          }
-          try {
-            const chunk = JSON.parse(data) as StreamChunk;
-            const delta =
-              chunk.choices?.[0]?.delta?.content ??
-              chunk.choices?.[0]?.message?.content ??
-              "";
-            if (delta) {
-              full += delta;
-              emittedAny = true;
-              onDelta(delta);
+          let nl: number;
+          while ((nl = lineBuf.indexOf("\n")) >= 0) {
+            let line = lineBuf.slice(0, nl);
+            lineBuf = lineBuf.slice(nl + 1);
+            if (line.endsWith("\r")) line = line.slice(0, -1);
+            if (!line || line.startsWith(":")) continue;
+            if (!line.startsWith("data:")) continue;
+            const data = line.slice(5).trim();
+            if (data === "[DONE]") {
+              // Some gateways keep the connection open after [DONE]; stop
+              // reading instead of waiting for the server to close it.
+              sawDone = true;
+              lineBuf = "";
+              break;
             }
-          } catch {
-            // Incomplete or non-JSON SSE line — skip.
+            try {
+              const chunk = JSON.parse(data) as StreamChunk;
+              const delta =
+                chunk.choices?.[0]?.delta?.content ??
+                chunk.choices?.[0]?.message?.content ??
+                "";
+              if (delta) {
+                full += delta;
+                emittedAny = true;
+                onDelta(delta);
+              }
+            } catch {
+              // Incomplete or non-JSON SSE line — skip.
+            }
           }
         }
+      } finally {
+        // Release the connection on every exit path (incl. [DONE] with the
+        // server still holding the stream open, and mid-stream errors).
+        void reader.cancel().catch(() => {});
       }
 
       if (!full.trim()) {
@@ -294,15 +314,14 @@ export async function openAIChatStream(
     } catch (err) {
       lastError = err;
 
-      // If we already streamed content to the page, don't retry — caller has partial results.
+      // Content already reached the page: never retry (deltas would be
+      // duplicated) and never pass a truncated stream off as success — the
+      // caller gets the real error alongside whatever items already streamed.
       if (emittedAny) {
         if (err instanceof ProviderRequestError) throw err;
         if (isTimeoutError(err)) {
-          // Partial success: return what we have rather than fail the whole batch.
-          if (full.trim()) return full.trim();
           throw new ProviderRequestError(t(lang, "error.timeout"), "TIMEOUT", undefined, true);
         }
-        if (full.trim()) return full.trim();
         throw err instanceof Error
           ? new ProviderRequestError(err.message, "UNKNOWN")
           : new ProviderRequestError(t(lang, "error.unknown"), "UNKNOWN");

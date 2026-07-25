@@ -27,7 +27,7 @@ import {
 } from "../shared/siteLexicon";
 import {
   AdaptiveConcurrency,
-  classifyBatchError,
+  classifyBatchOutcome,
   type BatchOutcome,
 } from "./adaptiveConcurrency";
 
@@ -48,6 +48,14 @@ const GROUP_FAILURE_LIMIT = 5;
 
 function currentPageKey(): string {
   return `${window.location.origin}${window.location.pathname}${window.location.search}`;
+}
+
+/** Escape text interpolated into progress-UI innerHTML. The error branch can
+ * carry provider-derived message text — never trust it as markup. */
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === '"' ? "&quot;" : "&#39;"
+  );
 }
 
 /** Vertical margin (in px) treated as "near the viewport" — about one screen
@@ -150,8 +158,23 @@ function nodePriority(node: CollectedNode): number {
   return score;
 }
 
-function sortByPriority(nodes: CollectedNode[]): CollectedNode[] {
-  return [...nodes].sort((a, b) => nodePriority(a) - nodePriority(b));
+/**
+ * Order block-groups for first-paint priority. Runs AFTER grouping: sorting
+ * individual nodes first would break groupNodesByBlock's contiguity premise
+ * and scatter a paragraph's fragments across unrelated requests. Nodes inside
+ * a group keep document order, so the model sees the passage as written.
+ * Scores are computed once per node before sorting — nodePriority reads
+ * layout (getBoundingClientRect), and calling it inside the comparator would
+ * force O(n·log n) reflow reads.
+ */
+function sortGroupsByPriority(groups: CollectedNode[][]): CollectedNode[][] {
+  const scored = groups.map((group) => {
+    let score = Infinity;
+    for (const n of group) score = Math.min(score, nodePriority(n));
+    return { group, score };
+  });
+  scored.sort((a, b) => a.score - b.score);
+  return scored.map((s) => s.group);
 }
 
 export class PageTranslator {
@@ -194,6 +217,10 @@ export class PageTranslator {
   /** Pairs to persist after a successful apply (deduped by source key). */
   private pendingSiteLearn: Map<string, { source: string; translation: string }> =
     new Map();
+  /** Learned keys applied this session, pending a usage-stats touch. */
+  private pendingSiteTouch: Set<string> = new Set();
+  /** Keys already touched this session (avoid re-sending on every lookup). */
+  private sessionTouched: Set<string> = new Set();
   private siteLearnFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(opts: {
@@ -315,8 +342,6 @@ export class PageTranslator {
     const collectedCount = initialNodes.length;
     initialNodes = this.applyLexiconHits(initialNodes);
     const lexiconDone = collectedCount - initialNodes.length;
-    // Still-pending nodes: short UI + top-of-page first within the API queue.
-    initialNodes = sortByPriority(initialNodes);
 
     this.showProgress({
       phase: "translating",
@@ -365,6 +390,8 @@ export class PageTranslator {
     for (const key of siteLexiconKeys(text)) {
       const hit = this.siteLexicon.get(key);
       if (!hit) continue;
+      // Keep the store's lastUsedAt fresh so eviction is LRU by use.
+      this.queueSiteTouch(key);
       const trimmed = text.trim();
       if (/[:：]\s*$/.test(trimmed) && !/[:：]\s*$/.test(hit)) {
         return hit + (trimmed.includes("：") ? "：" : ":");
@@ -372,6 +399,15 @@ export class PageTranslator {
       return hit;
     }
     return null;
+  }
+
+  /** Queue a usage-stats touch for a learned key (deduped per session). */
+  private queueSiteTouch(key: string): void {
+    if (!this.enableSiteLexicon) return;
+    if (this.sessionTouched.has(key)) return;
+    this.sessionTouched.add(key);
+    this.pendingSiteTouch.add(key);
+    this.scheduleSiteFlush();
   }
 
   /** Queue a short UI pair for persistent site learning. */
@@ -386,12 +422,15 @@ export class PageTranslator {
       source: source.trim(),
       translation: translation.trim(),
     });
-    if (!this.siteLearnFlushTimer) {
-      this.siteLearnFlushTimer = setTimeout(() => {
-        this.siteLearnFlushTimer = null;
-        this.flushSiteLexiconLearn();
-      }, 2000);
-    }
+    this.scheduleSiteFlush();
+  }
+
+  private scheduleSiteFlush(): void {
+    if (this.siteLearnFlushTimer) return;
+    this.siteLearnFlushTimer = setTimeout(() => {
+      this.siteLearnFlushTimer = null;
+      this.flushSiteLexiconLearn();
+    }, 2000);
   }
 
   private flushSiteLexiconLearn(): void {
@@ -401,21 +440,37 @@ export class PageTranslator {
     }
     if (!this.enableSiteLexicon) {
       this.pendingSiteLearn.clear();
+      this.pendingSiteTouch.clear();
       return;
     }
-    if (this.pendingSiteLearn.size === 0) return;
-    const pairs = Array.from(this.pendingSiteLearn.values());
-    this.pendingSiteLearn.clear();
-    chrome.runtime
-      .sendMessage({
-        type: "LEARN_SITE_LEXICON",
-        payload: {
-          host: location.hostname,
-          targetLang: this.targetLang,
-          pairs,
-        },
-      })
-      .catch(() => {});
+    if (this.pendingSiteLearn.size > 0) {
+      const pairs = Array.from(this.pendingSiteLearn.values());
+      this.pendingSiteLearn.clear();
+      chrome.runtime
+        .sendMessage({
+          type: "LEARN_SITE_LEXICON",
+          payload: {
+            host: location.hostname,
+            targetLang: this.targetLang,
+            pairs,
+          },
+        })
+        .catch(() => {});
+    }
+    if (this.pendingSiteTouch.size > 0) {
+      const sources = Array.from(this.pendingSiteTouch);
+      this.pendingSiteTouch.clear();
+      chrome.runtime
+        .sendMessage({
+          type: "TOUCH_SITE_LEXICON",
+          payload: {
+            host: location.hostname,
+            targetLang: this.targetLang,
+            sources,
+          },
+        })
+        .catch(() => {});
+    }
   }
 
   /**
@@ -438,7 +493,7 @@ export class PageTranslator {
       return;
     }
 
-    const groups = this.buildGroups(nodes);
+    const groups = this.buildPrioritizedGroups(nodes);
     const batches = this.createBatches(groups);
 
     const result = await this.runAdaptiveQueue(batches, (c, f) => {
@@ -462,10 +517,10 @@ export class PageTranslator {
    * subtle scroll hint rather than taking over the main progress bar.
    */
   private async runDeferredBatches(nodes: CollectedNode[]): Promise<void> {
-    const remaining = sortByPriority(this.applyLexiconHits(nodes));
+    const remaining = this.applyLexiconHits(nodes);
     if (remaining.length === 0) return;
 
-    const groups = this.buildGroups(remaining);
+    const groups = this.buildPrioritizedGroups(remaining);
     const batches = this.createBatches(groups);
     await this.runAdaptiveQueue(batches);
   }
@@ -489,7 +544,11 @@ export class PageTranslator {
 
     return new Promise((resolve) => {
       const finishIfDone = () => {
-        if (next >= batches.length && active === 0) {
+        // Cancellation (restore / SPA navigation) stops new batches from being
+        // queued, so "all queued" can never come true — resolve as soon as
+        // in-flight work drains or the awaiting start() hangs forever.
+        const cancelled = !this.isActiveOnCurrentPage();
+        if (active === 0 && (next >= batches.length || cancelled)) {
           resolve({ completed, failed });
         }
       };
@@ -692,6 +751,12 @@ export class PageTranslator {
     return this.groupingDisabled ? nodes.map((n) => [n]) : groupNodesByBlock(nodes);
   }
 
+  /** Group in document order (the contiguity groupNodesByBlock relies on),
+   * then order whole groups for first-paint priority. */
+  private buildPrioritizedGroups(nodes: CollectedNode[]): CollectedNode[][] {
+    return sortGroupsByPriority(this.buildGroups(nodes));
+  }
+
   /** Record a multi-fragment group whose separator split failed; trip the
    * kill-switch after too many in a row. */
   private noteGroupFailure(): void {
@@ -757,13 +822,18 @@ export class PageTranslator {
     }
 
     for (let i = 0; i < group.length; i++) {
-      this.applyTranslation(group[i], segments[i]);
+      // Mid-sentence fragments of a passage are context-bound — learning
+      // them as standalone site-lexicon entries would replay e.g. "here"→
+      // "此处" out of context on every later page of this host.
+      this.applyTranslation(group[i], segments[i], { learn: false });
     }
     return true;
   }
 
   /**
    * Apply one streamed/final item id → text onto all groups that share that source.
+   * A later event for the same id with different text is a correction (the model
+   * fixed itself in the final JSON) — re-applied in place, but not re-counted.
    * Returns how many nodes were successfully written.
    */
   private applyStreamedItem(
@@ -771,11 +841,12 @@ export class PageTranslator {
     text: string,
     items: { id: string; text: string }[],
     uncachedByText: Map<string, CollectedNode[][]>,
-    appliedIds: Set<string>
+    applied: Map<string, string>
   ): { nodes: number; needFallback: CollectedNode[][] } {
-    if (appliedIds.has(itemId)) {
+    if (applied.get(itemId) === text) {
       return { nodes: 0, needFallback: [] };
     }
+    const isCorrection = applied.has(itemId);
     const source = items.find((item) => item.id === itemId);
     if (!source) return { nodes: 0, needFallback: [] };
 
@@ -794,14 +865,18 @@ export class PageTranslator {
         }
         nodes += group.length;
         if (group.length > 1) this.groupFailureStreak = 0;
-      } else {
+      } else if (!isCorrection) {
+        // A correction that fails to split leaves the earlier applied text in
+        // place — don't queue a fallback for content that already renders.
         needFallback.push(group);
         if (group.length > 1) this.noteGroupFailure();
       }
     }
 
-    appliedIds.add(itemId);
-    return { nodes, needFallback };
+    applied.set(itemId, text);
+    // Corrections rewrite already-counted nodes — counting again would
+    // overstate progress.
+    return { nodes: isCorrection ? 0 : nodes, needFallback };
   }
 
   /**
@@ -882,7 +957,7 @@ export class PageTranslator {
 
       let completed = completedSeed;
       let translatedCount = 0;
-      const appliedIds = new Set<string>();
+      const applied = new Map<string, string>();
       const needFallback: CollectedNode[][] = [];
       let settled = false;
 
@@ -928,7 +1003,7 @@ export class PageTranslator {
             event.text,
             items,
             uncachedByText,
-            appliedIds
+            applied
           );
           completed += r.nodes;
           translatedCount += r.nodes;
@@ -944,38 +1019,55 @@ export class PageTranslator {
               item.text,
               items,
               uncachedByText,
-              appliedIds
+              applied
             );
             completed += r.nodes;
             translatedCount += r.nodes;
             needFallback.push(...r.needFallback);
           }
 
-          const runFallback = async () => {
-            let lastOutcome: BatchOutcome = event.success
-              ? "success"
-              : classifyBatchError(event.error);
-            let fallbackHadTransient = false;
+          const doneOutcome: BatchOutcome = event.success
+            ? "success"
+            : classifyBatchOutcome(event.errorCode, event.error);
 
+          // Rate limits and transient provider failures were already retried
+          // with backoff in the service worker — re-sending per-group here
+          // would hammer a struggling endpoint. Report honestly and let
+          // adaptive concurrency slow the fleet down instead.
+          if (doneOutcome === "rate_limit" || doneOutcome === "transient") {
+            settle({
+              completed,
+              failed: Math.max(0, uncachedCount - translatedCount),
+              outcome: doneOutcome,
+            });
+            return;
+          }
+
+          const runFallback = async () => {
+            let fallbackWorst: BatchOutcome | null = null;
             for (const group of needFallback) {
               if (!this.isActiveOnCurrentPage()) break;
               const fb = await this.translateBatch(group.map((n) => [n]));
               completed += fb.completed;
               translatedCount += fb.completed;
-              if (fb.outcome === "rate_limit" || fb.outcome === "transient") {
-                fallbackHadTransient = true;
-                lastOutcome = fb.outcome;
+              if (fb.outcome === "rate_limit") {
+                fallbackWorst = "rate_limit";
+              } else if (fb.outcome === "transient" && fallbackWorst !== "rate_limit") {
+                fallbackWorst = "transient";
               }
             }
 
+            // Honest outcome: "success" only when nothing is left untranslated.
+            // A batch that half-applied from cache while the request 401'd
+            // must not feed "success" into adaptive concurrency.
             const failed = Math.max(0, uncachedCount - translatedCount);
-            const outcome: BatchOutcome = fallbackHadTransient
-              ? lastOutcome
-              : failed === uncachedCount && uncachedCount > 0
-                ? lastOutcome === "success"
+            const outcome: BatchOutcome =
+              fallbackWorst ??
+              (failed > 0
+                ? doneOutcome === "success"
                   ? "fail"
-                  : lastOutcome
-                : "success";
+                  : doneOutcome
+                : "success");
 
             settle({ completed, failed, outcome });
           };
@@ -1026,7 +1118,7 @@ export class PageTranslator {
         if (response?.success && response.items) {
           let translatedCount = 0;
           const needFallback: CollectedNode[][] = [];
-          const appliedIds = new Set<string>();
+          const applied = new Map<string, string>();
 
           for (const translated of response.items) {
             const r = this.applyStreamedItem(
@@ -1034,34 +1126,37 @@ export class PageTranslator {
               translated.text,
               items,
               uncachedByText,
-              appliedIds
+              applied
             );
             completed += r.nodes;
             translatedCount += r.nodes;
             needFallback.push(...r.needFallback);
           }
 
-          let fallbackHadTransient = false;
+          let fallbackWorst: BatchOutcome | null = null;
           for (const group of needFallback) {
             if (!this.isActiveOnCurrentPage()) break;
             const fb = await this.translateBatch(group.map((n) => [n]));
             completed += fb.completed;
             translatedCount += fb.completed;
-            if (fb.outcome === "rate_limit" || fb.outcome === "transient") {
-              fallbackHadTransient = true;
-              lastOutcome = fb.outcome;
+            if (fb.outcome === "rate_limit") {
+              fallbackWorst = "rate_limit";
+            } else if (fb.outcome === "transient" && fallbackWorst !== "rate_limit") {
+              fallbackWorst = "transient";
             }
           }
 
+          // Honest outcome: "success" only when nothing is left untranslated.
           const failed = Math.max(0, uncachedCount - translatedCount);
-          const outcome: BatchOutcome = fallbackHadTransient
-            ? lastOutcome
-            : failed === uncachedCount && uncachedCount > 0
-              ? "fail"
-              : "success";
+          const outcome: BatchOutcome =
+            fallbackWorst ?? (failed > 0 ? "fail" : "success");
           return { completed, failed, outcome };
         } else {
-          lastOutcome = classifyBatchError(response?.error);
+          lastOutcome = classifyBatchOutcome(response?.errorCode, response?.error);
+          // A structured code means the service worker already ran its own
+          // backoff retries — looping here again only multiplies the load.
+          // Only legacy/uncoded failures keep the single outer retry.
+          if (response?.errorCode) break;
           retries++;
         }
       } catch {
@@ -1092,10 +1187,10 @@ export class PageTranslator {
 
     if (pendingNodes.length === 0) return;
 
-    const remaining = sortByPriority(this.applyLexiconHits(pendingNodes));
+    const remaining = this.applyLexiconHits(pendingNodes);
     if (remaining.length === 0) return;
 
-    const groups = this.buildGroups(remaining);
+    const groups = this.buildPrioritizedGroups(remaining);
     const batches = this.createBatches(groups);
     await this.runAdaptiveQueue(batches);
   }
@@ -1161,7 +1256,7 @@ export class PageTranslator {
     this.progressEl.innerHTML = `
       <div class="${AST_PREFIX}-spinner"></div>
       <div>
-        <div>${text}</div>
+        <div>${escapeHtml(text)}</div>
         ${status.phase === "translating" ? `
         <div class="${AST_PREFIX}-progress-bar">
           <div class="${AST_PREFIX}-progress-fill" style="width:${progress}%"></div>

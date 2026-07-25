@@ -175,7 +175,13 @@ export default function Popup() {
   // Keyboard shortcuts
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      // Enter in the source box translates; Shift+Enter inserts a newline
+      // (default behaviour). Ctrl/Cmd+Enter keeps working for muscle memory.
+      // Skip while composing with an IME — that Enter commits the composition.
+      const inSourceBox = e.target === inputRef.current;
+      const plainEnter =
+        e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing;
+      if (plainEnter && (inSourceBox || e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         handleTranslate();
       }

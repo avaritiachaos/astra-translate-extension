@@ -3,6 +3,7 @@
 // ============================================================
 
 import { t, type UiLanguage } from "../shared/i18n";
+import { isRetryableHttpStatus } from "../shared/retry";
 
 export class AstraError extends Error {
   code: string;
@@ -54,7 +55,14 @@ export function mapHttpError(status: number, lang: UiLanguage = "zh-CN"): Provid
     case status === 429:
       return new ProviderRequestError(t(lang, "error.rateLimit"), "RATE_LIMIT", status, true);
     case status >= 500:
-      return new ProviderRequestError(t(lang, "error.serverUnavailable"), "SERVER_ERROR", status, true);
+      // Only genuinely transient 5xx statuses are retryable — 501 (endpoint
+      // misconfiguration) and friends fail fast instead of burning retries.
+      return new ProviderRequestError(
+        t(lang, "error.serverUnavailable"),
+        "SERVER_ERROR",
+        status,
+        isRetryableHttpStatus(status)
+      );
     default:
       return new ProviderRequestError(t(lang, "error.httpError", { status }), "HTTP_ERROR", status, false);
   }
