@@ -10,7 +10,7 @@ const zhCN: MessageDict = {
   // ---- 通用 ----
   "app.name": "Astra Translate",
   "app.desc": "轻量、优雅、模型服务商中立的浏览器翻译插件。",
-  "app.version": "Astra Translate v3.0.5 · 模型服务商中立的浏览器翻译插件",
+  "app.version": "Astra Translate v4.1.0 · 模型服务商中立的浏览器翻译插件",
 
   // ---- Options 页面 ----
   "opt.provider": "服务商设置",
@@ -41,6 +41,21 @@ const zhCN: MessageDict = {
   "opt.realtime": "实时页面翻译",
   "opt.translateWholePage": "整页翻译",
   "opt.translateWholePageDescription": "开启后立即翻译整个页面；关闭则只翻译当前可见区域，随滚动逐步翻译，更省 API 用量。",
+  "opt.translatePageChrome": "翻译导航 / 页眉 / 页脚",
+  "opt.translatePageChromeDescription": "默认跳过站点导航、页眉、页脚和侧栏以节省用量。开启后一并翻译这些区域。",
+  "opt.translateUiControls": "翻译按钮文字",
+  "opt.translateUiControlsDescription": "默认不翻译按钮标签。开启后会翻译 <button>、<input type=submit/button> 的文字，以及输入框的 placeholder（用户已输入的内容仍不翻译）。",
+  "opt.streamingPage": "流式页面翻译",
+  "opt.streamingPageDescription": "模型边生成边把译文贴到页面，首屏更快。关闭后改为整批返回再替换。",
+  "opt.siteLexicon": "站点词表学习",
+  "opt.siteLexiconDescription": "自动记住各网站的短按钮/导航译文，下次访问本地秒出，不消耗 API。",
+  "opt.siteLexiconStats": "已学习 {hosts} 个站点 · {phrases} 条短语",
+  "opt.siteLexiconEmpty": "暂无已学习的站点短语",
+  "opt.clearSiteLexicon": "清除全部站点词表",
+  "opt.clearSiteLexiconConfirm": "确定清除所有站点学到的短语？此操作不可撤销。",
+  "opt.clearSiteLexiconDone": "已清除 {count} 条短语",
+  "opt.clearThisHost": "清除",
+  "opt.refreshStats": "刷新统计",
 
   "opt.smartTargetEnabled": "智能目标语言",
   "opt.smartTargetDescription": "若原文已接近默认目标语言，则自动翻译为第二目标语言；混合语言文本仍按默认目标语言翻译。",
@@ -170,7 +185,7 @@ const enUS: MessageDict = {
   // ---- General ----
   "app.name": "Astra Translate",
   "app.desc": "A lightweight, elegant, provider-neutral browser translator.",
-  "app.version": "Astra Translate v3.0.5 · Provider-neutral browser translator",
+  "app.version": "Astra Translate v4.1.0 · Provider-neutral browser translator",
 
   // ---- Options ----
   "opt.provider": "Provider Settings",
@@ -201,6 +216,21 @@ const enUS: MessageDict = {
   "opt.realtime": "Real-time Page Translation",
   "opt.translateWholePage": "Translate entire page",
   "opt.translateWholePageDescription": "When on, translate the whole page at once. When off, only the visible area is translated, with the rest translated as you scroll — saving API usage.",
+  "opt.translatePageChrome": "Translate nav / header / footer",
+  "opt.translatePageChromeDescription": "By default, site navigation, headers, footers, and sidebars are skipped to save usage. Turn on to translate those regions too.",
+  "opt.translateUiControls": "Translate button labels",
+  "opt.translateUiControlsDescription": "By default, button labels are left alone. Turn on to translate <button> text, input[type=submit/button] values, and placeholders (typed user input is still never translated).",
+  "opt.streamingPage": "Streaming page translation",
+  "opt.streamingPageDescription": "Paint each translated item as the model streams it — faster first paint. Turn off to wait for the full batch.",
+  "opt.siteLexicon": "Per-site phrase learning",
+  "opt.siteLexiconDescription": "Remember short button/nav translations per website and reuse them instantly next time (no API).",
+  "opt.siteLexiconStats": "{hosts} sites · {phrases} phrases learned",
+  "opt.siteLexiconEmpty": "No learned site phrases yet",
+  "opt.clearSiteLexicon": "Clear all site phrases",
+  "opt.clearSiteLexiconConfirm": "Clear every learned site phrase? This cannot be undone.",
+  "opt.clearSiteLexiconDone": "Cleared {count} phrases",
+  "opt.clearThisHost": "Clear",
+  "opt.refreshStats": "Refresh stats",
 
   "opt.smartTargetEnabled": "Smart Target Language",
   "opt.smartTargetDescription": "Translate into the secondary target language when the source is already close to the default target language. Mixed-language text still uses the default target language.",
@@ -330,7 +360,7 @@ const jaJP: MessageDict = {
   // ---- 一般 ----
   "app.name": "Astra Translate",
   "app.desc": "軽量・エレガント・プロバイダー非依存のブラウザ翻訳拡張機能。",
-  "app.version": "Astra Translate v3.0.5 · プロバイダー非依存のブラウザ翻訳拡張機能",
+  "app.version": "Astra Translate v4.1.0 · プロバイダー非依存のブラウザ翻訳拡張機能",
 
   // ---- Options ページ ----
   "opt.provider": "プロバイダー設定",
@@ -361,6 +391,21 @@ const jaJP: MessageDict = {
   "opt.realtime": "リアルタイムページ翻訳",
   "opt.translateWholePage": "ページ全体を翻訳",
   "opt.translateWholePageDescription": "オンにするとページ全体を一度に翻訳します。オフの場合は表示中の領域のみ翻訳し、スクロールに応じて順次翻訳します（API 使用量を節約）。",
+  "opt.translatePageChrome": "ナビ / ヘッダー / フッターも翻訳",
+  "opt.translatePageChromeDescription": "既定ではサイトのナビ・ヘッダー・フッター・サイドバーをスキップして使用量を抑えます。オンにするとこれらの領域も翻訳します。",
+  "opt.translateUiControls": "ボタン文字も翻訳",
+  "opt.translateUiControlsDescription": "既定ではボタンのラベルは翻訳しません。オンにすると <button>、<input type=submit/button> の文字、および placeholder も翻訳します（入力済みの内容は翻訳しません）。",
+  "opt.streamingPage": "ストリーミングページ翻訳",
+  "opt.streamingPageDescription": "モデル出力を逐次反映し、最初の表示を速くします。オフにするとバッチ完了後に一括反映します。",
+  "opt.siteLexicon": "サイト別フレーズ学習",
+  "opt.siteLexiconDescription": "各サイトの短いボタン/ナビ訳を記憶し、次回は API なしで即時表示します。",
+  "opt.siteLexiconStats": "{hosts} サイト · {phrases} フレーズ学習済み",
+  "opt.siteLexiconEmpty": "学習済みのサイトフレーズはまだありません",
+  "opt.clearSiteLexicon": "サイトフレーズをすべて消去",
+  "opt.clearSiteLexiconConfirm": "学習済みのサイトフレーズをすべて消去しますか？元に戻せません。",
+  "opt.clearSiteLexiconDone": "{count} フレーズを消去しました",
+  "opt.clearThisHost": "消去",
+  "opt.refreshStats": "統計を更新",
 
   "opt.smartTargetEnabled": "スマートターゲット言語",
   "opt.smartTargetDescription": "原文がデフォルトのターゲット言語に近い場合、自動的に第二ターゲット言語に翻訳します。混合言語テキストはデフォルトのターゲット言語のまま翻訳します。",

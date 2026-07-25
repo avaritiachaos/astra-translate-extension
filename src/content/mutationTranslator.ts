@@ -2,7 +2,7 @@
 // Astra Translate – Mutation Observer Translator
 // ============================================================
 
-import type { CollectedNode } from "./textWalker";
+import type { CollectedNode, TextCollectOptions } from "./textWalker";
 import { collectTextNodes } from "./textWalker";
 import { debounce } from "../shared/utils";
 
@@ -15,13 +15,18 @@ const DEBOUNCE_MS = 800;
 export class MutationTranslator {
   private observer: MutationObserver | null = null;
   private onNewNodes: (nodes: CollectedNode[]) => void;
+  private collectOptions: TextCollectOptions;
   private processedNodes: WeakSet<Node> = new WeakSet();
   private debouncedProcess: () => void;
   private pendingNodes: Set<Node> = new Set();
   private active = false;
 
-  constructor(onNewNodes: (nodes: CollectedNode[]) => void) {
+  constructor(
+    onNewNodes: (nodes: CollectedNode[]) => void,
+    collectOptions?: TextCollectOptions
+  ) {
     this.onNewNodes = onNewNodes;
+    this.collectOptions = collectOptions ?? {};
     this.debouncedProcess = debounce(() => this.processPending.bind(this)(), DEBOUNCE_MS);
   }
 
@@ -39,12 +44,14 @@ export class MutationTranslator {
                 this.pendingNodes.add(node);
               }
             } else if (node.nodeType === Node.ELEMENT_NODE) {
-              // Collect text nodes from newly added subtree
+              // Collect text nodes (and optional UI attrs) from newly added subtree
               const el = node as HTMLElement;
-              const textNodes = collectTextNodes(el);
+              const textNodes = collectTextNodes(el, this.collectOptions);
               for (const tn of textNodes) {
-                if (!this.processedNodes.has(tn.node)) {
-                  this.pendingNodes.add(tn.node);
+                const host =
+                  tn.target.type === "text" ? tn.target.node : tn.target.element;
+                if (!this.processedNodes.has(host)) {
+                  this.pendingNodes.add(host);
                 }
               }
             }
@@ -75,18 +82,38 @@ export class MutationTranslator {
       this.processedNodes.add(node);
     }
 
-    // Collect translatable text from these nodes
+    // Re-collect properly (text + optional UI attrs) from each host.
     const collected: CollectedNode[] = [];
-    for (const node of nodes) {
-      if (!node.parentElement) continue;
-      const text = (node as Text).textContent?.trim() || "";
-      if (!text || text.length < 2) continue;
+    const seen = new Set<string>();
 
-      collected.push({
-        id: Math.random().toString(36).slice(2, 10),
-        node: node as Text,
-        originalText: text,
-      });
+    for (const node of nodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const textNode = node as Text;
+        if (!textNode.parentElement) continue;
+        // Collect from parent so we pick up sibling attrs if needed; filter to this text.
+        const fromParent = collectTextNodes(
+          textNode.parentElement,
+          this.collectOptions
+        );
+        for (const c of fromParent) {
+          if (c.target.type === "text" && c.target.node === textNode) {
+            if (!seen.has(c.id)) {
+              seen.add(c.id);
+              collected.push(c);
+            }
+          }
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        if (!el.isConnected) continue;
+        const fromEl = collectTextNodes(el, this.collectOptions);
+        for (const c of fromEl) {
+          if (!seen.has(c.id)) {
+            seen.add(c.id);
+            collected.push(c);
+          }
+        }
+      }
     }
 
     if (collected.length > 0) {

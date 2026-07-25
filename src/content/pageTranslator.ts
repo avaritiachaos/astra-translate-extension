@@ -2,22 +2,46 @@
 // Astra Translate – Page Translator
 // ============================================================
 
-import type { CollectedNode } from "./textWalker";
-import type { PageTranslateStatus } from "../shared/types";
-import { collectTextNodes } from "./textWalker";
+import type { CollectedNode, TextCollectOptions, TranslateTarget } from "./textWalker";
+import type {
+  PageTranslateStatus,
+  TranslateBatchStreamEvent,
+} from "../shared/types";
+import { TRANSLATE_BATCH_STREAM_PORT } from "../shared/types";
+import {
+  collectTextNodes,
+  readTargetText,
+  targetElement,
+  writeTargetText,
+} from "./textWalker";
 import { MutationTranslator } from "./mutationTranslator";
 import { injectThemeVars } from "./selectionBubble";
 import { t, type UiLanguage } from "../shared/i18n";
 import { debounce } from "../shared/utils";
 import { PAGE_SEGMENT_SEPARATOR } from "../shared/constants";
+import { lookupUiLexicon, normalizeUiKey } from "../shared/uiLexicon";
+import {
+  isLearnableUiPair,
+  siteLexiconKeys,
+  SITE_LEXICON_MAX_CHARS,
+} from "../shared/siteLexicon";
+import {
+  AdaptiveConcurrency,
+  classifyBatchError,
+  type BatchOutcome,
+} from "./adaptiveConcurrency";
 
 const AST_PREFIX = "ast";
 const MAX_RETRIES = 1;
-const SCROLL_DEBOUNCE_MS = 1500;
+const SCROLL_DEBOUNCE_MS = 800;
 // Shorter debounce for draining the viewport queue so scrolled-in content
 // translates promptly without thrashing layout on every scroll tick.
-const DRAIN_DEBOUNCE_MS = 250;
-const MAX_BATCH_NODES = 8;
+const DRAIN_DEBOUNCE_MS = 150;
+/** Max block-groups per API request. Short UI labels pack denser (see createBatches). */
+const MAX_BATCH_GROUPS = 16;
+const MAX_SHORT_BATCH_GROUPS = 32;
+/** Groups whose total chars are at or below this pack into denser batches. */
+const SHORT_GROUP_CHAR_LIMIT = 48;
 // If the model fails to preserve segment separators this many times in a row
 // (e.g. a provider that strips them), stop grouping for the rest of the session.
 const GROUP_FAILURE_LIMIT = 5;
@@ -40,9 +64,9 @@ function rectInViewport(rect: DOMRect, margin: number): boolean {
   return rect.top < vh + margin && rect.bottom > -margin;
 }
 
-/** Is the text node's containing element within (or near) the viewport? */
-function nodeInViewport(node: Text, margin: number): boolean {
-  const el = node.parentElement;
+/** Is the collected target within (or near) the viewport? */
+function collectedInViewport(node: CollectedNode, margin: number): boolean {
+  const el = targetElement(node.target);
   if (!el) return false;
   return rectInViewport(el.getBoundingClientRect(), margin);
 }
@@ -56,10 +80,14 @@ const INLINE_TAGS = new Set([
   "NOBR", "TT", "BIG", "LABEL", "OUTPUT",
 ]);
 
-/** Nearest ancestor element that is a block (non-inline) boundary. Text nodes
+/** Nearest ancestor element that is a block (non-inline) boundary. Units
  * sharing the same one belong to the same passage and translate together. */
-function nearestBlockAncestor(node: Text): Element | null {
-  let el = node.parentElement;
+function nearestBlockAncestor(node: CollectedNode): Element | null {
+  // Attribute labels are short UI chrome — treat each host element as its own
+  // block so they don't get glued onto neighbouring prose.
+  if (node.target.type === "attr") return node.target.element;
+
+  let el = node.target.node.parentElement;
   while (el && INLINE_TAGS.has(el.tagName)) el = el.parentElement;
   return el;
 }
@@ -76,7 +104,7 @@ function groupNodesByBlock(nodes: CollectedNode[]): CollectedNode[][] {
   let currentBlock: Element | null = null;
 
   for (const n of nodes) {
-    const block = nearestBlockAncestor(n.node);
+    const block = nearestBlockAncestor(n);
     if (current.length > 0 && block === currentBlock) {
       current.push(n);
     } else {
@@ -92,24 +120,60 @@ function groupNodesByBlock(nodes: CollectedNode[]): CollectedNode[][] {
 /** The single string sent to the API for a group: fragments joined by the
  * separator (a lone fragment is sent as-is, with no separator). */
 function compositeText(group: CollectedNode[]): string {
-  if (group.length === 1) return group[0].originalText;
-  return group.map((n) => n.originalText).join(PAGE_SEGMENT_SEPARATOR);
+  if (group.length === 1) return group[0].originalText.trim();
+  return group.map((n) => n.originalText.trim()).join(PAGE_SEGMENT_SEPARATOR);
+}
+
+function attrKey(target: Extract<TranslateTarget, { type: "attr" }>): string {
+  return target.attr;
+}
+
+/** Priority for first-paint: UI attrs & short labels before long prose, top of page first. */
+function nodePriority(node: CollectedNode): number {
+  // Lower = earlier.
+  let score = 0;
+  if (node.target.type === "attr") score -= 200;
+  const len = node.originalText.trim().length;
+  if (len <= 24) score -= 80;
+  else if (len <= 64) score -= 40;
+  else if (len > 200) score += 40;
+
+  const el = targetElement(node.target);
+  if (el) {
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    // Prefer content higher on the page (rough document order fallback).
+    score += Math.min(Math.max(top, 0), 20000) / 100;
+    const tag = el.tagName;
+    if (tag === "H1" || tag === "H2" || tag === "BUTTON" || tag === "LABEL") score -= 30;
+    if (tag === "INPUT") score -= 50;
+  }
+  return score;
+}
+
+function sortByPriority(nodes: CollectedNode[]): CollectedNode[] {
+  return [...nodes].sort((a, b) => nodePriority(a) - nodePriority(b));
 }
 
 export class PageTranslator {
   private nodeMap: Map<string, CollectedNode> = new Map();
   private translationCache: Map<string, string> = new Map();
   private translatedTexts: Set<string> = new Set();
+  /** Text nodes already handled this session. */
   private processedTextNodes: WeakSet<Text> = new WeakSet();
-  private originalTexts: WeakMap<Text, string> = new WeakMap();
+  /** Attribute targets already handled: element → set of attr names. */
+  private processedAttrs: WeakMap<Element, Set<string>> = new WeakMap();
   private progressEl: HTMLElement | null = null;
   private progressHideTimer: ReturnType<typeof setTimeout> | null = null;
   private mutationTranslator: MutationTranslator;
   private targetLang: string;
   private batchSize: number;
   private concurrency: number;
+  private adaptive: AdaptiveConcurrency;
   private enableRealtime: boolean;
   private wholePage: boolean;
+  private enableStreaming: boolean;
+  private enableSiteLexicon: boolean;
+  private collectOptions: TextCollectOptions;
   private aborted = false;
   private initialDone = false;
   private pageKey = "";
@@ -125,6 +189,12 @@ export class PageTranslator {
   // failures so the session degrades gracefully to per-node translation.
   private groupingDisabled = false;
   private groupFailureStreak = 0;
+  /** Learned short UI phrases for this host (sourceNorm → translation). */
+  private siteLexicon: Map<string, string> = new Map();
+  /** Pairs to persist after a successful apply (deduped by source key). */
+  private pendingSiteLearn: Map<string, { source: string; translation: string }> =
+    new Map();
+  private siteLearnFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(opts: {
     targetLang: string;
@@ -132,23 +202,60 @@ export class PageTranslator {
     concurrency?: number;
     enableRealtime?: boolean;
     translateWholePage?: boolean;
+    translatePageChrome?: boolean;
+    translateUiControls?: boolean;
+    enableStreaming?: boolean;
+    enableSiteLexicon?: boolean;
     lang?: UiLanguage;
     onStatus?: (status: PageTranslateStatus) => void;
   }) {
     this.targetLang = opts.targetLang || "Simplified Chinese";
-    this.batchSize = opts.batchSize || 4000;
-    this.concurrency = opts.concurrency || 2;
+    this.batchSize = opts.batchSize || 6000;
+    this.concurrency = opts.concurrency || 4;
+    this.adaptive = new AdaptiveConcurrency({ max: this.concurrency, min: 1 });
     this.enableRealtime = opts.enableRealtime ?? true;
     this.wholePage = opts.translateWholePage ?? false;
+    this.enableStreaming = opts.enableStreaming ?? true;
+    this.enableSiteLexicon = opts.enableSiteLexicon ?? true;
+    this.collectOptions = {
+      translatePageChrome: opts.translatePageChrome ?? false,
+      translateUiControls: opts.translateUiControls ?? false,
+    };
     this.statusCallback = opts.onStatus;
     this.lang = opts.lang || "zh-CN";
 
-    this.mutationTranslator = new MutationTranslator((nodes) => {
-      this.translateNodes(nodes);
-    });
+    this.mutationTranslator = new MutationTranslator(
+      (nodes) => {
+        this.translateNodes(nodes);
+      },
+      this.collectOptions
+    );
 
     this.debouncedScrollScan = debounce(() => this.scanForNewNodes(), SCROLL_DEBOUNCE_MS);
     this.debouncedDrain = debounce(() => this.drainDeferred(), DRAIN_DEBOUNCE_MS);
+  }
+
+  private isProcessed(node: CollectedNode): boolean {
+    if (node.target.type === "text") {
+      return this.processedTextNodes.has(node.target.node);
+    }
+    const attrs = this.processedAttrs.get(node.target.element);
+    return attrs?.has(attrKey(node.target)) ?? false;
+  }
+
+  private markProcessed(node: CollectedNode): void {
+    if (node.target.type === "text") {
+      this.processedTextNodes.add(node.target.node);
+      this.mutationTranslator.markProcessed(node.target.node);
+      return;
+    }
+    let attrs = this.processedAttrs.get(node.target.element);
+    if (!attrs) {
+      attrs = new Set();
+      this.processedAttrs.set(node.target.element, attrs);
+    }
+    attrs.add(attrKey(node.target));
+    this.mutationTranslator.markProcessed(node.target.element);
   }
 
   async start(): Promise<void> {
@@ -156,10 +263,14 @@ export class PageTranslator {
     this.initialDone = false;
     this.groupingDisabled = false;
     this.groupFailureStreak = 0;
+    this.pendingSiteLearn.clear();
     this.pageKey = currentPageKey();
     this.showProgress({ phase: "collecting", total: 0, completed: 0, failed: 0 });
 
-    const nodes = collectTextNodes(document.body);
+    // Load per-host learned UI phrases (instant, zero API).
+    await this.loadSiteLexicon();
+
+    const nodes = collectTextNodes(document.body, this.collectOptions);
     if (nodes.length === 0) {
       this.showProgress({ phase: "done", total: 0, completed: 0, failed: 0 });
       return;
@@ -167,8 +278,7 @@ export class PageTranslator {
 
     for (const n of nodes) {
       this.nodeMap.set(n.id, n);
-      this.processedTextNodes.add(n.node);
-      this.originalTexts.set(n.node, n.node.textContent || "");
+      this.markProcessed(n);
     }
 
     if (this.enableRealtime) {
@@ -186,7 +296,7 @@ export class PageTranslator {
     const margin = viewportMargin();
     const visible: CollectedNode[] = [];
     for (const n of nodes) {
-      if (this.wholePage || nodeInViewport(n.node, margin)) {
+      if (this.wholePage || collectedInViewport(n, margin)) {
         visible.push(n);
       } else {
         this.deferred.set(n.id, n);
@@ -197,49 +307,150 @@ export class PageTranslator {
     // a deep-linked anchor), translate the first screenful rather than nothing.
     let initialNodes = visible;
     if (initialNodes.length === 0) {
-      initialNodes = nodes.slice(0, MAX_BATCH_NODES * this.concurrency);
+      initialNodes = nodes.slice(0, MAX_BATCH_GROUPS * this.concurrency);
       for (const n of initialNodes) this.deferred.delete(n.id);
     }
 
-    this.showProgress({ phase: "translating", total: initialNodes.length, completed: 0, failed: 0 });
+    // Instant UI lexicon first so buttons/nav labels paint before any API wait.
+    const collectedCount = initialNodes.length;
+    initialNodes = this.applyLexiconHits(initialNodes);
+    const lexiconDone = collectedCount - initialNodes.length;
+    // Still-pending nodes: short UI + top-of-page first within the API queue.
+    initialNodes = sortByPriority(initialNodes);
 
-    await this.runPrioritizedBatches(initialNodes);
+    this.showProgress({
+      phase: "translating",
+      total: collectedCount,
+      completed: lexiconDone,
+      failed: 0,
+    });
+
+    await this.runPrioritizedBatches(initialNodes, {
+      total: collectedCount,
+      completed: lexiconDone,
+      failed: 0,
+    });
 
     if (this.aborted) return;
 
     this.initialDone = true;
+    this.flushSiteLexiconLearn();
+  }
+
+  /** Load learned short labels for this hostname + target language. */
+  private async loadSiteLexicon(): Promise<void> {
+    this.siteLexicon.clear();
+    if (!this.enableSiteLexicon) return;
+    try {
+      const host = location.hostname;
+      const res = await chrome.runtime.sendMessage({
+        type: "GET_SITE_LEXICON",
+        payload: { host, targetLang: this.targetLang },
+      });
+      if (res?.success && res.map && typeof res.map === "object") {
+        for (const [k, v] of Object.entries(res.map as Record<string, string>)) {
+          if (k && typeof v === "string") this.siteLexicon.set(k, v);
+        }
+      }
+    } catch {
+      // Offline / SW restart — continue without site lexicon.
+    }
+  }
+
+  /** Global UI lexicon first, then per-site learned map. */
+  private lookupInstant(text: string): string | null {
+    const global = lookupUiLexicon(text, this.targetLang);
+    if (global) return global;
+
+    for (const key of siteLexiconKeys(text)) {
+      const hit = this.siteLexicon.get(key);
+      if (!hit) continue;
+      const trimmed = text.trim();
+      if (/[:：]\s*$/.test(trimmed) && !/[:：]\s*$/.test(hit)) {
+        return hit + (trimmed.includes("：") ? "：" : ":");
+      }
+      return hit;
+    }
+    return null;
+  }
+
+  /** Queue a short UI pair for persistent site learning. */
+  private queueSiteLearn(source: string, translation: string): void {
+    if (!this.enableSiteLexicon) return;
+    if (!isLearnableUiPair(source, translation)) return;
+    const key = normalizeUiKey(source.replace(/[:：]\s*$/, ""));
+    if (!key) return;
+    // Keep in-memory map hot for the rest of this session.
+    this.siteLexicon.set(key, translation.trim());
+    this.pendingSiteLearn.set(key, {
+      source: source.trim(),
+      translation: translation.trim(),
+    });
+    if (!this.siteLearnFlushTimer) {
+      this.siteLearnFlushTimer = setTimeout(() => {
+        this.siteLearnFlushTimer = null;
+        this.flushSiteLexiconLearn();
+      }, 2000);
+    }
+  }
+
+  private flushSiteLexiconLearn(): void {
+    if (this.siteLearnFlushTimer) {
+      clearTimeout(this.siteLearnFlushTimer);
+      this.siteLearnFlushTimer = null;
+    }
+    if (!this.enableSiteLexicon) {
+      this.pendingSiteLearn.clear();
+      return;
+    }
+    if (this.pendingSiteLearn.size === 0) return;
+    const pairs = Array.from(this.pendingSiteLearn.values());
+    this.pendingSiteLearn.clear();
+    chrome.runtime
+      .sendMessage({
+        type: "LEARN_SITE_LEXICON",
+        payload: {
+          host: location.hostname,
+          targetLang: this.targetLang,
+          pairs,
+        },
+      })
+      .catch(() => {});
   }
 
   /**
    * Translate a prioritized set of nodes (the initial viewport pass) with the
    * configured concurrency, driving the main progress bar and finishing with a
-   * "done" status.
+   * "done" status. `seed` carries progress already earned (e.g. lexicon hits).
    */
-  private async runPrioritizedBatches(nodes: CollectedNode[]): Promise<void> {
-    const total = nodes.length;
-    const groups = this.buildGroups(nodes);
-    const batches = this.createBatches(groups);
-    let completed = 0;
-    let failed = 0;
+  private async runPrioritizedBatches(
+    nodes: CollectedNode[],
+    seed?: { total: number; completed: number; failed: number }
+  ): Promise<void> {
+    const total = seed?.total ?? nodes.length;
+    let completed = seed?.completed ?? 0;
+    let failed = seed?.failed ?? 0;
 
-    const queue = [...batches];
-    const workers: Promise<void>[] = [];
-
-    for (let i = 0; i < this.concurrency; i++) {
-      workers.push(
-        (async () => {
-          while (queue.length > 0 && this.isActiveOnCurrentPage()) {
-            const batch = queue.shift()!;
-            const result = await this.translateBatch(batch);
-            completed += result.completed;
-            failed += result.failed;
-            this.showProgress({ phase: "translating", total, completed, failed });
-          }
-        })()
-      );
+    if (nodes.length === 0) {
+      if (!this.aborted) {
+        this.showProgress({ phase: "done", total, completed, failed });
+      }
+      return;
     }
 
-    await Promise.all(workers);
+    const groups = this.buildGroups(nodes);
+    const batches = this.createBatches(groups);
+
+    const result = await this.runAdaptiveQueue(batches, (c, f) => {
+      this.showProgress({
+        phase: "translating",
+        total,
+        completed: completed + c,
+        failed: failed + f,
+      });
+    });
+    completed += result.completed;
+    failed += result.failed;
 
     if (this.aborted) return;
 
@@ -251,22 +462,96 @@ export class PageTranslator {
    * subtle scroll hint rather than taking over the main progress bar.
    */
   private async runDeferredBatches(nodes: CollectedNode[]): Promise<void> {
-    const groups = this.buildGroups(nodes);
-    const batches = this.createBatches(groups);
-    const queue = [...batches];
-    const workers: Promise<void>[] = [];
+    const remaining = sortByPriority(this.applyLexiconHits(nodes));
+    if (remaining.length === 0) return;
 
-    for (let i = 0; i < this.concurrency; i++) {
-      workers.push(
-        (async () => {
-          while (queue.length > 0 && this.isActiveOnCurrentPage()) {
-            await this.translateBatch(queue.shift()!);
-          }
-        })()
-      );
+    const groups = this.buildGroups(remaining);
+    const batches = this.createBatches(groups);
+    await this.runAdaptiveQueue(batches);
+  }
+
+  /**
+   * Drain a batch queue with adaptive parallelism: starts at the user max,
+   * shrinks on rate-limit / transient errors, climbs back after success streaks.
+   */
+  private runAdaptiveQueue(
+    batches: CollectedNode[][][],
+    onProgress?: (completed: number, failed: number) => void
+  ): Promise<{ completed: number; failed: number }> {
+    if (batches.length === 0) {
+      return Promise.resolve({ completed: 0, failed: 0 });
     }
 
-    await Promise.all(workers);
+    let completed = 0;
+    let failed = 0;
+    let next = 0;
+    let active = 0;
+
+    return new Promise((resolve) => {
+      const finishIfDone = () => {
+        if (next >= batches.length && active === 0) {
+          resolve({ completed, failed });
+        }
+      };
+
+      const pump = () => {
+        if (!this.isActiveOnCurrentPage()) {
+          // Don't start new work; wait for in-flight to settle.
+          finishIfDone();
+          return;
+        }
+
+        while (active < this.adaptive.current && next < batches.length) {
+          const batch = batches[next++];
+          active += 1;
+
+          this.translateBatch(batch)
+            .then((result) => {
+              completed += result.completed;
+              failed += result.failed;
+              this.adaptive.note(result.outcome);
+              onProgress?.(completed, failed);
+            })
+            .catch(() => {
+              // translateBatch already swallows API errors into failed counts;
+              // this is a safety net for unexpected throws.
+              this.adaptive.note("transient");
+            })
+            .finally(() => {
+              active -= 1;
+              if (next < batches.length && this.isActiveOnCurrentPage()) {
+                pump();
+              } else {
+                finishIfDone();
+              }
+            });
+        }
+
+        finishIfDone();
+      };
+
+      pump();
+    });
+  }
+
+  /**
+   * Apply local UI lexicon + site-learned hits instantly (no API).
+   * Returns nodes that still need model translation.
+   */
+  private applyLexiconHits(nodes: CollectedNode[]): CollectedNode[] {
+    const remaining: CollectedNode[] = [];
+    for (const n of nodes) {
+      const src = n.originalText.trim();
+      const hit = this.lookupInstant(src);
+      if (hit && hit !== src) {
+        this.applyTranslation(n, hit, { learn: false });
+        // Cache under the composite key used by translateBatch (trimmed text).
+        this.translationCache.set(src, hit);
+        continue;
+      }
+      remaining.push(n);
+    }
+    return remaining;
   }
 
   /**
@@ -280,7 +565,7 @@ export class PageTranslator {
     const margin = viewportMargin();
     const nowVisible: CollectedNode[] = [];
     for (const [id, n] of this.deferred) {
-      if (nodeInViewport(n.node, margin)) {
+      if (collectedInViewport(n, margin)) {
         nowVisible.push(n);
         this.deferred.delete(id);
       }
@@ -295,15 +580,13 @@ export class PageTranslator {
   restore(): void {
     this.aborted = true;
     this.initialDone = false;
+    this.flushSiteLexiconLearn();
     this.mutationTranslator.stop();
     this.mutationTranslator.reset();
     this.stopScrollDetection();
 
     for (const [, info] of this.nodeMap) {
-      const original = this.originalTexts.get(info.node);
-      if (original !== undefined) {
-        info.node.textContent = original;
-      }
+      writeTargetText(info.target, info.originalText);
     }
 
     this.nodeMap.clear();
@@ -311,11 +594,13 @@ export class PageTranslator {
     this.translationCache.clear();
     this.translatedTexts.clear();
     this.processedTextNodes = new WeakSet();
+    this.processedAttrs = new WeakMap();
     this.removeProgress();
   }
 
   abort(): void {
     this.aborted = true;
+    this.flushSiteLexiconLearn();
     this.mutationTranslator.stop();
     this.stopScrollDetection();
     this.removeProgress();
@@ -355,16 +640,16 @@ export class PageTranslator {
   private scanForNewNodes(): void {
     if (!this.isActiveOnCurrentPage()) return;
 
-    const allNodes = collectTextNodes(document.body);
+    const allNodes = collectTextNodes(document.body, this.collectOptions);
     const newNodes: CollectedNode[] = [];
 
     for (const n of allNodes) {
-      // Skip text nodes this translator has already handled.
-      if (this.processedTextNodes.has(n.node)) continue;
+      // Skip targets this translator has already handled.
+      if (this.isProcessed(n)) continue;
 
-      const text = n.originalText;
+      const text = n.originalText.trim();
       if (this.translatedTexts.has(text)) {
-        this.processedTextNodes.add(n.node);
+        this.markProcessed(n);
         this.nodeMap.set(n.id, n);
         continue;
       }
@@ -373,18 +658,17 @@ export class PageTranslator {
       const cachedTranslation = this.translationCache.get(text);
       if (cachedTranslation) {
         // Same text as something already translated — apply cached translation
-        this.processedTextNodes.add(n.node);
+        this.markProcessed(n);
         this.applyTranslation(n, cachedTranslation);
         this.nodeMap.set(n.id, n);
         continue;
       }
 
-      // Check if the node's current text looks like it's already translated
-      // (i.e., it matches a known translation)
-      const currentText = n.node.textContent?.trim() || "";
+      // Check if the target's current text looks like it's already translated
+      // (i.e., it was changed by something else).
+      const currentText = readTargetText(n.target).trim();
       if (currentText !== text) {
-        // Text was already changed (possibly translated by mutation translator)
-        this.processedTextNodes.add(n.node);
+        this.markProcessed(n);
         this.nodeMap.set(n.id, n);
         continue;
       }
@@ -392,7 +676,6 @@ export class PageTranslator {
       // Truly new untranslated node
       newNodes.push(n);
       this.nodeMap.set(n.id, n);
-      this.originalTexts.set(n.node, n.node.textContent || "");
     }
 
     if (newNodes.length > 0) {
@@ -418,23 +701,30 @@ export class PageTranslator {
     }
   }
 
-  /** Pack block-groups into batches under the char budget and group-count cap. */
+  /** Pack block-groups into batches under the char budget and group-count cap.
+   * Short UI-only groups pack denser so one request covers many buttons. */
   private createBatches(groups: CollectedNode[][]): CollectedNode[][][] {
     const batches: CollectedNode[][][] = [];
     let currentBatch: CollectedNode[][] = [];
     let currentSize = 0;
+    let currentAllShort = true;
 
     for (const group of groups) {
-      const groupLen = group.reduce((sum, n) => sum + n.originalText.length, 0);
+      const groupLen = group.reduce((sum, n) => sum + n.originalText.trim().length, 0);
+      const groupIsShort = groupLen <= SHORT_GROUP_CHAR_LIMIT;
+      const countCap =
+        currentAllShort && groupIsShort ? MAX_SHORT_BATCH_GROUPS : MAX_BATCH_GROUPS;
       const exceedsTextBudget = currentSize + groupLen > this.batchSize;
-      const exceedsCountBudget = currentBatch.length >= MAX_BATCH_NODES;
+      const exceedsCountBudget = currentBatch.length >= countCap;
       if ((exceedsTextBudget || exceedsCountBudget) && currentBatch.length > 0) {
         batches.push(currentBatch);
         currentBatch = [];
         currentSize = 0;
+        currentAllShort = true;
       }
       currentBatch.push(group);
       currentSize += groupLen;
+      if (!groupIsShort) currentAllShort = false;
     }
 
     if (currentBatch.length > 0) {
@@ -472,8 +762,58 @@ export class PageTranslator {
     return true;
   }
 
-  private async translateBatch(batch: CollectedNode[][]): Promise<{ completed: number; failed: number }> {
-    if (!this.isActiveOnCurrentPage()) return { completed: 0, failed: 0 };
+  /**
+   * Apply one streamed/final item id → text onto all groups that share that source.
+   * Returns how many nodes were successfully written.
+   */
+  private applyStreamedItem(
+    itemId: string,
+    text: string,
+    items: { id: string; text: string }[],
+    uncachedByText: Map<string, CollectedNode[][]>,
+    appliedIds: Set<string>
+  ): { nodes: number; needFallback: CollectedNode[][] } {
+    if (appliedIds.has(itemId)) {
+      return { nodes: 0, needFallback: [] };
+    }
+    const source = items.find((item) => item.id === itemId);
+    if (!source) return { nodes: 0, needFallback: [] };
+
+    const groups = uncachedByText.get(source.text);
+    if (!groups) return { nodes: 0, needFallback: [] };
+
+    let nodes = 0;
+    const needFallback: CollectedNode[][] = [];
+    let cachedOnce = false;
+
+    for (const group of groups) {
+      if (this.applyGroup(group, text)) {
+        if (!cachedOnce) {
+          this.translationCache.set(source.text, text);
+          cachedOnce = true;
+        }
+        nodes += group.length;
+        if (group.length > 1) this.groupFailureStreak = 0;
+      } else {
+        needFallback.push(group);
+        if (group.length > 1) this.noteGroupFailure();
+      }
+    }
+
+    appliedIds.add(itemId);
+    return { nodes, needFallback };
+  }
+
+  /**
+   * Translate a batch via streaming port when available (items paint as the
+   * model emits them). Falls back to one-shot TRANSLATE_BATCH on port failure.
+   */
+  private async translateBatch(
+    batch: CollectedNode[][]
+  ): Promise<{ completed: number; failed: number; outcome: BatchOutcome }> {
+    if (!this.isActiveOnCurrentPage()) {
+      return { completed: 0, failed: 0, outcome: "fail" };
+    }
 
     const uncachedByText: Map<string, CollectedNode[][]> = new Map();
     let completed = 0;
@@ -491,16 +831,186 @@ export class PageTranslator {
     }
 
     if (uncachedByText.size === 0) {
-      return { completed, failed: 0 };
+      return { completed, failed: 0, outcome: "success" };
     }
 
-    const items = Array.from(uncachedByText, ([text, groups]) => ({ id: groups[0][0].id, text }));
+    const items = Array.from(uncachedByText, ([text, groups]) => ({
+      id: groups[0][0].id,
+      text,
+    }));
     const uncachedCount = Array.from(uncachedByText.values()).reduce(
       (sum, groups) => sum + groups.reduce((s, g) => s + g.length, 0),
       0
     );
 
+    // Prefer streaming when enabled; fall back to one-shot on failure.
+    if (this.enableStreaming) {
+      try {
+        return await this.translateBatchStreaming(
+          items,
+          uncachedByText,
+          uncachedCount,
+          completed
+        );
+      } catch {
+        // Port unavailable / SW restart — one-shot path.
+      }
+    }
+
+    return this.translateBatchOneShot(
+      items,
+      uncachedByText,
+      uncachedCount,
+      completed
+    );
+  }
+
+  private translateBatchStreaming(
+    items: { id: string; text: string }[],
+    uncachedByText: Map<string, CollectedNode[][]>,
+    uncachedCount: number,
+    completedSeed: number
+  ): Promise<{ completed: number; failed: number; outcome: BatchOutcome }> {
+    return new Promise((resolve, reject) => {
+      let port: chrome.runtime.Port;
+      try {
+        port = chrome.runtime.connect({ name: TRANSLATE_BATCH_STREAM_PORT });
+      } catch (err) {
+        reject(err);
+        return;
+      }
+
+      let completed = completedSeed;
+      let translatedCount = 0;
+      const appliedIds = new Set<string>();
+      const needFallback: CollectedNode[][] = [];
+      let settled = false;
+
+      const settle = (result: {
+        completed: number;
+        failed: number;
+        outcome: BatchOutcome;
+      }) => {
+        if (settled) return;
+        settled = true;
+        try {
+          port.disconnect();
+        } catch {
+          // ignore
+        }
+        resolve(result);
+      };
+
+      port.onDisconnect.addListener(() => {
+        if (settled) return;
+        // Unexpected disconnect mid-stream — if we got nothing, reject to fall back.
+        if (translatedCount === 0) {
+          settled = true;
+          reject(new Error("port disconnected"));
+          return;
+        }
+        settle({
+          completed,
+          failed: Math.max(0, uncachedCount - translatedCount),
+          outcome: "transient",
+        });
+      });
+
+      port.onMessage.addListener((event: TranslateBatchStreamEvent) => {
+        if (!this.isActiveOnCurrentPage()) {
+          settle({ completed, failed: 0, outcome: "fail" });
+          return;
+        }
+
+        if (event.type === "item") {
+          const r = this.applyStreamedItem(
+            event.id,
+            event.text,
+            items,
+            uncachedByText,
+            appliedIds
+          );
+          completed += r.nodes;
+          translatedCount += r.nodes;
+          needFallback.push(...r.needFallback);
+          return;
+        }
+
+        if (event.type === "done") {
+          // Apply any items only present in the final payload.
+          for (const item of event.items || []) {
+            const r = this.applyStreamedItem(
+              item.id,
+              item.text,
+              items,
+              uncachedByText,
+              appliedIds
+            );
+            completed += r.nodes;
+            translatedCount += r.nodes;
+            needFallback.push(...r.needFallback);
+          }
+
+          const runFallback = async () => {
+            let lastOutcome: BatchOutcome = event.success
+              ? "success"
+              : classifyBatchError(event.error);
+            let fallbackHadTransient = false;
+
+            for (const group of needFallback) {
+              if (!this.isActiveOnCurrentPage()) break;
+              const fb = await this.translateBatch(group.map((n) => [n]));
+              completed += fb.completed;
+              translatedCount += fb.completed;
+              if (fb.outcome === "rate_limit" || fb.outcome === "transient") {
+                fallbackHadTransient = true;
+                lastOutcome = fb.outcome;
+              }
+            }
+
+            const failed = Math.max(0, uncachedCount - translatedCount);
+            const outcome: BatchOutcome = fallbackHadTransient
+              ? lastOutcome
+              : failed === uncachedCount && uncachedCount > 0
+                ? lastOutcome === "success"
+                  ? "fail"
+                  : lastOutcome
+                : "success";
+
+            settle({ completed, failed, outcome });
+          };
+
+          runFallback().catch(() => {
+            settle({
+              completed,
+              failed: Math.max(0, uncachedCount - translatedCount),
+              outcome: "transient",
+            });
+          });
+        }
+      });
+
+      try {
+        port.postMessage({
+          type: "TRANSLATE_BATCH_STREAM",
+          payload: { items, targetLang: this.targetLang },
+        });
+      } catch (err) {
+        settled = true;
+        reject(err);
+      }
+    });
+  }
+
+  private async translateBatchOneShot(
+    items: { id: string; text: string }[],
+    uncachedByText: Map<string, CollectedNode[][]>,
+    uncachedCount: number,
+    completedSeed: number
+  ): Promise<{ completed: number; failed: number; outcome: BatchOutcome }> {
+    let completed = completedSeed;
     let retries = 0;
+    let lastOutcome: BatchOutcome = "fail";
 
     while (retries <= MAX_RETRIES) {
       try {
@@ -509,56 +1019,61 @@ export class PageTranslator {
           payload: { items, targetLang: this.targetLang },
         });
 
-        if (!this.isActiveOnCurrentPage()) return { completed, failed: 0 };
+        if (!this.isActiveOnCurrentPage()) {
+          return { completed, failed: 0, outcome: lastOutcome };
+        }
 
         if (response?.success && response.items) {
           let translatedCount = 0;
           const needFallback: CollectedNode[][] = [];
+          const appliedIds = new Set<string>();
 
           for (const translated of response.items) {
-            const source = items.find((item) => item.id === translated.id);
-            if (!source) continue;
-
-            const groups = uncachedByText.get(source.text);
-            if (!groups) continue;
-
-            let cachedOnce = false;
-            for (const group of groups) {
-              if (this.applyGroup(group, translated.text)) {
-                if (!cachedOnce) {
-                  this.translationCache.set(source.text, translated.text);
-                  cachedOnce = true;
-                }
-                completed += group.length;
-                translatedCount += group.length;
-                if (group.length > 1) this.groupFailureStreak = 0;
-              } else {
-                // Separator split didn't line up — retry these nodes one by one.
-                needFallback.push(group);
-                if (group.length > 1) this.noteGroupFailure();
-              }
-            }
+            const r = this.applyStreamedItem(
+              translated.id,
+              translated.text,
+              items,
+              uncachedByText,
+              appliedIds
+            );
+            completed += r.nodes;
+            translatedCount += r.nodes;
+            needFallback.push(...r.needFallback);
           }
 
+          let fallbackHadTransient = false;
           for (const group of needFallback) {
             if (!this.isActiveOnCurrentPage()) break;
             const fb = await this.translateBatch(group.map((n) => [n]));
             completed += fb.completed;
             translatedCount += fb.completed;
+            if (fb.outcome === "rate_limit" || fb.outcome === "transient") {
+              fallbackHadTransient = true;
+              lastOutcome = fb.outcome;
+            }
           }
 
           const failed = Math.max(0, uncachedCount - translatedCount);
-          return { completed, failed };
+          const outcome: BatchOutcome = fallbackHadTransient
+            ? lastOutcome
+            : failed === uncachedCount && uncachedCount > 0
+              ? "fail"
+              : "success";
+          return { completed, failed, outcome };
         } else {
+          lastOutcome = classifyBatchError(response?.error);
           retries++;
         }
       } catch {
-        if (!this.isActiveOnCurrentPage()) return { completed, failed: 0 };
+        if (!this.isActiveOnCurrentPage()) {
+          return { completed, failed: 0, outcome: lastOutcome };
+        }
+        lastOutcome = "transient";
         retries++;
       }
     }
 
-    return { completed, failed: uncachedCount };
+    return { completed, failed: uncachedCount, outcome: lastOutcome };
   }
 
   private async translateNodes(nodes: CollectedNode[]): Promise<void> {
@@ -566,36 +1081,41 @@ export class PageTranslator {
 
     const pendingNodes: CollectedNode[] = [];
     for (const node of nodes) {
-      if (this.processedTextNodes.has(node.node)) continue;
+      if (this.isProcessed(node)) continue;
 
-      this.processedTextNodes.add(node.node);
+      this.markProcessed(node);
       this.nodeMap.set(node.id, node);
-      if (!this.originalTexts.has(node.node)) {
-        this.originalTexts.set(node.node, node.node.textContent || "");
-      }
 
-      if (this.translatedTexts.has(node.originalText)) continue;
+      if (this.translatedTexts.has(node.originalText.trim())) continue;
       pendingNodes.push(node);
     }
 
     if (pendingNodes.length === 0) return;
 
-    const groups = this.buildGroups(pendingNodes);
+    const remaining = sortByPriority(this.applyLexiconHits(pendingNodes));
+    if (remaining.length === 0) return;
+
+    const groups = this.buildGroups(remaining);
     const batches = this.createBatches(groups);
-    for (const batch of batches) {
-      if (!this.isActiveOnCurrentPage()) return;
-      await this.translateBatch(batch);
-    }
+    await this.runAdaptiveQueue(batches);
   }
 
-  private applyTranslation(node: CollectedNode, translated: string): void {
-    if (!this.originalTexts.has(node.node)) {
-      this.originalTexts.set(node.node, node.node.textContent || "");
-    }
-    node.node.textContent = translated;
+  private applyTranslation(
+    node: CollectedNode,
+    translated: string,
+    opts?: { learn?: boolean }
+  ): void {
+    writeTargetText(node.target, translated);
     const translatedText = translated.trim();
     if (translatedText) {
       this.translatedTexts.add(translatedText);
+    }
+    // Learn short UI labels from model output (and attribute buttons).
+    if (opts?.learn !== false) {
+      const src = node.originalText.trim();
+      if (src.length <= SITE_LEXICON_MAX_CHARS) {
+        this.queueSiteLearn(src, translatedText || translated);
+      }
     }
   }
 
@@ -669,23 +1189,17 @@ export class PageTranslator {
       this.progressEl = document.createElement("div");
       document.body.appendChild(this.progressEl);
     }
-
-    this.progressEl.className = `${AST_PREFIX}-progress ${AST_PREFIX}-progress-scroll`;
+    this.progressEl.className = `${AST_PREFIX}-progress ${AST_PREFIX}-scroll-hint`;
     this.progressEl.innerHTML = `
       <div class="${AST_PREFIX}-spinner"></div>
-      <div>${t(this.lang, "page.translating", { done: 0, total: count })}</div>
+      <div>${t(this.lang, "page.scrollHint", { count })}</div>
     `;
-
-    this.scheduleProgressRemoval(2500);
+    this.scheduleProgressRemoval(2000);
   }
 
-  private isActiveOnCurrentPage(): boolean {
-    if (this.aborted) return false;
-    if (this.pageKey && this.pageKey !== currentPageKey()) {
-      this.abort();
-      return false;
-    }
-    return true;
+  private scheduleProgressRemoval(ms: number): void {
+    this.clearProgressHideTimer();
+    this.progressHideTimer = setTimeout(() => this.removeProgress(), ms);
   }
 
   private clearProgressHideTimer(): void {
@@ -695,14 +1209,13 @@ export class PageTranslator {
     }
   }
 
-  private scheduleProgressRemoval(ms: number): void {
-    this.clearProgressHideTimer();
-    this.progressHideTimer = setTimeout(() => this.removeProgress(), ms);
-  }
-
   private removeProgress(): void {
     this.clearProgressHideTimer();
     this.progressEl?.remove();
     this.progressEl = null;
+  }
+
+  private isActiveOnCurrentPage(): boolean {
+    return !this.aborted && this.pageKey === currentPageKey();
   }
 }

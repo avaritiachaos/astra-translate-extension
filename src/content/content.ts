@@ -169,10 +169,14 @@ async function startPageTranslation(): Promise<void> {
   }
 
   let targetLang = "Simplified Chinese";
-  let batchSize = 4000;
-  let concurrency = 2;
+  let batchSize = 6000;
+  let concurrency = 4;
   let enableRealtime = true;
   let translateWholePage = false;
+  let translatePageChrome = false;
+  let translateUiControls = false;
+  let enableStreaming = true;
+  let enableSiteLexicon = true;
   let lang: UiLanguage = "zh-CN";
 
   try {
@@ -183,6 +187,10 @@ async function startPageTranslation(): Promise<void> {
       concurrency = settings.concurrency || concurrency;
       enableRealtime = settings.enableRealtimePageTranslate ?? enableRealtime;
       translateWholePage = settings.translateWholePage ?? translateWholePage;
+      translatePageChrome = settings.translatePageChrome ?? translatePageChrome;
+      translateUiControls = settings.translateUiControls ?? translateUiControls;
+      enableStreaming = settings.enableStreamingPageTranslate ?? enableStreaming;
+      enableSiteLexicon = settings.enableSiteLexicon ?? enableSiteLexicon;
       lang = settings.uiLanguage || lang;
     }
   } catch {
@@ -198,6 +206,10 @@ async function startPageTranslation(): Promise<void> {
     concurrency,
     enableRealtime,
     translateWholePage,
+    translatePageChrome,
+    translateUiControls,
+    enableStreaming,
+    enableSiteLexicon,
     lang,
     onStatus: (status) => {
       chrome.runtime.sendMessage({

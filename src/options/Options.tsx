@@ -20,18 +20,40 @@ export default function Options() {
   const [testing, setTesting] = useState(false);
   const [toast, setToast] = useState("");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [siteStats, setSiteStats] = useState<{
+    hostCount: number;
+    phraseCount: number;
+    hosts: Array<{ host: string; phrases: number }>;
+  } | null>(null);
+  const [clearingLexicon, setClearingLexicon] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
   const lang: UiLanguage = settings.uiLanguage || "zh-CN";
 
+  const refreshSiteStats = useCallback(() => {
+    chrome.runtime
+      .sendMessage({ type: "GET_SITE_LEXICON_STATS" })
+      .then((res) => {
+        if (res?.success) {
+          setSiteStats({
+            hostCount: res.hostCount ?? 0,
+            phraseCount: res.phraseCount ?? 0,
+            hosts: res.hosts ?? [],
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Load settings
   useEffect(() => {
     chrome.runtime.sendMessage({ type: "GET_SETTINGS" }).then((s) => {
       if (s) setSettings(s);
     });
-  }, []);
+    refreshSiteStats();
+  }, [refreshSiteStats]);
 
   // Toast helper (defined early so scheduleSave can use it)
   const showToast = useCallback((msg: string) => {
@@ -124,6 +146,45 @@ export default function Options() {
     });
     scheduleSave();
   }, [scheduleSave]);
+
+  const handleClearAllSiteLexicon = useCallback(async () => {
+    const ok = window.confirm(t(lang, "opt.clearSiteLexiconConfirm"));
+    if (!ok) return;
+    setClearingLexicon(true);
+    try {
+      const res = await chrome.runtime.sendMessage({
+        type: "CLEAR_SITE_LEXICON",
+        payload: {},
+      });
+      const count = res?.cleared ?? 0;
+      showToast(t(lang, "opt.clearSiteLexiconDone", { count }));
+      refreshSiteStats();
+    } catch {
+      showToast(t(lang, "opt.saveFailed"));
+    } finally {
+      setClearingLexicon(false);
+    }
+  }, [lang, showToast, refreshSiteStats]);
+
+  const handleClearHostLexicon = useCallback(
+    async (host: string) => {
+      setClearingLexicon(true);
+      try {
+        const res = await chrome.runtime.sendMessage({
+          type: "CLEAR_SITE_LEXICON",
+          payload: { host },
+        });
+        const count = res?.cleared ?? 0;
+        showToast(t(lang, "opt.clearSiteLexiconDone", { count }));
+        refreshSiteStats();
+      } catch {
+        showToast(t(lang, "opt.saveFailed"));
+      } finally {
+        setClearingLexicon(false);
+      }
+    },
+    [lang, showToast, refreshSiteStats]
+  );
 
   // Test API — uses current form state directly, auto-saves on success
   const handleTest = useCallback(async () => {
@@ -526,11 +587,11 @@ export default function Options() {
               className="ast-form-input"
               type="number"
               min="1"
-              max="5"
+              max="8"
               step="1"
               value={settings.concurrency}
               onChange={(e) =>
-                update("concurrency", parseInt(e.target.value) || 2)
+                update("concurrency", parseInt(e.target.value) || 4)
               }
             />
           </div>
@@ -558,8 +619,137 @@ export default function Options() {
             onChange={(e) => update("translateWholePage", e.target.checked)}
           />
         </div>
-        <div className="ast-form-hint" style={{ marginTop: -4 }}>
+        <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 8 }}>
           {t(lang, "opt.translateWholePageDescription")}
+        </div>
+
+        <div className="ast-toggle-row" style={{ marginTop: 4 }}>
+          <span className="ast-toggle-label">{t(lang, "opt.translatePageChrome")}</span>
+          <input
+            type="checkbox"
+            className="ast-toggle"
+            checked={settings.translatePageChrome}
+            onChange={(e) => update("translatePageChrome", e.target.checked)}
+          />
+        </div>
+        <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 8 }}>
+          {t(lang, "opt.translatePageChromeDescription")}
+        </div>
+
+        <div className="ast-toggle-row" style={{ marginTop: 4 }}>
+          <span className="ast-toggle-label">{t(lang, "opt.translateUiControls")}</span>
+          <input
+            type="checkbox"
+            className="ast-toggle"
+            checked={settings.translateUiControls}
+            onChange={(e) => update("translateUiControls", e.target.checked)}
+          />
+        </div>
+        <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 8 }}>
+          {t(lang, "opt.translateUiControlsDescription")}
+        </div>
+
+        <div className="ast-toggle-row" style={{ marginTop: 4 }}>
+          <span className="ast-toggle-label">{t(lang, "opt.streamingPage")}</span>
+          <input
+            type="checkbox"
+            className="ast-toggle"
+            checked={settings.enableStreamingPageTranslate}
+            onChange={(e) => update("enableStreamingPageTranslate", e.target.checked)}
+          />
+        </div>
+        <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 8 }}>
+          {t(lang, "opt.streamingPageDescription")}
+        </div>
+
+        <div className="ast-toggle-row" style={{ marginTop: 4 }}>
+          <span className="ast-toggle-label">{t(lang, "opt.siteLexicon")}</span>
+          <input
+            type="checkbox"
+            className="ast-toggle"
+            checked={settings.enableSiteLexicon}
+            onChange={(e) => update("enableSiteLexicon", e.target.checked)}
+          />
+        </div>
+        <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 8 }}>
+          {t(lang, "opt.siteLexiconDescription")}
+        </div>
+
+        <div
+          style={{
+            marginTop: 4,
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: "var(--ast-surface-2, #f3f4f6)",
+            fontSize: 13,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ color: "#6b7280", flex: 1 }}>
+              {siteStats && siteStats.phraseCount > 0
+                ? t(lang, "opt.siteLexiconStats", {
+                    hosts: siteStats.hostCount,
+                    phrases: siteStats.phraseCount,
+                  })
+                : t(lang, "opt.siteLexiconEmpty")}
+            </span>
+            <button
+              type="button"
+              className="ast-btn ast-btn-secondary"
+              style={{ fontSize: 12, padding: "4px 10px" }}
+              onClick={refreshSiteStats}
+              disabled={clearingLexicon}
+            >
+              {t(lang, "opt.refreshStats")}
+            </button>
+            <button
+              type="button"
+              className="ast-btn ast-btn-secondary"
+              style={{ fontSize: 12, padding: "4px 10px" }}
+              onClick={handleClearAllSiteLexicon}
+              disabled={clearingLexicon || !siteStats?.phraseCount}
+            >
+              {t(lang, "opt.clearSiteLexicon")}
+            </button>
+          </div>
+          {siteStats && siteStats.hosts.length > 0 && (
+            <ul
+              style={{
+                margin: "8px 0 0",
+                padding: 0,
+                listStyle: "none",
+                maxHeight: 140,
+                overflowY: "auto",
+              }}
+            >
+              {siteStats.hosts.slice(0, 12).map((h) => (
+                <li
+                  key={h.host}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "4px 0",
+                    borderTop: "1px solid rgba(0,0,0,0.06)",
+                  }}
+                >
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {h.host}
+                  </span>
+                  <span style={{ color: "#9ca3af", fontSize: 12 }}>{h.phrases}</span>
+                  <button
+                    type="button"
+                    className="ast-btn ast-btn-secondary"
+                    style={{ fontSize: 11, padding: "2px 8px" }}
+                    disabled={clearingLexicon}
+                    onClick={() => handleClearHostLexicon(h.host)}
+                  >
+                    {t(lang, "opt.clearThisHost")}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 

@@ -48,6 +48,21 @@ export interface AstraSettings extends UserProviderSettings {
   /** Translate the entire page at once. When false (default), translation is
    * viewport-first: only the visible area is translated, the rest as you scroll. */
   translateWholePage: boolean;
+  /** Also translate page chrome (nav / header / footer / aside). Off by default
+   * to save tokens and avoid rewriting site furniture. */
+  translatePageChrome: boolean;
+  /** Also translate UI control labels: <button> text, submit/button/reset
+   * input values, and placeholders. Off by default. Typed field values stay skipped. */
+  translateUiControls: boolean;
+  /**
+   * Stream page-batch model output and apply each item as soon as it completes.
+   * Faster perceived latency; falls back to one-shot if the stream path fails.
+   */
+  enableStreamingPageTranslate: boolean;
+  /**
+   * Learn short UI labels per hostname and reuse them on later visits (zero API).
+   */
+  enableSiteLexicon: boolean;
   enableFloatingBall: boolean;
   floatingBallOpacity: number;
   floatingBallSize: number;
@@ -75,6 +90,10 @@ export type MessageType =
   | "TEST_PROVIDER"
   | "TRANSLATE_TEXT"
   | "TRANSLATE_BATCH"
+  | "GET_SITE_LEXICON"
+  | "LEARN_SITE_LEXICON"
+  | "CLEAR_SITE_LEXICON"
+  | "GET_SITE_LEXICON_STATS"
   | "PAGE_TRANSLATE_START"
   | "PAGE_TRANSLATE_RESTORE"
   | "PAGE_TRANSLATE_STATUS"
@@ -83,6 +102,27 @@ export type MessageType =
   | "SAVE_FLOATING_BALL_ENABLED"
   | "SAVE_FLOATING_BALL_SIZE"
   | "SAVE_POPUP_SCALE";
+
+/** Port name for streaming page-batch translation (content ↔ service worker). */
+export const TRANSLATE_BATCH_STREAM_PORT = "astra-translate-batch-stream";
+
+export interface TranslateBatchStreamRequest {
+  type: "TRANSLATE_BATCH_STREAM";
+  payload: {
+    items: { id: string; text: string }[];
+    targetLang: string;
+    prompt?: string;
+  };
+}
+
+export type TranslateBatchStreamEvent =
+  | { type: "item"; id: string; text: string }
+  | {
+      type: "done";
+      success: boolean;
+      items: { id: string; text: string }[];
+      error?: string;
+    };
 
 export interface Message<T = unknown> {
   type: MessageType;
