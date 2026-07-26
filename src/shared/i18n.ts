@@ -116,6 +116,18 @@ const zhCN: MessageDict = {
   "popup.connectFail": "无法连接到翻译服务。",
   "popup.cannotAccess": "无法访问当前页面。",
   "popup.kbHint": "Enter 翻译 · Shift+Enter 换行 · Esc 清空",
+  "popup.modeTranslate": "翻译",
+  "popup.modeChat": "对话",
+
+  // ---- 临时对话模式 ----
+  "chat.placeholder": "随便问点什么…",
+  "chat.send": "发送",
+  "chat.clear": "清空",
+  "chat.empty": "临时问点什么吧——对话不保存，关闭浏览器后自动清空。",
+  "chat.thinking": "思考中…",
+  "chat.busy": "上一条还在处理中，请稍候",
+  "chat.failed": "回答失败，请重试",
+  "chat.kbHint": "Enter 发送 · Shift+Enter 换行",
 
   // ---- Content 划词气泡 ----
   "bubble.title": "Astra Translate",
@@ -296,6 +308,18 @@ const enUS: MessageDict = {
   "popup.connectFail": "Failed to connect to translation service.",
   "popup.cannotAccess": "Cannot access the current page.",
   "popup.kbHint": "Enter to translate · Shift+Enter for newline · Esc to clear",
+  "popup.modeTranslate": "Translate",
+  "popup.modeChat": "Chat",
+
+  // ---- Ephemeral chat mode ----
+  "chat.placeholder": "Ask anything…",
+  "chat.send": "Send",
+  "chat.clear": "Clear",
+  "chat.empty": "Ask something quick — chats aren't saved and clear when the browser closes.",
+  "chat.thinking": "Thinking…",
+  "chat.busy": "Still working on the previous message…",
+  "chat.failed": "Reply failed — please try again",
+  "chat.kbHint": "Enter to send · Shift+Enter for newline",
 
   // ---- Content Bubble ----
   "bubble.title": "Astra Translate",
@@ -476,6 +500,18 @@ const jaJP: MessageDict = {
   "popup.connectFail": "翻訳サービスに接続できません。",
   "popup.cannotAccess": "現在のページにアクセスできません。",
   "popup.kbHint": "Enter で翻訳 · Shift+Enter で改行 · Esc でクリア",
+  "popup.modeTranslate": "翻訳",
+  "popup.modeChat": "チャット",
+
+  // ---- 一時チャットモード ----
+  "chat.placeholder": "何でも聞いてください…",
+  "chat.send": "送信",
+  "chat.clear": "クリア",
+  "chat.empty": "気軽に質問できます——会話は保存されず、ブラウザを閉じると消えます。",
+  "chat.thinking": "考え中…",
+  "chat.busy": "前のメッセージを処理中です…",
+  "chat.failed": "回答に失敗しました。もう一度お試しください",
+  "chat.kbHint": "Enter で送信 · Shift+Enter で改行",
 
   // ---- Content 選択バブル ----
   "bubble.title": "Astra Translate",

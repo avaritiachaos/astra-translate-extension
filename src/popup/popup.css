@@ -343,6 +343,138 @@ body::-webkit-scrollbar-thumb:hover {
   color: var(--ast-muted);
 }
 
+/* Mode switch (Translate | Chat) */
+.ast-mode-switch {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px 0;
+}
+
+.ast-mode-btn {
+  flex: 1;
+  padding: 6px 0;
+  border: 1px solid var(--ast-border);
+  border-radius: var(--ast-radius-sm);
+  background: var(--ast-card-bg);
+  color: var(--ast-muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--ast-font);
+  cursor: pointer;
+  transition: background 120ms ease-out, color 120ms ease-out,
+    border-color 120ms ease-out;
+}
+
+.ast-mode-btn:hover {
+  color: var(--ast-text);
+  border-color: var(--ast-muted);
+}
+
+.ast-mode-btn--active,
+.ast-mode-btn--active:hover {
+  background: var(--ast-primary);
+  border-color: var(--ast-primary);
+  color: #fff;
+}
+
+/* Chat mode */
+.ast-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px 16px 12px;
+}
+
+.ast-chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 220px;
+  max-height: 340px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px;
+}
+
+.ast-chat-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.ast-chat-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ast-chat-list::-webkit-scrollbar-thumb {
+  background: var(--ast-border);
+  border-radius: 3px;
+}
+
+.ast-chat-empty {
+  margin: auto;
+  padding: 24px 20px;
+  color: var(--ast-muted);
+  font-size: 12px;
+  font-style: italic;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.ast-chat-bubble {
+  max-width: 85%;
+  padding: 8px 11px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+.ast-chat-bubble--user {
+  align-self: flex-end;
+  background: var(--ast-primary);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.ast-chat-bubble--assistant {
+  align-self: flex-start;
+  background: var(--ast-card-bg);
+  border: 1px solid var(--ast-border);
+  color: var(--ast-text);
+  border-bottom-left-radius: 4px;
+}
+
+.ast-chat-bubble--error {
+  align-self: flex-start;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: var(--ast-error);
+  border-bottom-left-radius: 4px;
+}
+
+.ast-chat-bubble--thinking {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ast-muted);
+}
+
+.ast-chat .ast-error-msg {
+  margin: 0;
+}
+
+.ast-chat-input {
+  min-height: 48px;
+  max-height: 120px;
+}
+
+.ast-chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* Success toast */
 .ast-toast {
   position: fixed;

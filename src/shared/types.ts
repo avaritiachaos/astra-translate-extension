@@ -98,6 +98,9 @@ export type MessageType =
   | "PAGE_TRANSLATE_START"
   | "PAGE_TRANSLATE_RESTORE"
   | "PAGE_TRANSLATE_STATUS"
+  | "CHAT_MESSAGE"
+  | "GET_CHAT_STATE"
+  | "CLEAR_CHAT"
   | "OPEN_OPTIONS_PAGE"
   | "SAVE_FLOATING_BALL_OPACITY"
   | "SAVE_FLOATING_BALL_ENABLED"
@@ -232,6 +235,42 @@ export interface TestProviderResponse {
   success: boolean;
   error?: string;
   model?: string;
+}
+
+// ---------- Ephemeral chat (popup "chat" mode) ----------
+
+/** chrome.storage.session key holding the one browser-session conversation.
+ * Session storage survives popup close and SW idle death, and clears when
+ * the browser exits — chats are deliberately ephemeral. */
+export const CHAT_STORAGE_KEY = "astra_chat_v1";
+/** chrome.storage.session key remembering which popup tab was last active. */
+export const POPUP_MODE_STORAGE_KEY = "astra_popup_mode_v1";
+
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+  ts: number;
+  /** Assistant turn that reports a provider failure instead of an answer.
+   * Rendered in the list, but never sent back to the model as context. */
+  error?: boolean;
+}
+
+export interface ChatState {
+  turns: ChatTurn[];
+  /** A request is in flight in the service worker. */
+  pending: boolean;
+  /** Bumped on clear — in-flight results from an older generation are dropped. */
+  gen: number;
+}
+
+export interface ChatResponse {
+  success: boolean;
+  error?: string;
+  errorCode?: string;
+  /** True when a failed reply was appended to the conversation as an error
+   * turn (already visible in the list); false for pre-flight rejections
+   * (missing key / busy / empty input) the popup must surface itself. */
+  appended?: boolean;
 }
 
 // ---------- Page Translator ----------

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Astra Translate",
   "description": "A lightweight, elegant, provider-neutral browser translator.",
-  "version": "4.2.2",
+  "version": "4.3.0",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

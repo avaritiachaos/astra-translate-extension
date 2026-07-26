@@ -3,10 +3,16 @@
 // ============================================================
 
 import { handleMessage, handleTranslateBatchStream } from "./messageRouter";
+import { resetStaleChatPending } from "./chatService";
 import {
   TRANSLATE_BATCH_STREAM_PORT,
   type TranslateBatchStreamRequest,
 } from "../shared/types";
+
+// A fresh service-worker start means any previously in-flight chat request
+// died with the old worker — clear a stuck pending flag so the popup isn't
+// blocked behind an answer that can never arrive.
+resetStaleChatPending();
 
 /** Check if a tab URL is accessible for scripting (not chrome://, edge://, about:, etc.). */
 function isInjectableUrl(url?: string): boolean {

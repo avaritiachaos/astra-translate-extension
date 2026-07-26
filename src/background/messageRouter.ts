@@ -35,6 +35,7 @@ import {
   learnSiteLexiconPairs,
   touchSiteLexiconPairs,
 } from "./siteLexiconStore";
+import { clearChat, getChatState, sendChatMessage } from "./chatService";
 import { siteLexiconHost } from "../shared/siteLexicon";
 import { StreamBatchItemParser, topLevelJsonObjects } from "../shared/streamBatchParser";
 
@@ -211,6 +212,29 @@ export async function handleMessage(
       }
       const stats = await getSiteLexiconStats();
       return { success: true, ...stats };
+    }
+
+    case "CHAT_MESSAGE": {
+      // Chat is a popup-only surface — page contexts get nothing.
+      if (!isExtensionPageSender(sender)) {
+        return { success: false, appended: false };
+      }
+      const text = (msg.payload as { text?: unknown } | undefined)?.text;
+      return sendChatMessage(typeof text === "string" ? text : "");
+    }
+
+    case "GET_CHAT_STATE": {
+      if (!isExtensionPageSender(sender)) {
+        return { success: false, turns: [], pending: false, gen: 0 };
+      }
+      return getChatState();
+    }
+
+    case "CLEAR_CHAT": {
+      if (!isExtensionPageSender(sender)) {
+        return { success: false };
+      }
+      return clearChat();
     }
 
     case "OPEN_OPTIONS_PAGE":

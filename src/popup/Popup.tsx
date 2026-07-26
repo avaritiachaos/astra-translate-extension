@@ -2,8 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { SUPPORTED_LANGUAGES } from "../shared/constants";
 import { t, type UiLanguage } from "../shared/i18n";
-import type { AstraSettings } from "../shared/types";
+import type { AstraSettings, ChatState, ChatTurn } from "../shared/types";
+import { CHAT_STORAGE_KEY, POPUP_MODE_STORAGE_KEY } from "../shared/types";
 import "./popup.css";
+
+type PopupMode = "translate" | "chat";
 
 export default function Popup() {
   const [settings, setSettings] = useState<AstraSettings | null>(null);
@@ -21,6 +24,15 @@ export default function Popup() {
   const [pageLangSaved, setPageLangSaved] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // ---- Chat mode state ----
+  const [mode, setMode] = useState<PopupMode>("translate");
+  const [chatTurns, setChatTurns] = useState<ChatTurn[]>([]);
+  const [chatPending, setChatPending] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [chatError, setChatError] = useState("");
+  const chatListRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
+
   const lang: UiLanguage = settings?.uiLanguage || "zh-CN";
 
   // Load settings on mount
@@ -34,6 +46,56 @@ export default function Popup() {
     });
     inputRef.current?.focus();
   }, []);
+
+  const refreshChatState = useCallback(async () => {
+    try {
+      const res = await chrome.runtime.sendMessage({ type: "GET_CHAT_STATE" });
+      if (res?.success) {
+        setChatTurns(res.turns ?? []);
+        setChatPending(!!res.pending);
+      }
+    } catch {
+      // Service worker unavailable — keep whatever we have.
+    }
+  }, []);
+
+  // Chat mode: restore the last-active tab, load the session conversation,
+  // and follow service-worker updates via storage events — the SW owns the
+  // state, so an answer that finishes while this popup is closed (or open)
+  // lands here through storage, not through a message response.
+  useEffect(() => {
+    chrome.storage.session
+      ?.get(POPUP_MODE_STORAGE_KEY)
+      .then((r) => {
+        if (r?.[POPUP_MODE_STORAGE_KEY] === "chat") setMode("chat");
+      })
+      .catch(() => {});
+    refreshChatState();
+
+    const onStorageChanged = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      area: string
+    ) => {
+      if (area !== "session") return;
+      const change = changes[CHAT_STORAGE_KEY];
+      if (!change) return;
+      const next = change.newValue as ChatState | undefined;
+      setChatTurns(next?.turns ?? []);
+      setChatPending(!!next?.pending);
+    };
+    chrome.storage.onChanged.addListener(onStorageChanged);
+    return () => chrome.storage.onChanged.removeListener(onStorageChanged);
+  }, [refreshChatState]);
+
+  // Focus follows the active tab; the chat list sticks to the newest message.
+  useEffect(() => {
+    (mode === "chat" ? chatInputRef : inputRef).current?.focus();
+  }, [mode]);
+
+  useEffect(() => {
+    const el = chatListRef.current;
+    if (mode === "chat" && el) el.scrollTop = el.scrollHeight;
+  }, [mode, chatTurns, chatPending]);
 
   // Persist target language to settings
   const saveTargetLang = useCallback(
@@ -172,9 +234,72 @@ export default function Popup() {
     chrome.runtime.sendMessage({ type: "OPEN_OPTIONS_PAGE" });
   }, []);
 
+  // ---- Chat mode actions ----
+
+  const switchMode = useCallback((next: PopupMode) => {
+    setMode(next);
+    chrome.storage.session
+      ?.set({ [POPUP_MODE_STORAGE_KEY]: next })
+      .catch(() => {});
+  }, []);
+
+  const handleChatSend = useCallback(async () => {
+    const text = chatInput.trim();
+    if (!text || chatPending) return;
+    setChatError("");
+    setChatInput("");
+    try {
+      const res = await chrome.runtime.sendMessage({
+        type: "CHAT_MESSAGE",
+        payload: { text },
+      });
+      if (res && !res.success && !res.appended) {
+        // Pre-flight rejection (missing key / busy) — nothing was added to
+        // the conversation, so surface the error here and give the text
+        // back to the input for a retry.
+        setChatError(res.error || t(lang, "chat.failed"));
+        setChatInput(text);
+      }
+      // Storage events already track the conversation; this refresh only
+      // matters for the no-session-storage fallback.
+      refreshChatState();
+    } catch {
+      setChatError(t(lang, "popup.connectFail"));
+      setChatInput(text);
+    }
+  }, [chatInput, chatPending, lang, refreshChatState]);
+
+  const handleChatClear = useCallback(() => {
+    setChatError("");
+    chrome.runtime
+      .sendMessage({ type: "CLEAR_CHAT" })
+      .then(() => refreshChatState())
+      .catch(() => {});
+  }, [refreshChatState]);
+
+  const handleChatKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // Enter sends; Shift+Enter inserts a newline. Skip while composing
+      // with an IME — that Enter commits the composition.
+      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+        e.preventDefault();
+        handleChatSend();
+      }
+    },
+    [handleChatSend]
+  );
+
   // Keyboard shortcuts
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (mode === "chat") {
+        // The chat textarea handles Enter itself; only Esc acts globally.
+        if (e.key === "Escape") {
+          if (chatError) setChatError("");
+          else setChatInput("");
+        }
+        return;
+      }
       // Enter in the source box translates; Shift+Enter inserts a newline
       // (default behaviour). Ctrl/Cmd+Enter keeps working for muscle memory.
       // Skip while composing with an IME — that Enter commits the composition.
@@ -193,7 +318,7 @@ export default function Popup() {
         }
       }
     },
-    [handleTranslate, handleClear, error]
+    [mode, chatError, handleTranslate, handleClear, error]
   );
 
   const allLangs = ["Auto", ...SUPPORTED_LANGUAGES];
@@ -208,6 +333,91 @@ export default function Popup() {
         </button>
       </div>
 
+      {/* Mode switch */}
+      <div className="ast-mode-switch" role="tablist">
+        <button
+          role="tab"
+          aria-selected={mode === "translate"}
+          className={`ast-mode-btn ${mode === "translate" ? "ast-mode-btn--active" : ""}`}
+          onClick={() => switchMode("translate")}
+        >
+          {t(lang, "popup.modeTranslate")}
+        </button>
+        <button
+          role="tab"
+          aria-selected={mode === "chat"}
+          className={`ast-mode-btn ${mode === "chat" ? "ast-mode-btn--active" : ""}`}
+          onClick={() => switchMode("chat")}
+        >
+          {t(lang, "popup.modeChat")}
+        </button>
+      </div>
+
+      {mode === "chat" ? (
+        <div className="ast-chat">
+          <div className="ast-chat-list" ref={chatListRef}>
+            {chatTurns.length === 0 && !chatPending && (
+              <div className="ast-chat-empty">{t(lang, "chat.empty")}</div>
+            )}
+            {chatTurns.map((turn, i) => (
+              <div
+                key={`${turn.ts}-${i}`}
+                className={
+                  turn.role === "user"
+                    ? "ast-chat-bubble ast-chat-bubble--user"
+                    : turn.error
+                      ? "ast-chat-bubble ast-chat-bubble--error"
+                      : "ast-chat-bubble ast-chat-bubble--assistant"
+                }
+              >
+                {turn.content}
+              </div>
+            ))}
+            {chatPending && (
+              <div className="ast-chat-bubble ast-chat-bubble--assistant ast-chat-bubble--thinking">
+                <div className="ast-spinner-sm" />
+                <span>{t(lang, "chat.thinking")}</span>
+              </div>
+            )}
+          </div>
+
+          {chatError && (
+            <div className="ast-error-msg">
+              <span>⚠</span>
+              <span>{chatError}</span>
+            </div>
+          )}
+
+          <textarea
+            ref={chatInputRef}
+            className="ast-input-box ast-chat-input"
+            placeholder={t(lang, "chat.placeholder")}
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={handleChatKeyDown}
+            rows={2}
+            maxLength={8000}
+          />
+          <div className="ast-chat-actions">
+            <button
+              className="ast-btn ast-btn-primary"
+              onClick={handleChatSend}
+              disabled={chatPending || !chatInput.trim()}
+            >
+              {chatPending ? t(lang, "chat.thinking") : t(lang, "chat.send")}
+            </button>
+            <button
+              className="ast-btn ast-btn-secondary"
+              onClick={handleChatClear}
+              disabled={chatTurns.length === 0 && !chatPending}
+            >
+              {t(lang, "chat.clear")}
+            </button>
+            <span className="ast-keyboard-hint">{t(lang, "chat.kbHint")}</span>
+          </div>
+        </div>
+      ) : (
+        <>
       {/* Language bar */}
       <div className="ast-lang-bar">
         <select
@@ -353,6 +563,8 @@ export default function Popup() {
         </div>
         {pageStatus && <div className="ast-page-status">{pageStatus}</div>}
       </div>
+        </>
+      )}
 
       {/* Toast */}
       {toast && <div className="ast-toast">{toast}</div>}
