@@ -9,14 +9,22 @@
 
 import {
   CHAT_STORAGE_KEY,
+  type AstraSettings,
   type ChatResponse,
   type ChatState,
+  type ChatStreamEvent,
+  type ChatStreamRequest,
   type ChatTurn,
 } from "../shared/types";
 import { buildChatContext } from "../shared/chatContext";
+import { DEFAULT_CHAT_PROMPT } from "../shared/prompts";
 import { t, type UiLanguage } from "../shared/i18n";
 import { getSettings } from "../shared/storage";
-import { chatViaProvider, type ChatMessage } from "./providerClient";
+import {
+  chatViaProvider,
+  chatViaProviderStream,
+  type ChatMessage,
+} from "./providerClient";
 import { AstraError } from "./errors";
 
 /** Hard cap on one user input (popup enforces the same via maxLength). */
@@ -78,7 +86,13 @@ export async function getChatState(): Promise<{ success: true } & ChatState> {
   return { success: true, ...state };
 }
 
+/** Abort handle for the request currently in flight (stream path). */
+let activeChatAbort: AbortController | null = null;
+
 export async function clearChat(): Promise<{ success: true }> {
+  // Stop wasting tokens on a reply that is about to be dropped anyway —
+  // the gen bump below guarantees it can't land in the fresh conversation.
+  activeChatAbort?.abort();
   await serialized(async () => {
     const prev = await loadChatState();
     // gen bump: an in-flight reply from before the clear must not be
@@ -103,28 +117,27 @@ export function resetStaleChatPending(): void {
   });
 }
 
-function systemPromptFor(lang: UiLanguage): string {
+function systemPromptFor(settings: AstraSettings, lang: UiLanguage): string {
   const answerLang =
     lang === "zh-CN"
       ? "Simplified Chinese"
       : lang === "ja-JP"
         ? "Japanese"
         : "English";
-  return (
-    "You are Astra, a concise general assistant built into a browser " +
-    "translation extension. Users drop in with quick questions — often about " +
-    "language, wording or whatever page they are reading, but anything goes. " +
-    `Answer in ${answerLang} unless the user asks for another language. ` +
-    "Prefer short, direct answers in plain text; no markdown headings."
-  );
+  const custom = settings.chatPrompt?.trim();
+  return (custom || DEFAULT_CHAT_PROMPT).replace(/\{\{lang\}\}/g, answerLang);
 }
 
 /**
- * Append the user's message, call the provider with bounded context, append
- * the reply (or an error turn). The whole exchange is persisted step by step,
- * so a popup that closes mid-request finds the finished answer on reopen.
+ * One full exchange: append the user's message, call the provider with
+ * bounded context (streaming deltas to `onDelta` when given), append the
+ * reply (or an error turn). Every step is persisted, so a popup that closes
+ * mid-request finds the finished answer on reopen.
  */
-export async function sendChatMessage(rawText: string): Promise<ChatResponse> {
+async function runChatExchange(
+  rawText: string,
+  onDelta?: (delta: string) => void
+): Promise<ChatResponse> {
   const text = rawText.trim().slice(0, MAX_INPUT_CHARS);
   const settings = await getSettings();
   const lang: UiLanguage = settings.uiLanguage || "zh-CN";
@@ -159,13 +172,18 @@ export async function sendChatMessage(rawText: string): Promise<ChatResponse> {
     };
   }
 
+  const controller = new AbortController();
+  activeChatAbort = controller;
+
   let reply: ChatTurn;
   try {
     const messages: ChatMessage[] = [
-      { role: "system", content: systemPromptFor(lang) },
+      { role: "system", content: systemPromptFor(settings, lang) },
       ...claim.context,
     ];
-    const content = await chatViaProvider(settings, messages, lang);
+    const content = onDelta
+      ? await chatViaProviderStream(settings, messages, onDelta, lang, controller.signal)
+      : await chatViaProvider(settings, messages, lang);
     reply = { role: "assistant", content, ts: Date.now() };
   } catch (err) {
     const message =
@@ -175,19 +193,57 @@ export async function sendChatMessage(rawText: string): Promise<ChatResponse> {
           ? err.message
           : t(lang, "chat.failed");
     reply = { role: "assistant", content: message, ts: Date.now(), error: true };
+  } finally {
+    if (activeChatAbort === controller) activeChatAbort = null;
   }
 
-  await serialized(async () => {
+  const committed = await serialized(async () => {
     const state = await loadChatState();
     // Cleared while we were waiting — this reply belongs to a conversation
     // that no longer exists. pending is owned by the newer generation.
-    if (state.gen !== claim.gen) return;
+    if (state.gen !== claim.gen) return false;
     pushTrimmed(state, reply);
     state.pending = false;
     await saveChatState(state);
+    return true;
   });
+
+  if (!committed) {
+    // Deliberately quiet: the user cleared the conversation mid-flight, so
+    // there is nothing to render and no error worth surfacing.
+    return { success: false, errorCode: "CHAT_CANCELLED", appended: false };
+  }
 
   return reply.error
     ? { success: false, error: reply.content, appended: true }
     : { success: true, appended: true };
+}
+
+/** One-shot exchange (fallback path when the stream port is unavailable). */
+export async function sendChatMessage(rawText: string): Promise<ChatResponse> {
+  return runChatExchange(rawText);
+}
+
+/**
+ * Streaming exchange over a long-lived port: {type:"delta"} per fragment,
+ * then {type:"done"} carrying the same ChatResponse shape as the one-shot
+ * path. The port closing mid-stream does NOT cancel the request — the reply
+ * still persists to storage so the reopened popup finds it. Only CLEAR_CHAT
+ * aborts an in-flight request.
+ */
+export async function handleChatStream(
+  msg: ChatStreamRequest,
+  rawPost: (event: ChatStreamEvent) => void
+): Promise<void> {
+  const requestId =
+    typeof msg.payload?.requestId === "string" ? msg.payload.requestId : undefined;
+  const post = (event: ChatStreamEvent): void => {
+    rawPost(requestId ? { ...event, requestId } : event);
+  };
+
+  const result = await runChatExchange(
+    typeof msg.payload?.text === "string" ? msg.payload.text : "",
+    (delta) => post({ type: "delta", text: delta })
+  );
+  post({ type: "done", ...result });
 }

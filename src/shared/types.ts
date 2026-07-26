@@ -78,6 +78,8 @@ export interface AstraSettings extends UserProviderSettings {
   // Dictionary Mode
   dictionaryModeEnabled: boolean;
   dictionaryPrompt: string;
+  // Popup chat mode — system prompt ({{lang}} = answer-language placeholder).
+  chatPrompt: string;
   // Translation Cache
   enableTranslationCache: boolean;
   translationCacheMaxEntries: number;
@@ -272,6 +274,23 @@ export interface ChatResponse {
    * (missing key / busy / empty input) the popup must surface itself. */
   appended?: boolean;
 }
+
+/** Port name for streaming chat replies (popup ↔ service worker). */
+export const CHAT_STREAM_PORT = "astra-chat-stream";
+
+export interface ChatStreamRequest {
+  type: "CHAT_STREAM";
+  payload: {
+    text: string;
+    /** Correlates events with this request if a port ever carries more than
+     * one — events are echoed back tagged with the same id. */
+    requestId?: string;
+  };
+}
+
+export type ChatStreamEvent =
+  | { type: "delta"; text: string; requestId?: string }
+  | ({ type: "done"; requestId?: string } & ChatResponse);
 
 // ---------- Page Translator ----------
 export type PageTranslatePhase =

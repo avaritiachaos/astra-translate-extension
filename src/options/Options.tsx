@@ -6,7 +6,7 @@ import {
   DEFAULT_PROVIDER_PRESETS,
   SUPPORTED_LANGUAGES,
 } from "../shared/constants";
-import { DEFAULT_SELECTION_PROMPT, DEFAULT_PAGE_PROMPT } from "../shared/prompts";
+import { DEFAULT_SELECTION_PROMPT, DEFAULT_PAGE_PROMPT, DEFAULT_CHAT_PROMPT } from "../shared/prompts";
 import { getDefaultSettings } from "../shared/storage";
 import "./options.css";
 
@@ -140,6 +140,7 @@ export default function Options() {
         ...prev,
         selectionPrompt: DEFAULT_SELECTION_PROMPT,
         pagePrompt: DEFAULT_PAGE_PROMPT,
+        chatPrompt: DEFAULT_CHAT_PROMPT,
       };
       settingsRef.current = next;
       return next;
@@ -858,6 +859,19 @@ export default function Options() {
           />
           <div className="ast-form-hint">
             {t(lang, "opt.promptHint2", { targetLang: "{{targetLang}}" })}
+          </div>
+        </div>
+
+        <div className="ast-form-group">
+          <label className="ast-form-label">{t(lang, "opt.chatPrompt")}</label>
+          <textarea
+            className="ast-form-textarea"
+            value={settings.chatPrompt}
+            onChange={(e) => update("chatPrompt", e.target.value)}
+            rows={5}
+          />
+          <div className="ast-form-hint">
+            {t(lang, "opt.chatPromptHint", { lang: "{{lang}}" })}
           </div>
         </div>
 

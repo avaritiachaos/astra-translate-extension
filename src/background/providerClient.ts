@@ -43,6 +43,29 @@ export async function chatViaProvider(
 }
 
 /**
+ * Streaming multi-turn chat: onDelta fires per content fragment.
+ * Formats without a stream path emit the full text once.
+ */
+export async function chatViaProviderStream(
+  settings: UserProviderSettings,
+  messages: ChatMessage[],
+  onDelta: (delta: string) => void,
+  lang: UiLanguage = "zh-CN",
+  signal?: AbortSignal
+): Promise<string> {
+  switch (settings.apiFormat) {
+    case "openai-compatible":
+      return openAIChatStream(settings, messages, onDelta, lang, signal);
+
+    default: {
+      const full = await chatViaProvider(settings, messages, lang);
+      if (full) onDelta(full);
+      return full;
+    }
+  }
+}
+
+/**
  * Unified translate function – dispatches to the correct provider client
  * based on the user's configured apiFormat.
  */

@@ -85,6 +85,8 @@ const zhCN: MessageDict = {
   "opt.pagePrompt": "页面翻译 Prompt",
   "opt.promptHint1": "使用 {targetLang} 作为目标语言占位符。",
   "opt.promptHint2": "使用 {targetLang} 作为占位符，模型必须返回合法 JSON。",
+  "opt.chatPrompt": "对话提示词（popup 对话模式）",
+  "opt.chatPromptHint": "使用 {lang} 作为回答语言占位符，默认跟随界面语言。",
   "opt.resetPrompts": "恢复默认 Prompt",
 
   "opt.save": "保存设置",
@@ -277,6 +279,8 @@ const enUS: MessageDict = {
   "opt.pagePrompt": "Page Translation Prompt",
   "opt.promptHint1": "Use {targetLang} as placeholder for the target language.",
   "opt.promptHint2": "Use {targetLang} as placeholder. The model must return valid JSON.",
+  "opt.chatPrompt": "Chat prompt (popup chat mode)",
+  "opt.chatPromptHint": "Use {lang} as the answer-language placeholder (follows the UI language).",
   "opt.resetPrompts": "Restore Default Prompts",
 
   "opt.save": "Save Settings",
@@ -469,6 +473,8 @@ const jaJP: MessageDict = {
   "opt.pagePrompt": "ページ翻訳 Prompt",
   "opt.promptHint1": "{targetLang} をターゲット言語のプレースホルダーとして使用します。",
   "opt.promptHint2": "{targetLang} をプレースホルダーとして使用します。モデルは有効な JSON を返す必要があります。",
+  "opt.chatPrompt": "チャットプロンプト（ポップアップのチャットモード）",
+  "opt.chatPromptHint": "{lang} を回答言語のプレースホルダーとして使用します（UI 言語に従います）。",
   "opt.resetPrompts": "デフォルト Prompt に戻す",
 
   "opt.save": "設定を保存",

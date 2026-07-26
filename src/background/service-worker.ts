@@ -3,9 +3,11 @@
 // ============================================================
 
 import { handleMessage, handleTranslateBatchStream } from "./messageRouter";
-import { resetStaleChatPending } from "./chatService";
+import { handleChatStream, resetStaleChatPending } from "./chatService";
 import {
+  CHAT_STREAM_PORT,
   TRANSLATE_BATCH_STREAM_PORT,
+  type ChatStreamRequest,
   type TranslateBatchStreamRequest,
 } from "../shared/types";
 
@@ -93,44 +95,86 @@ chrome.runtime.onMessage.addListener(
 
 // Streaming page-batch translation over a long-lived port.
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== TRANSLATE_BATCH_STREAM_PORT) return;
+  if (port.name === TRANSLATE_BATCH_STREAM_PORT) {
+    const abort = new AbortController();
+    port.onDisconnect.addListener(() => abort.abort());
 
-  const abort = new AbortController();
-  port.onDisconnect.addListener(() => abort.abort());
+    port.onMessage.addListener((msg: TranslateBatchStreamRequest) => {
+      if (msg?.type !== "TRANSLATE_BATCH_STREAM") return;
+      acquireKeepalive();
+      handleTranslateBatchStream(
+        msg,
+        (event) => {
+          try {
+            port.postMessage(event);
+          } catch {
+            // Port closed mid-stream.
+          }
+        },
+        abort.signal
+      )
+        .catch((err) => {
+          try {
+            port.postMessage({
+              type: "done",
+              success: false,
+              error: err instanceof Error ? err.message : String(err),
+              errorCode: "UNKNOWN",
+              items: [],
+              requestId:
+                typeof msg?.payload?.requestId === "string"
+                  ? msg.payload.requestId
+                  : undefined,
+            });
+          } catch {
+            // ignore
+          }
+        })
+        .finally(releaseKeepalive);
+    });
+    return;
+  }
 
-  port.onMessage.addListener((msg: TranslateBatchStreamRequest) => {
-    if (msg?.type !== "TRANSLATE_BATCH_STREAM") return;
-    acquireKeepalive();
-    handleTranslateBatchStream(
-      msg,
-      (event) => {
+  // Streaming chat replies. Unlike page translation, the port disconnecting
+  // must NOT abort the request: closing the popup mid-answer is normal, and
+  // the reply still persists to session storage for the next popup open.
+  // Only CLEAR_CHAT cancels an in-flight request (inside chatService).
+  if (port.name === CHAT_STREAM_PORT) {
+    if (port.sender && !port.sender.url?.startsWith(`chrome-extension://${chrome.runtime.id}/`)) {
+      // Chat is a popup-only surface — page contexts get nothing.
+      port.disconnect();
+      return;
+    }
+    port.onMessage.addListener((msg: ChatStreamRequest) => {
+      if (msg?.type !== "CHAT_STREAM") return;
+      acquireKeepalive();
+      handleChatStream(msg, (event) => {
         try {
           port.postMessage(event);
         } catch {
-          // Port closed mid-stream.
-        }
-      },
-      abort.signal
-    )
-      .catch((err) => {
-        try {
-          port.postMessage({
-            type: "done",
-            success: false,
-            error: err instanceof Error ? err.message : String(err),
-            errorCode: "UNKNOWN",
-            items: [],
-            requestId:
-              typeof msg?.payload?.requestId === "string"
-                ? msg.payload.requestId
-                : undefined,
-          });
-        } catch {
-          // ignore
+          // Popup closed — deltas go nowhere, the answer still persists.
         }
       })
-      .finally(releaseKeepalive);
-  });
+        .catch((err) => {
+          try {
+            port.postMessage({
+              type: "done",
+              success: false,
+              error: err instanceof Error ? err.message : String(err),
+              errorCode: "UNKNOWN",
+              appended: false,
+              requestId:
+                typeof msg?.payload?.requestId === "string"
+                  ? msg.payload.requestId
+                  : undefined,
+            });
+          } catch {
+            // ignore
+          }
+        })
+        .finally(releaseKeepalive);
+    });
+  }
 });
 
 // Context menu for selection translation

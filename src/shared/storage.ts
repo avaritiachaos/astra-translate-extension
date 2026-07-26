@@ -8,6 +8,7 @@ import {
   DEFAULT_SELECTION_PROMPT,
   DEFAULT_PAGE_PROMPT,
   DEFAULT_DICTIONARY_PROMPT,
+  DEFAULT_CHAT_PROMPT,
   LEGACY_DICTIONARY_PROMPTS,
 } from "./prompts";
 
@@ -50,6 +51,7 @@ export function getDefaultSettings(): AstraSettings {
     sameLanguageMinPurity: 0.82,
     dictionaryModeEnabled: true,
     dictionaryPrompt: DEFAULT_DICTIONARY_PROMPT,
+    chatPrompt: DEFAULT_CHAT_PROMPT,
     enableTranslationCache: true,
     translationCacheMaxEntries: 5000,
   };

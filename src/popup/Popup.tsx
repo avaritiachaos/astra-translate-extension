@@ -2,8 +2,17 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { SUPPORTED_LANGUAGES } from "../shared/constants";
 import { t, type UiLanguage } from "../shared/i18n";
-import type { AstraSettings, ChatState, ChatTurn } from "../shared/types";
-import { CHAT_STORAGE_KEY, POPUP_MODE_STORAGE_KEY } from "../shared/types";
+import type {
+  AstraSettings,
+  ChatState,
+  ChatStreamEvent,
+  ChatTurn,
+} from "../shared/types";
+import {
+  CHAT_STORAGE_KEY,
+  CHAT_STREAM_PORT,
+  POPUP_MODE_STORAGE_KEY,
+} from "../shared/types";
 import "./popup.css";
 
 type PopupMode = "translate" | "chat";
@@ -30,8 +39,11 @@ export default function Popup() {
   const [chatPending, setChatPending] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatError, setChatError] = useState("");
+  /** Live text of the reply currently streaming in (typewriter bubble). */
+  const [streamText, setStreamText] = useState("");
   const chatListRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
+  const streamReqRef = useRef(0);
 
   const lang: UiLanguage = settings?.uiLanguage || "zh-CN";
 
@@ -95,7 +107,7 @@ export default function Popup() {
   useEffect(() => {
     const el = chatListRef.current;
     if (mode === "chat" && el) el.scrollTop = el.scrollHeight;
-  }, [mode, chatTurns, chatPending]);
+  }, [mode, chatTurns, chatPending, streamText]);
 
   // Persist target language to settings
   const saveTargetLang = useCallback(
@@ -243,22 +255,99 @@ export default function Popup() {
       .catch(() => {});
   }, []);
 
+  /** Pre-flight rejection: nothing entered the conversation — surface the
+   * error inline and give the text back to the input for a retry. */
+  const handleChatRejection = useCallback(
+    (text: string, error?: string) => {
+      if (!error) return; // deliberate cancel (clear) — nothing to surface
+      setChatError(error);
+      setChatInput(text);
+    },
+    []
+  );
+
+  /** Streaming send over a dedicated port. Returns false when the port
+   * can't be opened so the caller can fall back to the one-shot path. */
+  const sendViaStream = useCallback(
+    (text: string): boolean => {
+      let port: chrome.runtime.Port;
+      try {
+        port = chrome.runtime.connect({ name: CHAT_STREAM_PORT });
+      } catch {
+        return false;
+      }
+      const requestId = `chat-${Date.now().toString(36)}-${++streamReqRef.current}`;
+      let finished = false;
+
+      port.onMessage.addListener((event: ChatStreamEvent) => {
+        if (event.requestId && event.requestId !== requestId) return;
+
+        if (event.type === "delta") {
+          setStreamText((prev) => prev + event.text);
+          return;
+        }
+
+        // done — sync the persisted turn in before dropping the live bubble,
+        // so the reply never flickers out of view between the two states.
+        finished = true;
+        const finish = async () => {
+          await refreshChatState();
+          setStreamText("");
+          if (!event.success && !event.appended) {
+            handleChatRejection(text, event.error);
+          }
+        };
+        void finish().finally(() => {
+          try {
+            port.disconnect();
+          } catch {
+            // ignore
+          }
+        });
+      });
+
+      port.onDisconnect.addListener(() => {
+        // Service worker died mid-stream (crash — keepalive covers idle).
+        // The next SW start resets the stuck pending flag; just resync.
+        if (finished) return;
+        finished = true;
+        setStreamText("");
+        refreshChatState();
+      });
+
+      try {
+        port.postMessage({ type: "CHAT_STREAM", payload: { text, requestId } });
+      } catch {
+        finished = true;
+        try {
+          port.disconnect();
+        } catch {
+          // ignore
+        }
+        return false;
+      }
+      return true;
+    },
+    [refreshChatState, handleChatRejection]
+  );
+
   const handleChatSend = useCallback(async () => {
     const text = chatInput.trim();
     if (!text || chatPending) return;
     setChatError("");
     setChatInput("");
+    setStreamText("");
+
+    // Prefer streaming; fall back to the one-shot message on port failure.
+    if (sendViaStream(text)) return;
+
     try {
       const res = await chrome.runtime.sendMessage({
         type: "CHAT_MESSAGE",
         payload: { text },
       });
       if (res && !res.success && !res.appended) {
-        // Pre-flight rejection (missing key / busy) — nothing was added to
-        // the conversation, so surface the error here and give the text
-        // back to the input for a retry.
-        setChatError(res.error || t(lang, "chat.failed"));
-        setChatInput(text);
+        handleChatRejection(text, res.error);
       }
       // Storage events already track the conversation; this refresh only
       // matters for the no-session-storage fallback.
@@ -267,10 +356,11 @@ export default function Popup() {
       setChatError(t(lang, "popup.connectFail"));
       setChatInput(text);
     }
-  }, [chatInput, chatPending, lang, refreshChatState]);
+  }, [chatInput, chatPending, lang, refreshChatState, sendViaStream, handleChatRejection]);
 
   const handleChatClear = useCallback(() => {
     setChatError("");
+    setStreamText("");
     chrome.runtime
       .sendMessage({ type: "CLEAR_CHAT" })
       .then(() => refreshChatState())
@@ -356,7 +446,7 @@ export default function Popup() {
       {mode === "chat" ? (
         <div className="ast-chat">
           <div className="ast-chat-list" ref={chatListRef}>
-            {chatTurns.length === 0 && !chatPending && (
+            {chatTurns.length === 0 && !chatPending && !streamText && (
               <div className="ast-chat-empty">{t(lang, "chat.empty")}</div>
             )}
             {chatTurns.map((turn, i) => (
@@ -373,11 +463,18 @@ export default function Popup() {
                 {turn.content}
               </div>
             ))}
-            {chatPending && (
-              <div className="ast-chat-bubble ast-chat-bubble--assistant ast-chat-bubble--thinking">
-                <div className="ast-spinner-sm" />
-                <span>{t(lang, "chat.thinking")}</span>
+            {streamText ? (
+              <div className="ast-chat-bubble ast-chat-bubble--assistant">
+                {streamText}
+                <span className="ast-chat-cursor" />
               </div>
+            ) : (
+              chatPending && (
+                <div className="ast-chat-bubble ast-chat-bubble--assistant ast-chat-bubble--thinking">
+                  <div className="ast-spinner-sm" />
+                  <span>{t(lang, "chat.thinking")}</span>
+                </div>
+              )
             )}
           </div>
 
