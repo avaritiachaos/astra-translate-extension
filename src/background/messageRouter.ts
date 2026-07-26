@@ -219,8 +219,13 @@ export async function handleMessage(
       if (!isExtensionPageSender(sender)) {
         return { success: false, appended: false };
       }
-      const text = (msg.payload as { text?: unknown } | undefined)?.text;
-      return sendChatMessage(typeof text === "string" ? text : "");
+      const payload = msg.payload as
+        | { text?: unknown; attachment?: unknown }
+        | undefined;
+      return sendChatMessage(
+        typeof payload?.text === "string" ? payload.text : "",
+        payload?.attachment
+      );
     }
 
     case "GET_CHAT_STATE": {

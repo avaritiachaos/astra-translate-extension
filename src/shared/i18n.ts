@@ -130,6 +130,11 @@ const zhCN: MessageDict = {
   "chat.busy": "上一条还在处理中，请稍候",
   "chat.failed": "回答失败，请重试",
   "chat.kbHint": "Enter 发送 · Shift+Enter 换行",
+  "chat.attach": "引用当前页面（优先选中内容）",
+  "chat.attachSelection": "选中内容",
+  "chat.attachPage": "页面内容",
+  "chat.attachChip": "{label} · {n} 字符",
+  "chat.attachFailed": "无法读取此页面（浏览器内置页面不支持）",
 
   // ---- Content 划词气泡 ----
   "bubble.title": "Astra Translate",
@@ -324,6 +329,11 @@ const enUS: MessageDict = {
   "chat.busy": "Still working on the previous message…",
   "chat.failed": "Reply failed — please try again",
   "chat.kbHint": "Enter to send · Shift+Enter for newline",
+  "chat.attach": "Attach current page (selection first)",
+  "chat.attachSelection": "Selected text",
+  "chat.attachPage": "Page content",
+  "chat.attachChip": "{label} · {n} chars",
+  "chat.attachFailed": "Can't read this page (browser-internal pages are not supported)",
 
   // ---- Content Bubble ----
   "bubble.title": "Astra Translate",
@@ -518,6 +528,11 @@ const jaJP: MessageDict = {
   "chat.busy": "前のメッセージを処理中です…",
   "chat.failed": "回答に失敗しました。もう一度お試しください",
   "chat.kbHint": "Enter で送信 · Shift+Enter で改行",
+  "chat.attach": "現在のページを引用（選択テキスト優先）",
+  "chat.attachSelection": "選択テキスト",
+  "chat.attachPage": "ページ内容",
+  "chat.attachChip": "{label} · {n} 文字",
+  "chat.attachFailed": "このページを読み取れません（ブラウザ内部ページは非対応）",
 
   // ---- Content 選択バブル ----
   "bubble.title": "Astra Translate",

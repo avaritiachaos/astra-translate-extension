@@ -248,6 +248,15 @@ export const CHAT_STORAGE_KEY = "astra_chat_v1";
 /** chrome.storage.session key remembering which popup tab was last active. */
 export const POPUP_MODE_STORAGE_KEY = "astra_popup_mode_v1";
 
+/** Page context explicitly attached to a chat question by the user. */
+export interface ChatAttachment {
+  title: string;
+  url: string;
+  /** True when the text is the user's selection rather than extracted content. */
+  selected: boolean;
+  text: string;
+}
+
 export interface ChatTurn {
   role: "user" | "assistant";
   content: string;
@@ -255,6 +264,9 @@ export interface ChatTurn {
   /** Assistant turn that reports a provider failure instead of an answer.
    * Rendered in the list, but never sent back to the model as context. */
   error?: boolean;
+  /** Page context the user attached to this question — travels to the model
+   * wrapped around the content, renders as a small chip in the bubble. */
+  attachment?: ChatAttachment;
 }
 
 export interface ChatState {
@@ -282,6 +294,8 @@ export interface ChatStreamRequest {
   type: "CHAT_STREAM";
   payload: {
     text: string;
+    /** Optional page context to ground this question. */
+    attachment?: ChatAttachment;
     /** Correlates events with this request if a port ever carries more than
      * one — events are echoed back tagged with the same id. */
     requestId?: string;

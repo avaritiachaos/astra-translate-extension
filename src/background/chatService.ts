@@ -10,6 +10,7 @@
 import {
   CHAT_STORAGE_KEY,
   type AstraSettings,
+  type ChatAttachment,
   type ChatResponse,
   type ChatState,
   type ChatStreamEvent,
@@ -29,8 +30,23 @@ import { AstraError } from "./errors";
 
 /** Hard cap on one user input (popup enforces the same via maxLength). */
 const MAX_INPUT_CHARS = 8000;
+/** Hard cap on attached page context (popup slices to less already). */
+const MAX_ATTACH_TEXT_CHARS = 4000;
 /** Turns kept in storage for display — older ones roll off. */
 const MAX_STORED_TURNS = 60;
+
+/** Accept only a well-formed attachment, with every field length-bounded. */
+function sanitizeAttachment(raw: unknown): ChatAttachment | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const a = raw as Partial<ChatAttachment>;
+  if (typeof a.text !== "string" || !a.text.trim()) return undefined;
+  return {
+    title: typeof a.title === "string" ? a.title.slice(0, 200) : "",
+    url: typeof a.url === "string" ? a.url.slice(0, 500) : "",
+    selected: !!a.selected,
+    text: a.text.slice(0, MAX_ATTACH_TEXT_CHARS),
+  };
+}
 
 function emptyChatState(): ChatState {
   return { turns: [], pending: false, gen: 0 };
@@ -136,9 +152,11 @@ function systemPromptFor(settings: AstraSettings, lang: UiLanguage): string {
  */
 async function runChatExchange(
   rawText: string,
+  rawAttachment?: unknown,
   onDelta?: (delta: string) => void
 ): Promise<ChatResponse> {
   const text = rawText.trim().slice(0, MAX_INPUT_CHARS);
+  const attachment = sanitizeAttachment(rawAttachment);
   const settings = await getSettings();
   const lang: UiLanguage = settings.uiLanguage || "zh-CN";
 
@@ -158,7 +176,9 @@ async function runChatExchange(
   const claim = await serialized(async () => {
     const state = await loadChatState();
     if (state.pending) return null;
-    pushTrimmed(state, { role: "user", content: text, ts: Date.now() });
+    const userTurn: ChatTurn = { role: "user", content: text, ts: Date.now() };
+    if (attachment) userTurn.attachment = attachment;
+    pushTrimmed(state, userTurn);
     state.pending = true;
     await saveChatState(state);
     return { gen: state.gen, context: buildChatContext(state.turns) };
@@ -220,8 +240,11 @@ async function runChatExchange(
 }
 
 /** One-shot exchange (fallback path when the stream port is unavailable). */
-export async function sendChatMessage(rawText: string): Promise<ChatResponse> {
-  return runChatExchange(rawText);
+export async function sendChatMessage(
+  rawText: string,
+  rawAttachment?: unknown
+): Promise<ChatResponse> {
+  return runChatExchange(rawText, rawAttachment);
 }
 
 /**
@@ -243,6 +266,7 @@ export async function handleChatStream(
 
   const result = await runChatExchange(
     typeof msg.payload?.text === "string" ? msg.payload.text : "",
+    msg.payload?.attachment,
     (delta) => post({ type: "delta", text: delta })
   );
   post({ type: "done", ...result });

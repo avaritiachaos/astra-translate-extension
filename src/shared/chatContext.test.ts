@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildChatContext,
+  renderTurnContent,
   CHAT_MAX_CONTEXT_TURNS,
   type ChatContextTurn,
 } from "./chatContext.ts";
@@ -86,5 +87,49 @@ describe("buildChatContext", () => {
     const ctx = buildChatContext(turns);
     assert.equal(ctx.length, CHAT_MAX_CONTEXT_TURNS);
     assert.equal(ctx[ctx.length - 1].content, `t${turns.length - 1}`);
+  });
+
+  it("wraps an attachment around the question for the model", () => {
+    const rendered = renderTurnContent({
+      role: "user",
+      content: "这段讲了什么？",
+      attachment: {
+        title: "Example Docs",
+        url: "https://example.com/docs",
+        selected: false,
+        text: "Some page body text.",
+      },
+    });
+    assert.ok(rendered.includes("extracted page content"));
+    assert.ok(rendered.includes("Example Docs"));
+    assert.ok(rendered.includes("https://example.com/docs"));
+    assert.ok(rendered.includes("Some page body text."));
+    // The question comes after the context block.
+    assert.ok(rendered.indexOf("这段讲了什么？") > rendered.indexOf("Some page body text."));
+    assert.ok(
+      renderTurnContent({
+        role: "user",
+        content: "q",
+        attachment: { title: "", url: "", selected: true, text: "sel" },
+      }).includes("selected text")
+    );
+  });
+
+  it("attachments count toward the char budget at rendered size", () => {
+    const attached: ChatContextTurn = {
+      role: "user",
+      content: "q1",
+      attachment: { title: "T", url: "u", selected: false, text: "x".repeat(300) },
+    };
+    // Rendered size of the attached turn (~350+) blows a 400-char budget once
+    // the newest turn (60 chars) is in — so only the newest turn survives.
+    const ctx = buildChatContext(
+      [attached, turn("assistant", "a".repeat(60)), turn("user", "b".repeat(60))],
+      { maxChars: 400 }
+    );
+    assert.deepEqual(
+      ctx.map((m) => m.content[0]),
+      ["a", "b"]
+    );
   });
 });

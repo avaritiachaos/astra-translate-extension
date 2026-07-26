@@ -4,6 +4,7 @@ import { SUPPORTED_LANGUAGES } from "../shared/constants";
 import { t, type UiLanguage } from "../shared/i18n";
 import type {
   AstraSettings,
+  ChatAttachment,
   ChatState,
   ChatStreamEvent,
   ChatTurn,
@@ -16,6 +17,36 @@ import {
 import "./popup.css";
 
 type PopupMode = "translate" | "chat";
+
+/**
+ * Runs INSIDE the page via chrome.scripting.executeScript — must stay fully
+ * self-contained. Prefers the user's selection; otherwise extracts the main
+ * content (main/article, falling back to body), bounded to a few thousand
+ * chars so the attachment never blows the chat context budget.
+ */
+function grabPageContext(): ChatAttachment {
+  const MAX = 3500;
+  const sel = window.getSelection()?.toString().trim() || "";
+  let text = sel;
+  let selected = true;
+  if (!text) {
+    selected = false;
+    let best = "";
+    for (const selector of ["main", "article"]) {
+      const el = document.querySelector(selector) as HTMLElement | null;
+      const candidate = el?.innerText?.trim() || "";
+      if (candidate.length > best.length) best = candidate;
+    }
+    if (best.length < 200) best = (document.body?.innerText || "").trim();
+    text = best;
+  }
+  return {
+    title: document.title || "",
+    url: location.href,
+    selected,
+    text: text.slice(0, MAX),
+  };
+}
 
 export default function Popup() {
   const [settings, setSettings] = useState<AstraSettings | null>(null);
@@ -41,6 +72,8 @@ export default function Popup() {
   const [chatError, setChatError] = useState("");
   /** Live text of the reply currently streaming in (typewriter bubble). */
   const [streamText, setStreamText] = useState("");
+  /** Page context staged for the next question (chip above the input). */
+  const [chatAttach, setChatAttach] = useState<ChatAttachment | null>(null);
   const chatListRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const streamReqRef = useRef(0);
@@ -256,12 +289,13 @@ export default function Popup() {
   }, []);
 
   /** Pre-flight rejection: nothing entered the conversation — surface the
-   * error inline and give the text back to the input for a retry. */
+   * error inline and give the text (and attachment) back for a retry. */
   const handleChatRejection = useCallback(
-    (text: string, error?: string) => {
+    (text: string, attach: ChatAttachment | null, error?: string) => {
       if (!error) return; // deliberate cancel (clear) — nothing to surface
       setChatError(error);
       setChatInput(text);
+      if (attach) setChatAttach(attach);
     },
     []
   );
@@ -269,7 +303,7 @@ export default function Popup() {
   /** Streaming send over a dedicated port. Returns false when the port
    * can't be opened so the caller can fall back to the one-shot path. */
   const sendViaStream = useCallback(
-    (text: string): boolean => {
+    (text: string, attach: ChatAttachment | null): boolean => {
       let port: chrome.runtime.Port;
       try {
         port = chrome.runtime.connect({ name: CHAT_STREAM_PORT });
@@ -294,7 +328,7 @@ export default function Popup() {
           await refreshChatState();
           setStreamText("");
           if (!event.success && !event.appended) {
-            handleChatRejection(text, event.error);
+            handleChatRejection(text, attach, event.error);
           }
         };
         void finish().finally(() => {
@@ -316,7 +350,12 @@ export default function Popup() {
       });
 
       try {
-        port.postMessage({ type: "CHAT_STREAM", payload: { text, requestId } });
+        port.postMessage({
+          type: "CHAT_STREAM",
+          payload: attach
+            ? { text, attachment: attach, requestId }
+            : { text, requestId },
+        });
       } catch {
         finished = true;
         try {
@@ -334,20 +373,22 @@ export default function Popup() {
   const handleChatSend = useCallback(async () => {
     const text = chatInput.trim();
     if (!text || chatPending) return;
+    const attach = chatAttach;
     setChatError("");
     setChatInput("");
+    setChatAttach(null);
     setStreamText("");
 
     // Prefer streaming; fall back to the one-shot message on port failure.
-    if (sendViaStream(text)) return;
+    if (sendViaStream(text, attach)) return;
 
     try {
       const res = await chrome.runtime.sendMessage({
         type: "CHAT_MESSAGE",
-        payload: { text },
+        payload: attach ? { text, attachment: attach } : { text },
       });
       if (res && !res.success && !res.appended) {
-        handleChatRejection(text, res.error);
+        handleChatRejection(text, attach, res.error);
       }
       // Storage events already track the conversation; this refresh only
       // matters for the no-session-storage fallback.
@@ -355,12 +396,35 @@ export default function Popup() {
     } catch {
       setChatError(t(lang, "popup.connectFail"));
       setChatInput(text);
+      if (attach) setChatAttach(attach);
     }
-  }, [chatInput, chatPending, lang, refreshChatState, sendViaStream, handleChatRejection]);
+  }, [chatInput, chatPending, chatAttach, lang, refreshChatState, sendViaStream, handleChatRejection]);
+
+  /** Grab context from the active tab: the selection if any, else the main
+   * content — explicit user action only, nothing is attached automatically. */
+  const handleAttachPage = useCallback(async () => {
+    setChatError("");
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) throw new Error("no tab");
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: grabPageContext,
+      });
+      const ctx = results?.[0]?.result as ChatAttachment | undefined;
+      if (!ctx || !ctx.text.trim()) throw new Error("empty");
+      setChatAttach(ctx);
+      chatInputRef.current?.focus();
+    } catch {
+      // chrome:// pages, the Web Store, or an empty page — nothing to grab.
+      setChatError(t(lang, "chat.attachFailed"));
+    }
+  }, [lang]);
 
   const handleChatClear = useCallback(() => {
     setChatError("");
     setStreamText("");
+    setChatAttach(null);
     chrome.runtime
       .sendMessage({ type: "CLEAR_CHAT" })
       .then(() => refreshChatState())
@@ -415,31 +479,29 @@ export default function Popup() {
 
   return (
     <div onKeyDown={handleKeyDown}>
-      {/* Header */}
+      {/* Header: title · mode segmented control · settings */}
       <div className="ast-popup-header">
         <span className="ast-popup-title">{t(lang, "app.name")}</span>
+        <div className="ast-seg" role="tablist">
+          <button
+            role="tab"
+            aria-selected={mode === "translate"}
+            className={`ast-seg-btn ${mode === "translate" ? "ast-seg-btn--active" : ""}`}
+            onClick={() => switchMode("translate")}
+          >
+            {t(lang, "popup.modeTranslate")}
+          </button>
+          <button
+            role="tab"
+            aria-selected={mode === "chat"}
+            className={`ast-seg-btn ${mode === "chat" ? "ast-seg-btn--active" : ""}`}
+            onClick={() => switchMode("chat")}
+          >
+            {t(lang, "popup.modeChat")}
+          </button>
+        </div>
         <button className="ast-popup-settings-btn" onClick={openOptions} title={t(lang, "popup.openSettings")}>
           ⚙
-        </button>
-      </div>
-
-      {/* Mode switch */}
-      <div className="ast-mode-switch" role="tablist">
-        <button
-          role="tab"
-          aria-selected={mode === "translate"}
-          className={`ast-mode-btn ${mode === "translate" ? "ast-mode-btn--active" : ""}`}
-          onClick={() => switchMode("translate")}
-        >
-          {t(lang, "popup.modeTranslate")}
-        </button>
-        <button
-          role="tab"
-          aria-selected={mode === "chat"}
-          className={`ast-mode-btn ${mode === "chat" ? "ast-mode-btn--active" : ""}`}
-          onClick={() => switchMode("chat")}
-        >
-          {t(lang, "popup.modeChat")}
         </button>
       </div>
 
@@ -460,6 +522,17 @@ export default function Popup() {
                       : "ast-chat-bubble ast-chat-bubble--assistant"
                 }
               >
+                {turn.attachment && (
+                  <div
+                    className="ast-chat-bubble-attach"
+                    title={turn.attachment.title || turn.attachment.url}
+                  >
+                    📎{" "}
+                    {turn.attachment.selected
+                      ? t(lang, "chat.attachSelection")
+                      : turn.attachment.title || t(lang, "chat.attachPage")}
+                  </div>
+                )}
                 {turn.content}
               </div>
             ))}
@@ -482,6 +555,30 @@ export default function Popup() {
             <div className="ast-error-msg">
               <span>⚠</span>
               <span>{chatError}</span>
+            </div>
+          )}
+
+          {chatAttach && (
+            <div
+              className="ast-chat-attach-chip"
+              title={chatAttach.title || chatAttach.url}
+            >
+              <span>📎</span>
+              <span className="ast-chat-attach-label">
+                {t(lang, "chat.attachChip", {
+                  label: chatAttach.selected
+                    ? t(lang, "chat.attachSelection")
+                    : chatAttach.title || t(lang, "chat.attachPage"),
+                  n: chatAttach.text.length,
+                })}
+              </span>
+              <button
+                className="ast-chat-attach-remove"
+                onClick={() => setChatAttach(null)}
+                title={t(lang, "chat.clear")}
+              >
+                ✕
+              </button>
             </div>
           )}
 
@@ -510,6 +607,15 @@ export default function Popup() {
             >
               {t(lang, "chat.clear")}
             </button>
+            {!chatAttach && (
+              <button
+                className="ast-btn ast-btn-secondary ast-chat-attach-btn"
+                onClick={handleAttachPage}
+                title={t(lang, "chat.attach")}
+              >
+                📎
+              </button>
+            )}
             <span className="ast-keyboard-hint">{t(lang, "chat.kbHint")}</span>
           </div>
         </div>
@@ -619,18 +725,10 @@ export default function Popup() {
         </div>
       )}
 
-      {!result && !loading && !error && (
-        <div className="ast-result-area">
-          <div className="ast-result-box ast-result-placeholder">
-            {t(lang, "popup.resultPlaceholder")}
-          </div>
-        </div>
-      )}
-
       {/* Page translation */}
       <div className="ast-page-section">
-        <div className="ast-page-title">{t(lang, "popup.pageTranslation")}</div>
-        <div className="ast-page-lang-row">
+        <div className="ast-page-header">
+          <div className="ast-page-title">{t(lang, "popup.pageTranslation")}</div>
           <select
             className="ast-lang-select"
             value={pageTargetLang}
