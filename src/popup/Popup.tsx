@@ -486,6 +486,18 @@ export default function Popup() {
       .catch(() => {});
   }, [refreshChatState]);
 
+  const handleCopyTurn = useCallback(
+    async (content: string) => {
+      try {
+        await navigator.clipboard.writeText(content);
+        showToast(t(lang, "popup.copied"));
+      } catch {
+        // Clipboard permission denied — nothing useful to do.
+      }
+    },
+    [lang, showToast]
+  );
+
   const handleChatKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       // Enter sends; Shift+Enter inserts a newline. Skip while composing
@@ -589,7 +601,28 @@ export default function Popup() {
                   </div>
                 )}
                 {turn.role === "assistant" && !turn.error ? (
-                  <ChatRichText text={turn.content} />
+                  <>
+                    <button
+                      className="ast-chat-bubble-copy"
+                      title={t(lang, "popup.copy")}
+                      onClick={() => handleCopyTurn(turn.content)}
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="12"
+                        height="12"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="9" y="9" width="13" height="13" rx="2" />
+                        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                      </svg>
+                    </button>
+                    <ChatRichText text={turn.content} />
+                  </>
                 ) : (
                   turn.content
                 )}

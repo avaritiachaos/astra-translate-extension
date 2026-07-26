@@ -446,11 +446,41 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .ast-chat-bubble--assistant {
+  position: relative;
   align-self: flex-start;
   background: var(--ast-card-bg);
   border: 1px solid var(--ast-border);
   color: var(--ast-text);
   border-bottom-left-radius: 4px;
+}
+
+/* Hover-reveal copy button on assistant replies */
+.ast-chat-bubble-copy {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ast-border);
+  border-radius: 6px;
+  background: var(--ast-card-bg);
+  color: var(--ast-muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out, color 120ms ease-out;
+}
+
+.ast-chat-bubble--assistant:hover .ast-chat-bubble-copy {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ast-chat-bubble-copy:hover {
+  color: var(--ast-primary);
 }
 
 .ast-chat-bubble--error {
