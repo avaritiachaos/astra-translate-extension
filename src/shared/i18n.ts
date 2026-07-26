@@ -158,6 +158,7 @@ const zhCN: MessageDict = {
   "page.completedWithFail": "翻译完成（{failed} 项失败）",
   "page.failed": "页面翻译失败",
   "page.restored": "已还原原文",
+  "page.scrollHint": "发现 {count} 处新内容，翻译中…",
 
   // ---- 错误提示 ----
   "error.apiKeyMissing": "缺少 API Key",
@@ -337,6 +338,7 @@ const enUS: MessageDict = {
   "page.completedWithFail": "Done ({failed} failed)",
   "page.failed": "Page translation failed",
   "page.restored": "Restored original page",
+  "page.scrollHint": "Translating {count} new items…",
 
   // ---- Errors ----
   "error.apiKeyMissing": "API Key is missing",
@@ -516,6 +518,7 @@ const jaJP: MessageDict = {
   "page.completedWithFail": "翻訳完了（{failed} 件失敗）",
   "page.failed": "ページ翻訳に失敗しました",
   "page.restored": "元のページに戻しました",
+  "page.scrollHint": "新しいコンテンツ {count} 件を翻訳中…",
 
   // ---- エラーメッセージ ----
   "error.apiKeyMissing": "API Key がありません",

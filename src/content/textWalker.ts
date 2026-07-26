@@ -134,17 +134,21 @@ function isHiddenElement(el: Element, cache: WeakMap<Element, boolean>): boolean
 
 /** Does this element start a subtree we should not translate, on its own merits? */
 function isSelfSkip(el: Element, caches: WalkCaches): boolean {
+  // Uppercase for comparison: SVG-namespace (and XHTML) elements report a
+  // lowercase tagName, so a raw match would never skip <svg> subtrees.
+  const tag = el.tagName.toUpperCase();
+
   // Technical tags and form fields — always skipped for text-node walking.
-  if (SKIP_TAGS_ALWAYS.has(el.tagName)) return true;
+  if (SKIP_TAGS_ALWAYS.has(tag)) return true;
 
   // Buttons are chrome by default; include when the user opts in.
-  if (SKIP_UI_CONTROL_TAGS.has(el.tagName) && !caches.options.translateUiControls) {
+  if (SKIP_UI_CONTROL_TAGS.has(tag) && !caches.options.translateUiControls) {
     return true;
   }
 
   // Landmark chrome — skipped unless translatePageChrome is on.
   if (!caches.options.translatePageChrome) {
-    if (SKIP_CHROME_TAGS.has(el.tagName)) return true;
+    if (SKIP_CHROME_TAGS.has(tag)) return true;
     const role = el.getAttribute("role");
     if (role && SKIP_ROLES.has(role)) return true;
   }
@@ -355,19 +359,21 @@ function isAttrHostSkipped(el: Element, caches: WalkCaches): boolean {
     ) {
       return true;
     }
+    // Uppercase: SVG-namespace elements report a lowercase tagName.
+    const parentTag = parent.tagName.toUpperCase();
     if (!caches.options.translatePageChrome) {
-      if (SKIP_CHROME_TAGS.has(parent.tagName)) return true;
+      if (SKIP_CHROME_TAGS.has(parentTag)) return true;
       const role = parent.getAttribute("role");
       if (role && SKIP_ROLES.has(role)) return true;
     }
     if (isHiddenElement(parent, caches.hidden)) return true;
     // Stop at other technical containers that shouldn't contribute labels.
     if (
-      parent.tagName === "SCRIPT" ||
-      parent.tagName === "STYLE" ||
-      parent.tagName === "NOSCRIPT" ||
-      parent.tagName === "SVG" ||
-      parent.tagName === "TEMPLATE"
+      parentTag === "SCRIPT" ||
+      parentTag === "STYLE" ||
+      parentTag === "NOSCRIPT" ||
+      parentTag === "SVG" ||
+      parentTag === "TEMPLATE"
     ) {
       return true;
     }

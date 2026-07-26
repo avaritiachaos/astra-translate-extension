@@ -6,11 +6,13 @@ import {
   isLearnableUiPair,
   lookupInStore,
   lookupInStoreWithKeys,
+  siteLexiconKeys,
   touchLearnedPair,
   trimStoreTotal,
   upsertLearnedPair,
   SITE_LEXICON_MAX_PER_HOST_LANG,
 } from "./siteLexicon.ts";
+import { normalizeUiKey } from "./uiLexicon.ts";
 
 describe("siteLexicon", () => {
   it("accepts short UI pairs only", () => {
@@ -93,6 +95,23 @@ describe("siteLexicon", () => {
     upsertLearnedPair(store, "a.com", "zh", "hi", "你好", 1000);
     assert.equal(trimStoreTotal(store, 100), 0);
     assert.equal(countStorePhrases(store), 1);
+  });
+
+  it("normalizes keys identically to the UI lexicon", () => {
+    // pageTranslator writes session keys with uiLexicon.normalizeUiKey while
+    // the store keys with its own private copy (kept import-free for Node
+    // testability). If the two ever diverge, learned entries silently stop
+    // matching — this pins their observable behaviour together.
+    for (const sample of [
+      "  Sign  In ",
+      "ВХОД",
+      "Имя:",
+      "ログイン",
+      "Multi\t \nspace",
+      "İstanbul I",
+    ]) {
+      assert.equal(siteLexiconKeys(sample)[0], normalizeUiKey(sample));
+    }
   });
 });
 

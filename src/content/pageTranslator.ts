@@ -838,52 +838,62 @@ export class PageTranslator {
   }
 
   /**
-   * Apply one streamed/final item id → text onto all groups that share that source.
-   * A later event for the same id with different text is a correction (the model
-   * fixed itself in the final JSON) — re-applied in place, but not re-counted.
-   * Returns how many nodes were successfully written.
+   * Apply one streamed/final item id → text onto all groups that share that
+   * source. A later event for the same id with different text is a correction
+   * (the model fixed itself in the final JSON) — re-applied in place. Progress
+   * counts each group once, tracked in `appliedGroups`: a group first rendered
+   * by a correction still counts; a re-render of an already-counted group
+   * doesn't. Groups whose split fails go into `needFallback`; a correction
+   * that later applies cleanly removes them again, so the fallback loop won't
+   * overwrite coherent passage text with per-node output.
+   * Returns how many nodes were newly written.
    */
   private applyStreamedItem(
     itemId: string,
     text: string,
     items: { id: string; text: string }[],
     uncachedByText: Map<string, CollectedNode[][]>,
-    applied: Map<string, string>
-  ): { nodes: number; needFallback: CollectedNode[][] } {
-    if (applied.get(itemId) === text) {
-      return { nodes: 0, needFallback: [] };
-    }
-    const isCorrection = applied.has(itemId);
+    applied: Map<string, string>,
+    appliedGroups: Set<CollectedNode[]>,
+    needFallback: Set<CollectedNode[]>
+  ): number {
+    if (applied.get(itemId) === text) return 0;
     const source = items.find((item) => item.id === itemId);
-    if (!source) return { nodes: 0, needFallback: [] };
+    if (!source) return 0;
 
     const groups = uncachedByText.get(source.text);
-    if (!groups) return { nodes: 0, needFallback: [] };
+    if (!groups) return 0;
 
     let nodes = 0;
-    const needFallback: CollectedNode[][] = [];
     let cachedOnce = false;
 
     for (const group of groups) {
       if (this.applyGroup(group, text)) {
-        if (!cachedOnce) {
+        // Identity output is indistinguishable from an echoed input — don't
+        // pin it in the session cache. If it was an echo, the real answer
+        // arrives as a correction and caches then; if it's genuinely
+        // untranslatable, the background's persistent cache covers repeats.
+        if (!cachedOnce && text !== source.text) {
           this.translationCache.set(source.text, text);
           cachedOnce = true;
         }
-        nodes += group.length;
+        if (!appliedGroups.has(group)) {
+          appliedGroups.add(group);
+          nodes += group.length;
+        }
+        needFallback.delete(group);
         if (group.length > 1) this.groupFailureStreak = 0;
-      } else if (!isCorrection) {
-        // A correction that fails to split leaves the earlier applied text in
-        // place — don't queue a fallback for content that already renders.
-        needFallback.push(group);
+      } else if (!appliedGroups.has(group)) {
+        // A failed split only queues a fallback for a group that has never
+        // rendered anything — a correction that fails to split leaves the
+        // earlier applied text in place.
+        needFallback.add(group);
         if (group.length > 1) this.noteGroupFailure();
       }
     }
 
     applied.set(itemId, text);
-    // Corrections rewrite already-counted nodes — counting again would
-    // overstate progress.
-    return { nodes: isCorrection ? 0 : nodes, needFallback };
+    return nodes;
   }
 
   /**
@@ -965,7 +975,8 @@ export class PageTranslator {
       let completed = completedSeed;
       let translatedCount = 0;
       const applied = new Map<string, string>();
-      const needFallback: CollectedNode[][] = [];
+      const appliedGroups = new Set<CollectedNode[]>();
+      const needFallback = new Set<CollectedNode[]>();
       let settled = false;
       let doneReceived = false;
       const requestId = nextStreamRequestId();
@@ -1013,16 +1024,17 @@ export class PageTranslator {
         }
 
         if (event.type === "item") {
-          const r = this.applyStreamedItem(
+          const n = this.applyStreamedItem(
             event.id,
             event.text,
             items,
             uncachedByText,
-            applied
+            applied,
+            appliedGroups,
+            needFallback
           );
-          completed += r.nodes;
-          translatedCount += r.nodes;
-          needFallback.push(...r.needFallback);
+          completed += n;
+          translatedCount += n;
           return;
         }
 
@@ -1030,16 +1042,17 @@ export class PageTranslator {
           doneReceived = true;
           // Apply any items only present in the final payload.
           for (const item of event.items || []) {
-            const r = this.applyStreamedItem(
+            const n = this.applyStreamedItem(
               item.id,
               item.text,
               items,
               uncachedByText,
-              applied
+              applied,
+              appliedGroups,
+              needFallback
             );
-            completed += r.nodes;
-            translatedCount += r.nodes;
-            needFallback.push(...r.needFallback);
+            completed += n;
+            translatedCount += n;
           }
 
           const doneOutcome: BatchOutcome = event.success
@@ -1105,6 +1118,11 @@ export class PageTranslator {
         });
       } catch (err) {
         settled = true;
+        try {
+          port.disconnect();
+        } catch {
+          // ignore
+        }
         reject(err);
       }
     });
@@ -1133,20 +1151,22 @@ export class PageTranslator {
 
         if (response?.success && response.items) {
           let translatedCount = 0;
-          const needFallback: CollectedNode[][] = [];
           const applied = new Map<string, string>();
+          const appliedGroups = new Set<CollectedNode[]>();
+          const needFallback = new Set<CollectedNode[]>();
 
           for (const translated of response.items) {
-            const r = this.applyStreamedItem(
+            const n = this.applyStreamedItem(
               translated.id,
               translated.text,
               items,
               uncachedByText,
-              applied
+              applied,
+              appliedGroups,
+              needFallback
             );
-            completed += r.nodes;
-            translatedCount += r.nodes;
-            needFallback.push(...r.needFallback);
+            completed += n;
+            translatedCount += n;
           }
 
           let fallbackWorst: BatchOutcome | null = null;
@@ -1218,12 +1238,17 @@ export class PageTranslator {
   ): void {
     writeTargetText(node.target, translated);
     const translatedText = translated.trim();
-    if (translatedText) {
+    const src = node.originalText.trim();
+    // translatedTexts marks strings that ARE translations so scans skip
+    // already-translated DOM. Identity output (echoed input, or a label the
+    // model kept unchanged) must stay out: adding the original would make
+    // every future node with that text look "already translated" and skip
+    // real translation for the rest of the session.
+    if (translatedText && translatedText !== src) {
       this.translatedTexts.add(translatedText);
     }
     // Learn short UI labels from model output (and attribute buttons).
     if (opts?.learn !== false) {
-      const src = node.originalText.trim();
       if (src.length <= SITE_LEXICON_MAX_CHARS) {
         this.queueSiteLearn(src, translatedText || translated);
       }

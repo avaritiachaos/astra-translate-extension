@@ -263,6 +263,34 @@ export async function openAIChatStream(
       let lineBuf = "";
       let sawDone = false;
 
+      const processLine = (rawLine: string): void => {
+        let line = rawLine;
+        if (line.endsWith("\r")) line = line.slice(0, -1);
+        if (!line || line.startsWith(":")) return;
+        if (!line.startsWith("data:")) return;
+        const data = line.slice(5).trim();
+        if (data === "[DONE]") {
+          // Some gateways keep the connection open after [DONE]; stop
+          // reading instead of waiting for the server to close it.
+          sawDone = true;
+          return;
+        }
+        try {
+          const chunk = JSON.parse(data) as StreamChunk;
+          const delta =
+            chunk.choices?.[0]?.delta?.content ??
+            chunk.choices?.[0]?.message?.content ??
+            "";
+          if (delta) {
+            full += delta;
+            emittedAny = true;
+            onDelta(delta);
+          }
+        } catch {
+          // Incomplete or non-JSON SSE line — skip.
+        }
+      };
+
       try {
         while (!sawDone) {
           const { done, value } = await reader.read();
@@ -272,34 +300,23 @@ export async function openAIChatStream(
 
           let nl: number;
           while ((nl = lineBuf.indexOf("\n")) >= 0) {
-            let line = lineBuf.slice(0, nl);
+            const line = lineBuf.slice(0, nl);
             lineBuf = lineBuf.slice(nl + 1);
-            if (line.endsWith("\r")) line = line.slice(0, -1);
-            if (!line || line.startsWith(":")) continue;
-            if (!line.startsWith("data:")) continue;
-            const data = line.slice(5).trim();
-            if (data === "[DONE]") {
-              // Some gateways keep the connection open after [DONE]; stop
-              // reading instead of waiting for the server to close it.
-              sawDone = true;
+            processLine(line);
+            if (sawDone) {
               lineBuf = "";
               break;
             }
-            try {
-              const chunk = JSON.parse(data) as StreamChunk;
-              const delta =
-                chunk.choices?.[0]?.delta?.content ??
-                chunk.choices?.[0]?.message?.content ??
-                "";
-              if (delta) {
-                full += delta;
-                emittedAny = true;
-                onDelta(delta);
-              }
-            } catch {
-              // Incomplete or non-JSON SSE line — skip.
-            }
           }
+        }
+
+        // Stream ended without [DONE]: flush bytes still held by the decoder
+        // and process a final unterminated data: line — some gateways close
+        // the body right after the last event with no trailing newline.
+        if (!sawDone) {
+          lineBuf += decoder.decode();
+          if (lineBuf) processLine(lineBuf);
+          lineBuf = "";
         }
       } finally {
         // Release the connection on every exit path (incl. [DONE] with the
@@ -313,6 +330,14 @@ export async function openAIChatStream(
       return full.trim();
     } catch (err) {
       lastError = err;
+
+      // Caller-initiated abort (user cancelled / port closed): exit now.
+      // The generic AbortError path below would classify this as a timeout
+      // and sleep through a full backoff before the loop-top check notices.
+      if (signal?.aborted) {
+        if (err instanceof ProviderRequestError) throw err;
+        throw new ProviderRequestError(t(lang, "error.timeout"), "TIMEOUT", undefined, true);
+      }
 
       // Content already reached the page: never retry (deltas would be
       // duplicated) and never pass a truncated stream off as success — the

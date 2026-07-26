@@ -203,6 +203,12 @@ export async function handleMessage(
     }
 
     case "GET_SITE_LEXICON_STATS": {
+      // The full host list is browsing-history-adjacent — only our own
+      // options/popup pages may read it (same origin-binding model as the
+      // other lexicon messages; content scripts never need aggregates).
+      if (!isExtensionPageSender(sender)) {
+        return { success: false, hostCount: 0, phraseCount: 0, hosts: [] };
+      }
       const stats = await getSiteLexiconStats();
       return { success: true, ...stats };
     }
