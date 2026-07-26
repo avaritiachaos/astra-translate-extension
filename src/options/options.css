@@ -44,6 +44,43 @@ body {
   font-size: 14px;
 }
 
+/* Sticky section nav */
+.ast-options-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  padding: 10px 0;
+  margin-bottom: 16px;
+  background: var(--ast-bg);
+}
+
+.ast-options-nav-chip {
+  padding: 5px 14px;
+  border: 1px solid var(--ast-border);
+  border-radius: 999px;
+  background: var(--ast-card-bg);
+  color: var(--ast-muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--ast-font);
+  cursor: pointer;
+  transition: color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.ast-options-nav-chip:hover {
+  color: var(--ast-primary);
+  border-color: var(--ast-primary);
+}
+
+/* Anchored cards stop below the sticky nav instead of underneath it */
+.ast-card[id] {
+  scroll-margin-top: 56px;
+}
+
 /* Card */
 .ast-card {
   background: var(--ast-card-bg);

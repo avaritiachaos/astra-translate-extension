@@ -236,6 +236,14 @@ export default function Options() {
     (p) => p.id === settings.providerId
   );
 
+  const SECTIONS: Array<{ id: string; labelKey: string }> = [
+    { id: "sec-provider", labelKey: "opt.provider" },
+    { id: "sec-uilang", labelKey: "opt.uiLang" },
+    { id: "sec-translation", labelKey: "opt.translation" },
+    { id: "sec-floatingball", labelKey: "opt.floatingBall" },
+    { id: "sec-prompt", labelKey: "opt.prompt" },
+  ];
+
   return (
     <div className="ast-options-container">
       {/* Header */}
@@ -244,8 +252,25 @@ export default function Options() {
         <div className="ast-options-desc">{t(lang, "app.desc")}</div>
       </div>
 
+      {/* Sticky section nav — anchors into the cards below */}
+      <div className="ast-options-nav">
+        {SECTIONS.map((s) => (
+          <button
+            key={s.id}
+            className="ast-options-nav-chip"
+            onClick={() =>
+              document
+                .getElementById(s.id)
+                ?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }
+          >
+            {t(lang, s.labelKey)}
+          </button>
+        ))}
+      </div>
+
       {/* Provider Card */}
-      <div className="ast-card">
+      <div className="ast-card" id="sec-provider">
         <div className="ast-card-title">{t(lang, "opt.provider")}</div>
 
         <div className="ast-form-group">
@@ -372,7 +397,7 @@ export default function Options() {
       </div>
 
       {/* UI Language Card */}
-      <div className="ast-card">
+      <div className="ast-card" id="sec-uilang">
         <div className="ast-card-title">{t(lang, "opt.uiLang")}</div>
         <div className="ast-form-group">
           <select
@@ -388,7 +413,7 @@ export default function Options() {
       </div>
 
       {/* Translation Settings Card */}
-      <div className="ast-card">
+      <div className="ast-card" id="sec-translation">
         <div className="ast-card-title">{t(lang, "opt.translation")}</div>
 
         <div className="ast-form-row">
@@ -763,7 +788,7 @@ export default function Options() {
       </div>
 
       {/* Floating Ball Card */}
-      <div className="ast-card">
+      <div className="ast-card" id="sec-floatingball">
         <div className="ast-card-title">{t(lang, "opt.floatingBall")}</div>
 
         <div className="ast-toggle-row">
@@ -833,7 +858,7 @@ export default function Options() {
       </div>
 
       {/* Prompt Settings Card */}
-      <div className="ast-card">
+      <div className="ast-card" id="sec-prompt">
         <div className="ast-card-title">{t(lang, "opt.prompt")}</div>
 
         <div className="ast-form-group">

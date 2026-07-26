@@ -41,6 +41,7 @@ const TRANSLATE_ICON_IMG = `<img src="${chrome.runtime.getURL("icons/icon48.png"
 const COPY_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
 const PIN_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 11V4a1 1 0 011-1h4a1 1 0 011 1v7"/><path d="M6 11h12l-1.5 6h-9z"/></svg>`;
 const CLOSE_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+const ASK_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>`;
 const REFRESH_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>`;
 const SETTINGS_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>`;
 
@@ -143,6 +144,15 @@ export function injectThemeVars(): void {
     .${BUBBLE_PREFIX}-bubble-actions {
       display: flex;
       gap: 4px;
+    }
+    .${BUBBLE_PREFIX}-ask-hint {
+      padding: 6px 12px;
+      font-size: 11px;
+      color: #10b981;
+      border-top: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-ask-hint { border-top-color: #2d2d44; }
     }
     .${BUBBLE_PREFIX}-btn {
       width: 24px;
@@ -1146,6 +1156,7 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
     <div class="${BUBBLE_PREFIX}-bubble-header">
       <span class="${BUBBLE_PREFIX}-title">${t(cachedLang, "bubble.title")}</span>
       <div class="${BUBBLE_PREFIX}-bubble-actions">
+        <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-ask-btn" title="${t(cachedLang, "bubble.askAI")}">${ASK_ICON}</button>
         <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-pin-btn" title="${t(cachedLang, "bubble.pin")}">${PIN_ICON}</button>
         <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-copy-btn" title="${t(cachedLang, "bubble.copyTranslation")}">${COPY_ICON}</button>
         <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-close-btn" title="${t(cachedLang, "bubble.close")}">${CLOSE_ICON}</button>
@@ -1193,6 +1204,12 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
         (copyBtn as HTMLElement).style.color = "";
       }, 1000);
     }
+  });
+
+  const askBtn = el.querySelector(`.${BUBBLE_PREFIX}-ask-btn`);
+  askBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    void askAiAboutSelection(sourceText, askBtn as HTMLElement, el);
   });
 
   // Source toggle
@@ -1477,10 +1494,49 @@ async function requestTranslation(text: string): Promise<void> {
     if (!bubble) return;
     const loadingEl = bubble.querySelector(`.${BUBBLE_PREFIX}-loading`);
     if (loadingEl) {
-      loadingEl.innerHTML = `<div class="${BUBBLE_PREFIX}-error"><span>⚠</span><span>${t(cachedLang, "bubble.connectFail")}</span></div>`;
+      // No runtime id ⇒ the extension was reloaded/updated and this page
+      // still runs the old content script — only a refresh reconnects it.
+      const reasonKey = chrome.runtime?.id ? "bubble.connectFail" : "bubble.staleContext";
+      loadingEl.innerHTML = `<div class="${BUBBLE_PREFIX}-error"><span>⚠</span><span>${t(cachedLang, reasonKey)}</span></div>`;
     }
   } finally {
     isTranslating = false;
+  }
+}
+
+/**
+ * Stage the selection as a chat attachment in the extension popup and try to
+ * open it. Chrome older than ~127 can't open the popup programmatically —
+ * a small hint then points at the toolbar icon (the context is staged either
+ * way, so clicking the icon lands in chat with the text attached).
+ */
+async function askAiAboutSelection(
+  text: string,
+  btn: HTMLElement,
+  host: HTMLElement
+): Promise<void> {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  try {
+    const res = await chrome.runtime.sendMessage({
+      type: "OPEN_CHAT_WITH_SELECTION",
+      payload: { text: trimmed, title: document.title || "", url: location.href },
+    });
+    if (res?.success) {
+      btn.style.color = "#10b981";
+      setTimeout(() => {
+        btn.style.color = "";
+      }, 1000);
+      if (!res.opened && !host.querySelector(`.${BUBBLE_PREFIX}-ask-hint`)) {
+        const hint = document.createElement("div");
+        hint.className = `${BUBBLE_PREFIX}-ask-hint`;
+        hint.textContent = t(cachedLang, "bubble.askAIStaged");
+        host.appendChild(hint);
+        setTimeout(() => hint.remove(), 3000);
+      }
+    }
+  } catch {
+    // Extension context gone (extension was updated) — needs a page refresh.
   }
 }
 
@@ -1553,6 +1609,7 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
     <div class="${BUBBLE_PREFIX}-popup-header">
       <span class="${BUBBLE_PREFIX}-popup-title">${t(cachedLang, "bubble.title")}</span>
       <div class="${BUBBLE_PREFIX}-popup-actions">
+        <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-popup-ask-btn" title="${t(cachedLang, "bubble.askAI")}">${ASK_ICON}</button>
         <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-popup-copy-btn" title="${t(cachedLang, "bubble.copyTranslation")}">${COPY_ICON}</button>
         <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-popup-close-btn" title="${t(cachedLang, "bubble.close")}">${CLOSE_ICON}</button>
       </div>
@@ -1708,6 +1765,13 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
   };
 
   // ---- Event handlers ----
+  const popupAskBtn = el.querySelector(`.${BUBBLE_PREFIX}-popup-ask-btn`);
+  popupAskBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const src = el.querySelector(`.${BUBBLE_PREFIX}-popup-src`) as HTMLTextAreaElement | null;
+    void askAiAboutSelection(src?.value || "", popupAskBtn as HTMLElement, el);
+  });
+
   const closeBtn = el.querySelector(`.${BUBBLE_PREFIX}-popup-close-btn`);
   closeBtn?.addEventListener("click", (e) => { e.stopPropagation(); cleanup(); removeDragPopup(); });
 
@@ -1821,7 +1885,9 @@ async function requestTranslationForPopup(text: string): Promise<void> {
     if (!dragPopup) return;
     const resultEl = dragPopup.querySelector(`.${BUBBLE_PREFIX}-popup-result`);
     if (resultEl) {
-      resultEl.innerHTML = `<div class="${BUBBLE_PREFIX}-popup-error"><span>⚠</span><span>${t(cachedLang, "bubble.connectFail")}</span></div>`;
+      // No runtime id ⇒ stale content script after an extension update.
+      const reasonKey = chrome.runtime?.id ? "bubble.connectFail" : "bubble.staleContext";
+      resultEl.innerHTML = `<div class="${BUBBLE_PREFIX}-popup-error"><span>⚠</span><span>${t(cachedLang, reasonKey)}</span></div>`;
     }
   } finally {
     isTranslating = false;

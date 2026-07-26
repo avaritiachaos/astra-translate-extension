@@ -538,8 +538,34 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .ast-chat-input {
-  min-height: 48px;
+  min-height: 40px;
   max-height: 120px;
+  resize: none;
+  overflow-y: auto;
+}
+
+/* Whitelist markdown inside assistant bubbles */
+.ast-chat-pre {
+  margin: 4px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(127, 127, 127, 0.12);
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ast-chat-pre code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace;
+  white-space: pre;
+}
+
+.ast-chat-code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.14);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace;
+  font-size: 12px;
 }
 
 .ast-chat-actions {

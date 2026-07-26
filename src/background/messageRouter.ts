@@ -36,6 +36,11 @@ import {
   touchSiteLexiconPairs,
 } from "./siteLexiconStore";
 import { clearChat, getChatState, sendChatMessage } from "./chatService";
+import {
+  CHAT_STAGED_ATTACH_KEY,
+  POPUP_MODE_STORAGE_KEY,
+  type ChatAttachment,
+} from "../shared/types";
 import { siteLexiconHost } from "../shared/siteLexicon";
 import { StreamBatchItemParser, topLevelJsonObjects } from "../shared/streamBatchParser";
 
@@ -240,6 +245,42 @@ export async function handleMessage(
         return { success: false };
       }
       return clearChat();
+    }
+
+    case "OPEN_CHAT_WITH_SELECTION": {
+      // From the selection bubble (content script): stage the user's own
+      // selection as a chat attachment, then try to open the popup. Staging
+      // writes only user-selected text into a single-use session key.
+      const payload = msg.payload as
+        | { text?: unknown; title?: unknown; url?: unknown }
+        | undefined;
+      const text =
+        typeof payload?.text === "string" ? payload.text.trim().slice(0, 4000) : "";
+      if (!text) return { success: false, opened: false };
+      const attachment: ChatAttachment = {
+        title: typeof payload?.title === "string" ? payload.title.slice(0, 200) : "",
+        url: typeof payload?.url === "string" ? payload.url.slice(0, 500) : "",
+        selected: true,
+        text,
+      };
+      try {
+        await chrome.storage.session?.set({
+          [CHAT_STAGED_ATTACH_KEY]: attachment,
+          [POPUP_MODE_STORAGE_KEY]: "chat",
+        });
+      } catch {
+        return { success: false, opened: false };
+      }
+      let opened = false;
+      try {
+        // Chrome 127+; older versions throw / lack the API — the bubble then
+        // hints the user to click the toolbar icon instead.
+        await chrome.action.openPopup();
+        opened = true;
+      } catch {
+        // fall through with opened=false
+      }
+      return { success: true, opened };
     }
 
     case "OPEN_OPTIONS_PAGE":

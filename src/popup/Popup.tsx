@@ -10,11 +10,43 @@ import type {
   ChatTurn,
 } from "../shared/types";
 import {
+  CHAT_STAGED_ATTACH_KEY,
   CHAT_STORAGE_KEY,
   CHAT_STREAM_PORT,
   POPUP_MODE_STORAGE_KEY,
 } from "../shared/types";
+import { parseChatMarkdown } from "../shared/chatMarkdown";
 import "./popup.css";
+
+/** Whitelist markdown for assistant replies: fenced code, inline code, bold.
+ * Tokens map to React elements — model output can never inject markup. */
+function ChatRichText({ text }: { text: string }): React.ReactElement {
+  return (
+    <>
+      {parseChatMarkdown(text).map((block, i) =>
+        block.type === "codeblock" ? (
+          <pre key={i} className="ast-chat-pre">
+            <code>{block.content}</code>
+          </pre>
+        ) : (
+          <span key={i}>
+            {block.spans.map((span, j) =>
+              span.type === "code" ? (
+                <code key={j} className="ast-chat-code">
+                  {span.content}
+                </code>
+              ) : span.type === "bold" ? (
+                <strong key={j}>{span.content}</strong>
+              ) : (
+                <React.Fragment key={j}>{span.content}</React.Fragment>
+              )
+            )}
+          </span>
+        )
+      )}
+    </>
+  );
+}
 
 type PopupMode = "translate" | "chat";
 
@@ -110,8 +142,22 @@ export default function Popup() {
   // lands here through storage, not through a message response.
   useEffect(() => {
     chrome.storage.session
-      ?.get(POPUP_MODE_STORAGE_KEY)
+      ?.get([POPUP_MODE_STORAGE_KEY, CHAT_STAGED_ATTACH_KEY])
       .then((r) => {
+        // A selection staged by the bubble's "ask AI" button wins: land in
+        // chat with the text pre-attached, and consume the single-use key.
+        const staged = r?.[CHAT_STAGED_ATTACH_KEY] as ChatAttachment | undefined;
+        if (staged && typeof staged.text === "string" && staged.text.trim()) {
+          setChatAttach({
+            title: typeof staged.title === "string" ? staged.title : "",
+            url: typeof staged.url === "string" ? staged.url : "",
+            selected: !!staged.selected,
+            text: staged.text,
+          });
+          setMode("chat");
+          chrome.storage.session?.remove(CHAT_STAGED_ATTACH_KEY).catch(() => {});
+          return;
+        }
         if (r?.[POPUP_MODE_STORAGE_KEY] === "chat") setMode("chat");
       })
       .catch(() => {});
@@ -141,6 +187,15 @@ export default function Popup() {
     const el = chatListRef.current;
     if (mode === "chat" && el) el.scrollTop = el.scrollHeight;
   }, [mode, chatTurns, chatPending, streamText]);
+
+  // Auto-grow the chat input with its content (1 → ~4 lines), including
+  // programmatic changes (send clears it, rejections restore it).
+  useEffect(() => {
+    const el = chatInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight + 2, 120)}px`;
+  }, [chatInput, mode]);
 
   // Persist target language to settings
   const saveTargetLang = useCallback(
@@ -533,12 +588,16 @@ export default function Popup() {
                       : turn.attachment.title || t(lang, "chat.attachPage")}
                   </div>
                 )}
-                {turn.content}
+                {turn.role === "assistant" && !turn.error ? (
+                  <ChatRichText text={turn.content} />
+                ) : (
+                  turn.content
+                )}
               </div>
             ))}
             {streamText ? (
               <div className="ast-chat-bubble ast-chat-bubble--assistant">
-                {streamText}
+                <ChatRichText text={streamText} />
                 <span className="ast-chat-cursor" />
               </div>
             ) : (
@@ -589,7 +648,7 @@ export default function Popup() {
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
             onKeyDown={handleChatKeyDown}
-            rows={2}
+            rows={1}
             maxLength={8000}
           />
           <div className="ast-chat-actions">

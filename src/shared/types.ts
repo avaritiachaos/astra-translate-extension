@@ -103,6 +103,7 @@ export type MessageType =
   | "CHAT_MESSAGE"
   | "GET_CHAT_STATE"
   | "CLEAR_CHAT"
+  | "OPEN_CHAT_WITH_SELECTION"
   | "OPEN_OPTIONS_PAGE"
   | "SAVE_FLOATING_BALL_OPACITY"
   | "SAVE_FLOATING_BALL_ENABLED"
@@ -247,6 +248,9 @@ export interface TestProviderResponse {
 export const CHAT_STORAGE_KEY = "astra_chat_v1";
 /** chrome.storage.session key remembering which popup tab was last active. */
 export const POPUP_MODE_STORAGE_KEY = "astra_popup_mode_v1";
+/** chrome.storage.session key holding an attachment staged by the selection
+ * bubble's "ask AI" button — the popup consumes and deletes it on open. */
+export const CHAT_STAGED_ATTACH_KEY = "astra_chat_staged_v1";
 
 /** Page context explicitly attached to a chat question by the user. */
 export interface ChatAttachment {
