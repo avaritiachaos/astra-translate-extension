@@ -6,18 +6,26 @@
 // when the browser exits. The service worker owns every mutation;
 // the popup renders from storage change events, so an answer that
 // finishes while the popup is closed is waiting on next open.
+//
+// Optional "web supplement": when the user toggles it on for a turn,
+// we run the built-in public search first, inject the hits into the user
+// message context, and hang the sources on the assistant turn for
+// citation chips. Translation paths never touch this.
 
 import {
   CHAT_STORAGE_KEY,
   type AstraSettings,
   type ChatAttachment,
   type ChatResponse,
+  type ChatSearchSource,
   type ChatState,
   type ChatStreamEvent,
+  type ChatStreamPhase,
   type ChatStreamRequest,
   type ChatTurn,
 } from "../shared/types";
-import { buildChatContext } from "../shared/chatContext";
+import { buildChatContext, type ChatContextTurn } from "../shared/chatContext";
+import { buildChatSearchQuery } from "../shared/chatSearch";
 import { DEFAULT_CHAT_PROMPT } from "../shared/prompts";
 import { t, type UiLanguage } from "../shared/i18n";
 import { getSettings } from "../shared/storage";
@@ -27,6 +35,7 @@ import {
   type ChatMessage,
 } from "./providerClient";
 import { AstraError } from "./errors";
+import { webSearch } from "./webSearchClient";
 
 /** Hard cap on one user input (popup enforces the same via maxLength). */
 const MAX_INPUT_CHARS = 8000;
@@ -133,7 +142,11 @@ export function resetStaleChatPending(): void {
   });
 }
 
-function systemPromptFor(settings: AstraSettings, lang: UiLanguage): string {
+function systemPromptFor(
+  settings: AstraSettings,
+  lang: UiLanguage,
+  withSearch: boolean
+): string {
   const answerLang =
     lang === "zh-CN"
       ? "Simplified Chinese"
@@ -141,24 +154,41 @@ function systemPromptFor(settings: AstraSettings, lang: UiLanguage): string {
         ? "Japanese"
         : "English";
   const custom = settings.chatPrompt?.trim();
-  return (custom || DEFAULT_CHAT_PROMPT).replace(/\{\{lang\}\}/g, answerLang);
+  let prompt = (custom || DEFAULT_CHAT_PROMPT).replace(/\{\{lang\}\}/g, answerLang);
+  if (withSearch) {
+    prompt +=
+      "\n\nWhen web search results are provided with the question, treat them " +
+      "as primary evidence. Prefer short citations like [1] / [2] next to " +
+      "claims drawn from them. If sources conflict, note the uncertainty.";
+  }
+  return prompt;
+}
+
+/** Build the search query from the question and a small page-title hint. */
+function searchQueryFor(text: string, attachment?: ChatAttachment): string {
+  return buildChatSearchQuery(text, attachment?.title);
+}
+
+interface RunOpts {
+  rawText: string;
+  rawAttachment?: unknown;
+  webSearchRequested?: boolean;
+  onDelta?: (delta: string) => void;
+  onPhase?: (phase: ChatStreamPhase) => void;
 }
 
 /**
- * One full exchange: append the user's message, call the provider with
- * bounded context (streaming deltas to `onDelta` when given), append the
- * reply (or an error turn). Every step is persisted, so a popup that closes
- * mid-request finds the finished answer on reopen.
+ * One full exchange: append the user's message, optionally search the web,
+ * call the provider with bounded context (streaming deltas to `onDelta`
+ * when given), append the reply (or an error turn). Every step is persisted,
+ * so a popup that closes mid-request finds the finished answer on reopen.
  */
-async function runChatExchange(
-  rawText: string,
-  rawAttachment?: unknown,
-  onDelta?: (delta: string) => void
-): Promise<ChatResponse> {
-  const text = rawText.trim().slice(0, MAX_INPUT_CHARS);
-  const attachment = sanitizeAttachment(rawAttachment);
+async function runChatExchange(opts: RunOpts): Promise<ChatResponse> {
+  const text = opts.rawText.trim().slice(0, MAX_INPUT_CHARS);
+  const attachment = sanitizeAttachment(opts.rawAttachment);
   const settings = await getSettings();
   const lang: UiLanguage = settings.uiLanguage || "zh-CN";
+  const wantSearch = !!opts.webSearchRequested;
 
   if (!text) {
     return { success: false, error: t(lang, "chat.failed"), appended: false };
@@ -172,16 +202,28 @@ async function runChatExchange(
     };
   }
 
+  // Pre-flight for web search: the user must enable it globally, but no
+  // secondary search-provider credential is needed.
+  if (wantSearch && !settings.chatWebSearchEnabled) {
+    return {
+      success: false,
+      error: t(lang, "chat.searchDisabled"),
+      errorCode: "SEARCH_DISABLED",
+      appended: false,
+    };
+  }
+
   // Claim the pending slot and append the user turn atomically.
   const claim = await serialized(async () => {
     const state = await loadChatState();
     if (state.pending) return null;
     const userTurn: ChatTurn = { role: "user", content: text, ts: Date.now() };
     if (attachment) userTurn.attachment = attachment;
+    if (wantSearch) userTurn.webSearch = true;
     pushTrimmed(state, userTurn);
     state.pending = true;
     await saveChatState(state);
-    return { gen: state.gen, context: buildChatContext(state.turns) };
+    return { gen: state.gen, turns: state.turns.slice() };
   });
   if (!claim) {
     return {
@@ -195,16 +237,59 @@ async function runChatExchange(
   const controller = new AbortController();
   activeChatAbort = controller;
 
+  let sources: ChatSearchSource[] = [];
+  let ungroundedSearchFallback = false;
   let reply: ChatTurn;
   try {
+    if (wantSearch) {
+      opts.onPhase?.("searching");
+      // Search transport/HTTP failures stay explicit. A completed search with
+      // no sources is different: answer normally, but label it as ungrounded.
+      const search = await webSearch(
+        searchQueryFor(text, attachment),
+        lang,
+        controller.signal
+      );
+      sources = search.sources;
+      ungroundedSearchFallback = search.noResults;
+    }
+
+    opts.onPhase?.("answering");
+
+    // Inject fresh search hits only onto the newest user turn for the model.
+    const contextTurns: ChatContextTurn[] = claim.turns.map((turn, i) => {
+      const base: ChatContextTurn = {
+        role: turn.role,
+        content: turn.content,
+        error: turn.error,
+        attachment: turn.attachment,
+      };
+      if (
+        sources.length > 0 &&
+        i === claim.turns.length - 1 &&
+        turn.role === "user"
+      ) {
+        base.searchSources = sources;
+      }
+      return base;
+    });
+
     const messages: ChatMessage[] = [
-      { role: "system", content: systemPromptFor(settings, lang) },
-      ...claim.context,
+      { role: "system", content: systemPromptFor(settings, lang, wantSearch) },
+      ...buildChatContext(contextTurns),
     ];
-    const content = onDelta
-      ? await chatViaProviderStream(settings, messages, onDelta, lang, controller.signal)
+    const content = opts.onDelta
+      ? await chatViaProviderStream(
+          settings,
+          messages,
+          opts.onDelta,
+          lang,
+          controller.signal
+        )
       : await chatViaProvider(settings, messages, lang);
     reply = { role: "assistant", content, ts: Date.now() };
+    if (sources.length > 0) reply.sources = sources;
+    if (ungroundedSearchFallback) reply.ungroundedSearchFallback = true;
   } catch (err) {
     const message =
       err instanceof AstraError
@@ -242,17 +327,23 @@ async function runChatExchange(
 /** One-shot exchange (fallback path when the stream port is unavailable). */
 export async function sendChatMessage(
   rawText: string,
-  rawAttachment?: unknown
+  rawAttachment?: unknown,
+  webSearchRequested?: boolean
 ): Promise<ChatResponse> {
-  return runChatExchange(rawText, rawAttachment);
+  return runChatExchange({
+    rawText,
+    rawAttachment,
+    webSearchRequested: !!webSearchRequested,
+  });
 }
 
 /**
- * Streaming exchange over a long-lived port: {type:"delta"} per fragment,
- * then {type:"done"} carrying the same ChatResponse shape as the one-shot
- * path. The port closing mid-stream does NOT cancel the request — the reply
- * still persists to storage so the reopened popup finds it. Only CLEAR_CHAT
- * aborts an in-flight request.
+ * Streaming exchange over a long-lived port: optional {type:"phase"} for
+ * search/answer progress, {type:"delta"} per fragment, then {type:"done"}
+ * carrying the same ChatResponse shape as the one-shot path. The port
+ * closing mid-stream does NOT cancel the request — the reply still persists
+ * to storage so the reopened popup finds it. Only CLEAR_CHAT aborts an
+ * in-flight request.
  */
 export async function handleChatStream(
   msg: ChatStreamRequest,
@@ -264,10 +355,12 @@ export async function handleChatStream(
     rawPost(requestId ? { ...event, requestId } : event);
   };
 
-  const result = await runChatExchange(
-    typeof msg.payload?.text === "string" ? msg.payload.text : "",
-    msg.payload?.attachment,
-    (delta) => post({ type: "delta", text: delta })
-  );
+  const result = await runChatExchange({
+    rawText: typeof msg.payload?.text === "string" ? msg.payload.text : "",
+    rawAttachment: msg.payload?.attachment,
+    webSearchRequested: !!msg.payload?.webSearch,
+    onDelta: (delta) => post({ type: "delta", text: delta }),
+    onPhase: (phase) => post({ type: "phase", phase }),
+  });
   post({ type: "done", ...result });
 }

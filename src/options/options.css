@@ -151,6 +151,14 @@ body {
   cursor: pointer;
 }
 
+/* Chat web supplement */
+.ast-web-search-description {
+  max-width: 680px;
+  margin-top: -4px;
+  margin-bottom: 0;
+  line-height: 1.55;
+}
+
 /* API Key input group */
 .ast-api-key-group {
   display: flex;

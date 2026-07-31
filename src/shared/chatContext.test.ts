@@ -132,4 +132,46 @@ describe("buildChatContext", () => {
       ["a", "b"]
     );
   });
+
+  it("wraps web search sources around the question for the model", () => {
+    const rendered = renderTurnContent({
+      role: "user",
+      content: "DeepSeek 现在怎么定价？",
+      searchSources: [
+        {
+          title: "DeepSeek Pricing",
+          url: "https://example.com/pricing",
+          snippet: "flash is $0.14 / M tokens",
+        },
+      ],
+    });
+    assert.ok(rendered.includes("Web search results"));
+    assert.ok(rendered.includes("[1] DeepSeek Pricing"));
+    assert.ok(rendered.includes("https://example.com/pricing"));
+    assert.ok(rendered.includes("flash is $0.14"));
+    assert.ok(
+      rendered.indexOf("DeepSeek 现在怎么定价？") >
+        rendered.indexOf("Web search results")
+    );
+  });
+
+  it("combines page attachment and search sources", () => {
+    const rendered = renderTurnContent({
+      role: "user",
+      content: "总结一下",
+      attachment: {
+        title: "Docs",
+        url: "https://example.com",
+        selected: false,
+        text: "page body",
+      },
+      searchSources: [
+        { title: "News", url: "https://news.example", snippet: "latest" },
+      ],
+    });
+    assert.ok(rendered.includes("extracted page content"));
+    assert.ok(rendered.includes("Web search results"));
+    assert.ok(rendered.includes("page body"));
+    assert.ok(rendered.includes("News"));
+  });
 });

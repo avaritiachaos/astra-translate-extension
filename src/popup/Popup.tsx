@@ -7,12 +7,14 @@ import type {
   ChatAttachment,
   ChatState,
   ChatStreamEvent,
+  ChatStreamPhase,
   ChatTurn,
 } from "../shared/types";
 import {
   CHAT_STAGED_ATTACH_KEY,
   CHAT_STORAGE_KEY,
   CHAT_STREAM_PORT,
+  CHAT_WEB_SEARCH_SESSION_KEY,
   POPUP_MODE_STORAGE_KEY,
 } from "../shared/types";
 import { parseChatMarkdown } from "../shared/chatMarkdown";
@@ -102,8 +104,12 @@ export default function Popup() {
   const [chatPending, setChatPending] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatError, setChatError] = useState("");
+  /** Current request stage: search first, then streamed model reply. */
+  const [chatPhase, setChatPhase] = useState<ChatStreamPhase | null>(null);
   /** Live text of the reply currently streaming in (typewriter bubble). */
   const [streamText, setStreamText] = useState("");
+  /** Per-browser-session opt-in for search-then-answer. */
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   /** Page context staged for the next question (chip above the input). */
   const [chatAttach, setChatAttach] = useState<ChatAttachment | null>(null);
   const chatListRef = useRef<HTMLDivElement>(null);
@@ -142,8 +148,13 @@ export default function Popup() {
   // lands here through storage, not through a message response.
   useEffect(() => {
     chrome.storage.session
-      ?.get([POPUP_MODE_STORAGE_KEY, CHAT_STAGED_ATTACH_KEY])
+      ?.get([
+        POPUP_MODE_STORAGE_KEY,
+        CHAT_STAGED_ATTACH_KEY,
+        CHAT_WEB_SEARCH_SESSION_KEY,
+      ])
       .then((r) => {
+        if (r?.[CHAT_WEB_SEARCH_SESSION_KEY] === true) setWebSearchEnabled(true);
         // A selection staged by the bubble's "ask AI" button wins: land in
         // chat with the text pre-attached, and consume the single-use key.
         const staged = r?.[CHAT_STAGED_ATTACH_KEY] as ChatAttachment | undefined;
@@ -358,7 +369,7 @@ export default function Popup() {
   /** Streaming send over a dedicated port. Returns false when the port
    * can't be opened so the caller can fall back to the one-shot path. */
   const sendViaStream = useCallback(
-    (text: string, attach: ChatAttachment | null): boolean => {
+    (text: string, attach: ChatAttachment | null, webSearch: boolean): boolean => {
       let port: chrome.runtime.Port;
       try {
         port = chrome.runtime.connect({ name: CHAT_STREAM_PORT });
@@ -371,7 +382,13 @@ export default function Popup() {
       port.onMessage.addListener((event: ChatStreamEvent) => {
         if (event.requestId && event.requestId !== requestId) return;
 
+        if (event.type === "phase") {
+          setChatPhase(event.phase);
+          return;
+        }
+
         if (event.type === "delta") {
+          setChatPhase("answering");
           setStreamText((prev) => prev + event.text);
           return;
         }
@@ -381,6 +398,7 @@ export default function Popup() {
         finished = true;
         const finish = async () => {
           await refreshChatState();
+          setChatPhase(null);
           setStreamText("");
           if (!event.success && !event.appended) {
             handleChatRejection(text, attach, event.error);
@@ -400,6 +418,7 @@ export default function Popup() {
         // The next SW start resets the stuck pending flag; just resync.
         if (finished) return;
         finished = true;
+        setChatPhase(null);
         setStreamText("");
         refreshChatState();
       });
@@ -408,8 +427,8 @@ export default function Popup() {
         port.postMessage({
           type: "CHAT_STREAM",
           payload: attach
-            ? { text, attachment: attach, requestId }
-            : { text, requestId },
+            ? { text, attachment: attach, webSearch, requestId }
+            : { text, webSearch, requestId },
         });
       } catch {
         finished = true;
@@ -434,13 +453,18 @@ export default function Popup() {
     setChatAttach(null);
     setStreamText("");
 
+    const doWebSearch = webSearchEnabled;
+    setChatPhase(doWebSearch ? "searching" : "answering");
+
     // Prefer streaming; fall back to the one-shot message on port failure.
-    if (sendViaStream(text, attach)) return;
+    if (sendViaStream(text, attach, doWebSearch)) return;
 
     try {
       const res = await chrome.runtime.sendMessage({
         type: "CHAT_MESSAGE",
-        payload: attach ? { text, attachment: attach } : { text },
+        payload: attach
+          ? { text, attachment: attach, webSearch: doWebSearch }
+          : { text, webSearch: doWebSearch },
       });
       if (res && !res.success && !res.appended) {
         handleChatRejection(text, attach, res.error);
@@ -448,12 +472,23 @@ export default function Popup() {
       // Storage events already track the conversation; this refresh only
       // matters for the no-session-storage fallback.
       refreshChatState();
+      setChatPhase(null);
     } catch {
+      setChatPhase(null);
       setChatError(t(lang, "popup.connectFail"));
       setChatInput(text);
       if (attach) setChatAttach(attach);
     }
-  }, [chatInput, chatPending, chatAttach, lang, refreshChatState, sendViaStream, handleChatRejection]);
+  }, [
+    chatInput,
+    chatPending,
+    chatAttach,
+    lang,
+    refreshChatState,
+    sendViaStream,
+    handleChatRejection,
+    webSearchEnabled,
+  ]);
 
   /** Grab context from the active tab: the selection if any, else the main
    * content — explicit user action only, nothing is attached automatically. */
@@ -478,6 +513,7 @@ export default function Popup() {
 
   const handleChatClear = useCallback(() => {
     setChatError("");
+    setChatPhase(null);
     setStreamText("");
     setChatAttach(null);
     chrome.runtime
@@ -485,6 +521,22 @@ export default function Popup() {
       .then(() => refreshChatState())
       .catch(() => {});
   }, [refreshChatState]);
+
+  /** Turn built-in web search on or off for this browser session. */
+  const toggleWebSearch = useCallback(() => {
+    if (!settings?.chatWebSearchEnabled) {
+      setChatError(t(lang, "chat.webSearchNeedSetup"));
+      return;
+    }
+    setWebSearchEnabled((enabled) => {
+      const next = !enabled;
+      chrome.storage.session
+        ?.set({ [CHAT_WEB_SEARCH_SESSION_KEY]: next })
+        .catch(() => {});
+      return next;
+    });
+    chatInputRef.current?.focus();
+  }, [lang, settings]);
 
   const handleCopyTurn = useCallback(
     async (content: string) => {
@@ -589,6 +641,9 @@ export default function Popup() {
                       : "ast-chat-bubble ast-chat-bubble--assistant"
                 }
               >
+                {turn.webSearch && (
+                  <div className="ast-chat-bubble-search">🌐 {t(lang, "chat.webSearchUsed")}</div>
+                )}
                 {turn.attachment && (
                   <div
                     className="ast-chat-bubble-attach"
@@ -622,6 +677,32 @@ export default function Popup() {
                       </svg>
                     </button>
                     <ChatRichText text={turn.content} />
+                    {turn.ungroundedSearchFallback && (
+                      <div className="ast-chat-search-fallback" role="note">
+                        <span aria-hidden="true">ⓘ</span>
+                        <span>{t(lang, "chat.searchNoResultsFallback")}</span>
+                      </div>
+                    )}
+                    {turn.sources && turn.sources.length > 0 && (
+                      <div className="ast-chat-sources">
+                        <div className="ast-chat-sources-label">{t(lang, "chat.sources")}</div>
+                        <div className="ast-chat-sources-list">
+                          {turn.sources.map((source, sourceIndex) => (
+                            <a
+                              key={`${source.url}-${sourceIndex}`}
+                              className="ast-chat-source-link"
+                              href={source.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={source.snippet || source.url}
+                            >
+                              <span>{sourceIndex + 1}</span>
+                              <span>{source.title}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   turn.content
@@ -637,7 +718,7 @@ export default function Popup() {
               chatPending && (
                 <div className="ast-chat-bubble ast-chat-bubble--assistant ast-chat-bubble--thinking">
                   <div className="ast-spinner-sm" />
-                  <span>{t(lang, "chat.thinking")}</span>
+                  <span>{chatPhase === "searching" ? t(lang, "chat.searching") : t(lang, "chat.thinking")}</span>
                 </div>
               )
             )}
@@ -673,6 +754,26 @@ export default function Popup() {
               </button>
             </div>
           )}
+
+          <div className="ast-chat-composer-tools">
+            <button
+              className={`ast-chat-web-toggle ${webSearchEnabled ? "ast-chat-web-toggle--on" : ""}`}
+              onClick={toggleWebSearch}
+              aria-pressed={webSearchEnabled}
+              title={t(
+                lang,
+                webSearchEnabled
+                  ? "chat.webSearchOn"
+                  : settings?.chatWebSearchEnabled
+                    ? "chat.webSearchOff"
+                    : "chat.webSearchNeedSetup"
+              )}
+            >
+              <span aria-hidden="true">⌁</span>
+              {t(lang, "chat.webSearch")}
+            </button>
+            {webSearchEnabled && <span className="ast-chat-web-status">{t(lang, "chat.webSearchOn")}</span>}
+          </div>
 
           <textarea
             ref={chatInputRef}

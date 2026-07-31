@@ -225,11 +225,12 @@ export async function handleMessage(
         return { success: false, appended: false };
       }
       const payload = msg.payload as
-        | { text?: unknown; attachment?: unknown }
+        | { text?: unknown; attachment?: unknown; webSearch?: unknown }
         | undefined;
       return sendChatMessage(
         typeof payload?.text === "string" ? payload.text : "",
-        payload?.attachment
+        payload?.attachment,
+        !!payload?.webSearch
       );
     }
 

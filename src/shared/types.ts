@@ -80,6 +80,11 @@ export interface AstraSettings extends UserProviderSettings {
   dictionaryPrompt: string;
   // Popup chat mode — system prompt ({{lang}} = answer-language placeholder).
   chatPrompt: string;
+  /**
+   * Master switch: when on, the popup chat can offer a per-session "web
+   * supplement" toggle. Search only runs for chat — never for translation.
+   */
+  chatWebSearchEnabled: boolean;
   // Translation Cache
   enableTranslationCache: boolean;
   translationCacheMaxEntries: number;
@@ -251,6 +256,9 @@ export const POPUP_MODE_STORAGE_KEY = "astra_popup_mode_v1";
 /** chrome.storage.session key holding an attachment staged by the selection
  * bubble's "ask AI" button — the popup consumes and deletes it on open. */
 export const CHAT_STAGED_ATTACH_KEY = "astra_chat_staged_v1";
+/** chrome.storage.session key for the popup chat's per-session web-search
+ * toggle. Survives popup close; clears when the browser exits. */
+export const CHAT_WEB_SEARCH_SESSION_KEY = "astra_chat_web_search_v1";
 
 /** Page context explicitly attached to a chat question by the user. */
 export interface ChatAttachment {
@@ -259,6 +267,13 @@ export interface ChatAttachment {
   /** True when the text is the user's selection rather than extracted content. */
   selected: boolean;
   text: string;
+}
+
+/** One web-search hit grounded into a chat reply (display + model context). */
+export interface ChatSearchSource {
+  title: string;
+  url: string;
+  snippet: string;
 }
 
 export interface ChatTurn {
@@ -271,6 +286,13 @@ export interface ChatTurn {
   /** Page context the user attached to this question — travels to the model
    * wrapped around the content, renders as a small chip in the bubble. */
   attachment?: ChatAttachment;
+  /** Web sources used to ground this assistant reply (citation chips). */
+  sources?: ChatSearchSource[];
+  /** The user asked to search, but both engines returned no usable sources.
+   * The associated assistant reply is a clearly labelled normal-model answer. */
+  ungroundedSearchFallback?: boolean;
+  /** User opted into web search for this question (chip on the user bubble). */
+  webSearch?: boolean;
 }
 
 export interface ChatState {
@@ -300,13 +322,20 @@ export interface ChatStreamRequest {
     text: string;
     /** Optional page context to ground this question. */
     attachment?: ChatAttachment;
+    /** When true, run built-in web search first and ground the reply on the
+     * external results (requires chatWebSearchEnabled). */
+    webSearch?: boolean;
     /** Correlates events with this request if a port ever carries more than
      * one — events are echoed back tagged with the same id. */
     requestId?: string;
   };
 }
 
+/** Progress phase while a chat exchange is in flight (search → answer). */
+export type ChatStreamPhase = "searching" | "answering";
+
 export type ChatStreamEvent =
+  | { type: "phase"; phase: ChatStreamPhase; requestId?: string }
   | { type: "delta"; text: string; requestId?: string }
   | ({ type: "done"; requestId?: string } & ChatResponse);
 

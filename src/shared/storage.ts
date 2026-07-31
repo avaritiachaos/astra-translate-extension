@@ -52,6 +52,7 @@ export function getDefaultSettings(): AstraSettings {
     dictionaryModeEnabled: true,
     dictionaryPrompt: DEFAULT_DICTIONARY_PROMPT,
     chatPrompt: DEFAULT_CHAT_PROMPT,
+    chatWebSearchEnabled: false,
     enableTranslationCache: true,
     translationCacheMaxEntries: 5000,
   };

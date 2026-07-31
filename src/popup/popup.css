@@ -574,6 +574,127 @@ body::-webkit-scrollbar-thumb:hover {
   overflow-y: auto;
 }
 
+/* Search status on a sent user bubble */
+.ast-chat-bubble-search {
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.82;
+}
+
+/* When both engines completed but found nothing, distinguish a useful normal
+   answer from a sourced answer without turning it into an error state. */
+.ast-chat-search-fallback {
+  display: flex;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 6px 7px;
+  border: 1px solid var(--ast-border);
+  border-radius: 7px;
+  background: var(--ast-bg);
+  color: var(--ast-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+/* Sources stay compact inside the assistant response instead of becoming a
+   competing card. Each result is a proper link, opened only by user action. */
+.ast-chat-sources {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--ast-border);
+}
+
+.ast-chat-sources-label {
+  margin-bottom: 5px;
+  color: var(--ast-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ast-chat-sources-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ast-chat-source-link {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  overflow: hidden;
+  border: 1px solid var(--ast-border);
+  border-radius: 6px;
+  color: var(--ast-primary);
+  background: var(--ast-primary-light);
+  font-size: 10px;
+  line-height: 1.25;
+  text-decoration: none;
+  transition: border-color 120ms ease-out, background 120ms ease-out;
+}
+
+.ast-chat-source-link:hover {
+  border-color: var(--ast-primary);
+  background: var(--ast-card-bg);
+}
+
+.ast-chat-source-link span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Small compositional control above the text box. It is intentionally always
+   visible: when unconfigured, clicking it sends the user to no external page
+   and gives a localized inline setup hint instead. */
+.ast-chat-composer-tools {
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+  gap: 7px;
+}
+
+.ast-chat-web-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--ast-border);
+  border-radius: 999px;
+  background: var(--ast-card-bg);
+  color: var(--ast-muted);
+  font-family: var(--ast-font);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 120ms ease-out, border-color 120ms ease-out, background 120ms ease-out;
+}
+
+.ast-chat-web-toggle:hover {
+  border-color: var(--ast-primary);
+  color: var(--ast-primary);
+}
+
+.ast-chat-web-toggle--on,
+.ast-chat-web-toggle--on:hover {
+  border-color: var(--ast-primary);
+  background: var(--ast-primary-light);
+  color: var(--ast-primary);
+}
+
+.ast-chat-web-status {
+  overflow: hidden;
+  color: var(--ast-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Whitelist markdown inside assistant bubbles */
 .ast-chat-pre {
   margin: 4px 0;

@@ -241,6 +241,7 @@ export default function Options() {
     { id: "sec-uilang", labelKey: "opt.uiLang" },
     { id: "sec-translation", labelKey: "opt.translation" },
     { id: "sec-floatingball", labelKey: "opt.floatingBall" },
+    { id: "sec-web-search", labelKey: "opt.webSearch" },
     { id: "sec-prompt", labelKey: "opt.prompt" },
   ];
 
@@ -854,6 +855,24 @@ export default function Options() {
               {Math.round(settings.popupScale * 100)}%
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* Built-in chat web search card */}
+      <div className="ast-card" id="sec-web-search">
+        <div className="ast-card-title">{t(lang, "opt.webSearch")}</div>
+
+        <div className="ast-toggle-row">
+          <span className="ast-toggle-label">{t(lang, "opt.webSearchEnable")}</span>
+          <input
+            type="checkbox"
+            className="ast-toggle"
+            checked={settings.chatWebSearchEnabled}
+            onChange={(e) => update("chatWebSearchEnabled", e.target.checked)}
+          />
+        </div>
+        <div className="ast-form-hint ast-web-search-description">
+          {t(lang, "opt.webSearchDescription")}
         </div>
       </div>
 

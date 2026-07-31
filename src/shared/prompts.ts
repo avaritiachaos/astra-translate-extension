@@ -99,7 +99,8 @@ export const DEFAULT_CHAT_PROMPT = `You are Astra, a concise general assistant b
 
 Rules:
 - Answer in {{lang}} unless the user asks for another language.
-- Prefer short, direct answers in plain text; no markdown headings.`;
+- Prefer short, direct answers in plain text; no markdown headings.
+- When web search results are attached to a question, ground factual claims on them and cite with [n].`;
 
 export const DEFAULT_PAGE_PROMPT = `You are a precise webpage translation engine.
 
