@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseDuckDuckGoHtml, parseGoogleHtml } from "./webSearchParser.ts";
+import { parseBingHtml, parseDuckDuckGoHtml, parseGoogleHtml } from "./webSearchParser.ts";
 
 describe("built-in web search parsers", () => {
   it("parses and sanitizes DuckDuckGo HTML results", () => {
@@ -57,7 +57,38 @@ describe("built-in web search parsers", () => {
 
   it("returns no fallback results when the Google markup is unrecognised", () => {
     // The caller treats this empty result as a transparent, ungrounded model
-    // answer after DuckDuckGo is also empty; it is not a fabricated source.
+    // answer after the other engines are also empty; it is not a fabricated
+    // source.
     assert.deepEqual(parseGoogleHtml("<main>captcha or changed markup</main>"), []);
+  });
+
+  it("parses Bing b_algo blocks, including /ck/a redirect links", () => {
+    // "a1" + base64url("https://example.com/doc")
+    const tracked = "a1" + Buffer.from("https://example.com/doc").toString("base64url");
+    const results = parseBingHtml(`
+      <li class="b_algo"><h2><a href="https://www.bing.com/ck/a?!&amp;u=${tracked}&amp;ntb=1">Bing doc</a></h2>
+        <div class="b_caption"><p>Bing snippet text.</p></div></li>
+      <li class="b_algo"><h2><a href="https://example.org/direct">Direct link</a></h2></li>
+    `);
+
+    assert.equal(results.length, 2);
+    assert.deepEqual(results[0], {
+      title: "Bing doc",
+      url: "https://example.com/doc",
+      snippet: "Bing snippet text.",
+      source: "bing",
+      isExternal: true,
+    });
+    assert.equal(results[1].url, "https://example.org/direct");
+  });
+
+  it("decodes HTML entities exactly once", () => {
+    const results = parseDuckDuckGoHtml(`
+      <a class="result__a" href="https://example.com">Tom &amp;amp; Jerry &#39;quoted&#39;</a>
+      <div class="result__snippet">literal &amp;lt;tag&amp;gt; stays escaped</div>
+    `);
+
+    assert.equal(results[0].title, "Tom &amp; Jerry 'quoted'");
+    assert.equal(results[0].snippet, "literal &lt;tag&gt; stays escaped");
   });
 });

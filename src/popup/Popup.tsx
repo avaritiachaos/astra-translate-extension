@@ -755,26 +755,6 @@ export default function Popup() {
             </div>
           )}
 
-          <div className="ast-chat-composer-tools">
-            <button
-              className={`ast-chat-web-toggle ${webSearchEnabled ? "ast-chat-web-toggle--on" : ""}`}
-              onClick={toggleWebSearch}
-              aria-pressed={webSearchEnabled}
-              title={t(
-                lang,
-                webSearchEnabled
-                  ? "chat.webSearchOn"
-                  : settings?.chatWebSearchEnabled
-                    ? "chat.webSearchOff"
-                    : "chat.webSearchNeedSetup"
-              )}
-            >
-              <span aria-hidden="true">⌁</span>
-              {t(lang, "chat.webSearch")}
-            </button>
-            {webSearchEnabled && <span className="ast-chat-web-status">{t(lang, "chat.webSearchOn")}</span>}
-          </div>
-
           <textarea
             ref={chatInputRef}
             className="ast-input-box ast-chat-input"
@@ -799,6 +779,28 @@ export default function Popup() {
               disabled={chatTurns.length === 0 && !chatPending}
             >
               {t(lang, "chat.clear")}
+            </button>
+            <button
+              className={[
+                "ast-chat-web-toggle",
+                webSearchEnabled ? "ast-chat-web-toggle--on" : "",
+                settings?.chatWebSearchEnabled ? "" : "ast-chat-web-toggle--locked",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={toggleWebSearch}
+              aria-pressed={webSearchEnabled}
+              title={t(
+                lang,
+                webSearchEnabled
+                  ? "chat.webSearchOn"
+                  : settings?.chatWebSearchEnabled
+                    ? "chat.webSearchOff"
+                    : "chat.webSearchNeedSetup"
+              )}
+            >
+              <span aria-hidden="true">🌐</span>
+              {t(lang, "chat.webSearch")}
             </button>
             {!chatAttach && (
               <button

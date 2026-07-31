@@ -652,18 +652,13 @@ body::-webkit-scrollbar-thumb:hover {
 /* Small compositional control above the text box. It is intentionally always
    visible: when unconfigured, clicking it sends the user to no external page
    and gives a localized inline setup hint instead. */
-.ast-chat-composer-tools {
-  display: flex;
-  align-items: center;
-  min-height: 20px;
-  gap: 7px;
-}
-
+/* Per-turn web-search toggle, inline with the send/clear/attach row */
 .ast-chat-web-toggle {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
+  align-self: stretch;
+  padding: 0 10px;
   border: 1px solid var(--ast-border);
   border-radius: 999px;
   background: var(--ast-card-bg);
@@ -687,12 +682,10 @@ body::-webkit-scrollbar-thumb:hover {
   color: var(--ast-primary);
 }
 
-.ast-chat-web-status {
-  overflow: hidden;
-  color: var(--ast-muted);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* Web supplement not yet enabled in Settings: still clickable (the click
+   explains what to do), but visibly dormant. */
+.ast-chat-web-toggle--locked {
+  opacity: 0.45;
 }
 
 /* Whitelist markdown inside assistant bubbles */

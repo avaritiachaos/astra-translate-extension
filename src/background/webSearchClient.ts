@@ -7,17 +7,23 @@
 import type { ChatSearchSource } from "../shared/types";
 import { t, type UiLanguage } from "../shared/i18n";
 import {
+  bingSearchUrl,
   duckDuckGoSearchUrl,
   googleSearchUrl,
   searchLocaleFor,
 } from "../shared/searchLocale";
 import { AstraError, isNetworkError, isTimeoutError } from "./errors";
-import { parseDuckDuckGoHtml, parseGoogleHtml } from "./webSearchParser";
+import {
+  parseBingHtml,
+  parseDuckDuckGoHtml,
+  parseGoogleHtml,
+  type ParsedSearchSource,
+} from "./webSearchParser";
 
 const SEARCH_TIMEOUT_MS = 12_000;
 const MAX_RESULTS = 5;
 
-/** A successful search attempt: sources are empty only when both engines
+/** A successful search attempt: sources are empty only when every engine
  * returned no parseable hits, not when network/HTTP work failed. */
 export interface WebSearchResult {
   sources: ChatSearchSource[];
@@ -47,6 +53,9 @@ async function fetchText(url: string, lang: UiLanguage, signal?: AbortSignal): P
     return response.text();
   } catch (err) {
     if (err instanceof AstraError) throw err;
+    // A caller-driven abort (clear chat / future stop button) is not a
+    // timeout — rethrow untouched so it never surfaces as "search timed out".
+    if (signal?.aborted) throw err;
     if (isTimeoutError(err) || (err instanceof Error && err.name === "AbortError")) {
       throw new AstraError(t(lang, "chat.searchTimeout"), "SEARCH_TIMEOUT");
     }
@@ -60,17 +69,23 @@ async function fetchText(url: string, lang: UiLanguage, signal?: AbortSignal): P
   }
 }
 
-async function searchDuckDuckGo(query: string, lang: UiLanguage, signal?: AbortSignal): Promise<ChatSearchSource[]> {
-  return parseDuckDuckGoHtml(await fetchText(duckDuckGoSearchUrl(query, lang), lang, signal));
+interface EngineAttempt {
+  url: (query: string, lang: UiLanguage) => string;
+  parse: (html: string) => ParsedSearchSource[];
 }
 
-async function searchGoogle(query: string, lang: UiLanguage, signal?: AbortSignal): Promise<ChatSearchSource[]> {
-  return parseGoogleHtml(await fetchText(googleSearchUrl(query, lang, MAX_RESULTS), lang, signal));
-}
+// Preference order: Google first for result quality, Bing as the
+// mainland-China-reachable middle option, DuckDuckGo's lightweight HTML
+// endpoint as the most markup-stable last resort.
+const ENGINES: EngineAttempt[] = [
+  { url: (q, lang) => googleSearchUrl(q, lang, MAX_RESULTS), parse: parseGoogleHtml },
+  { url: (q, lang) => bingSearchUrl(q, lang), parse: parseBingHtml },
+  { url: (q, lang) => duckDuckGoSearchUrl(q, lang), parse: parseDuckDuckGoHtml },
+];
 
 /**
- * Search public result pages without a separate API key. Google is primary
- * for quality; DuckDuckGo is the resilient fallback. Every result is external
+ * Search public result pages without a separate API key, cascading through
+ * the engine list until one yields parseable hits. Every result is external
  * context and is preserved separately from the model-generated answer.
  */
 export async function webSearch(
@@ -81,21 +96,26 @@ export async function webSearch(
   const q = query.trim();
   if (!q) return { sources: [], noResults: true };
 
-  // Google frequently rate-limits or changes markup, so any failure also gets
-  // the DuckDuckGo fallback rather than immediately failing the whole turn.
-  try {
-    const sources = await searchGoogle(q, lang, signal);
-    if (sources.length > 0) return { sources, noResults: false };
-  } catch (err) {
-    if (signal?.aborted) throw err;
+  // Any single engine may be rate-limited, blocked, or have shifted markup;
+  // an engine that completes with zero hits still counts as a real answer.
+  let lastError: unknown;
+  let anyEngineCompleted = false;
+  for (const engine of ENGINES) {
+    try {
+      const sources = engine.parse(await fetchText(engine.url(q, lang), lang, signal));
+      anyEngineCompleted = true;
+      if (sources.length > 0) return { sources, noResults: false };
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      lastError = err;
+    }
   }
 
-  try {
-    const sources = await searchDuckDuckGo(q, lang, signal);
-    return { sources, noResults: sources.length === 0 };
-  } catch (err) {
-    if (signal?.aborted) throw err;
-    if (err instanceof AstraError) throw err;
+  // No engine produced hits. If at least one genuinely answered "no results",
+  // report that honestly; only surface a failure when every attempt errored.
+  if (!anyEngineCompleted && lastError !== undefined) {
+    if (lastError instanceof AstraError) throw lastError;
     throw new AstraError(t(lang, "chat.searchUnavailable"), "SEARCH_UNAVAILABLE");
   }
+  return { sources: [], noResults: true };
 }

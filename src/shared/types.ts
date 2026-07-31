@@ -288,7 +288,7 @@ export interface ChatTurn {
   attachment?: ChatAttachment;
   /** Web sources used to ground this assistant reply (citation chips). */
   sources?: ChatSearchSource[];
-  /** The user asked to search, but both engines returned no usable sources.
+  /** The user asked to search, but no engine returned usable sources.
    * The associated assistant reply is a clearly labelled normal-model answer. */
   ungroundedSearchFallback?: boolean;
   /** User opted into web search for this question (chip on the user bubble). */

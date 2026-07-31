@@ -89,7 +89,7 @@ const zhCN: MessageDict = {
   "opt.chatPromptHint": "使用 {lang} 作为回答语言占位符，默认跟随界面语言。",
   "opt.webSearch": "对话联网补充",
   "opt.webSearchEnable": "允许对话使用联网搜索",
-  "opt.webSearchDescription": "仅作用于 popup「对话」模式。开启后，对话里会出现「联网」开关；打开时优先尝试 Google 搜索，再基于外部结果回答并展示来源。Google 受页面结构或访问限制影响时，会自动改用 DuckDuckGo。无需额外搜索 API Key；查询会发送给搜索站点，并遵循 Chrome / 系统代理设置。划词 / 页面翻译不会联网。",
+  "opt.webSearchDescription": "仅作用于 popup「对话」模式。开启后，对话里会出现「联网」开关；打开时优先尝试 Google 搜索，再基于外部结果回答并展示来源。Google 受页面结构或访问限制影响时，会依次自动改用 Bing、DuckDuckGo。无需额外搜索 API Key；查询会发送给搜索站点，并遵循 Chrome / 系统代理设置。划词 / 页面翻译不会联网。",
   "opt.resetPrompts": "恢复默认 Prompt",
 
   "opt.save": "保存设置",
@@ -309,7 +309,7 @@ const enUS: MessageDict = {
   "opt.chatPromptHint": "Use {lang} as the answer-language placeholder (follows the UI language).",
   "opt.webSearch": "Chat web supplement",
   "opt.webSearchEnable": "Allow chat web search",
-  "opt.webSearchDescription": "Only affects popup Chat. When enabled, Chat tries Google first, then answers from clearly marked external results. If Google's public result page is blocked or its markup changes, Chat automatically falls back to DuckDuckGo. No separate search API key is needed. Queries are sent to search sites and use Chrome / system proxy settings. Selection and page translation never search.",
+  "opt.webSearchDescription": "Only affects popup Chat. When enabled, Chat tries Google first, then answers from clearly marked external results. If Google's public result page is blocked or its markup changes, Chat automatically falls back to Bing, then DuckDuckGo. No separate search API key is needed. Queries are sent to search sites and use Chrome / system proxy settings. Selection and page translation never search.",
   "opt.resetPrompts": "Restore Default Prompts",
 
   "opt.save": "Save Settings",
@@ -529,7 +529,7 @@ const jaJP: MessageDict = {
   "opt.chatPromptHint": "{lang} を回答言語のプレースホルダーとして使用します（UI 言語に従います）。",
   "opt.webSearch": "チャットのウェブ補足",
   "opt.webSearchEnable": "チャットでウェブ検索を許可",
-  "opt.webSearchDescription": "ポップアップのチャットにのみ適用されます。有効にするとまず Google 検索を試し、外部結果に基づいて回答・参照元を表示します。Google の公開結果ページがアクセス制限や構造変更で使えない場合は、DuckDuckGo に自動で切り替えます。検索 API Key は不要です。質問は検索サイトに送信され、Chrome / システムのプロキシ設定に従います。選択翻訳・ページ翻訳では検索しません。",
+  "opt.webSearchDescription": "ポップアップのチャットにのみ適用されます。有効にするとまず Google 検索を試し、外部結果に基づいて回答・参照元を表示します。Google の公開結果ページがアクセス制限や構造変更で使えない場合は、Bing、DuckDuckGo の順に自動で切り替えます。検索 API Key は不要です。質問は検索サイトに送信され、Chrome / システムのプロキシ設定に従います。選択翻訳・ページ翻訳では検索しません。",
   "opt.resetPrompts": "デフォルト Prompt に戻す",
 
   "opt.save": "設定を保存",

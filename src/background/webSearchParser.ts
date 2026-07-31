@@ -3,7 +3,7 @@
 // ============================================================
 // No extension imports: these helpers are directly unit-testable under Node.
 
-export type BuiltInSearchEngine = "duckduckgo" | "google";
+export type BuiltInSearchEngine = "duckduckgo" | "google" | "bing";
 
 export interface ParsedSearchSource {
   title: string;
@@ -19,14 +19,16 @@ const MAX_URL = 400;
 const MAX_SNIPPET = 280;
 
 function decodeEntities(text: string): string {
+  // Exactly one decoding pass: `&amp;` last, so "&amp;lt;" → "&lt;" (text),
+  // never "<".
   return text
-    .replace(/&amp;/gi, "&")
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([\da-f]+);/gi, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
     .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&apos;/gi, "'")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([\da-f]+);/gi, (_, code: string) => String.fromCodePoint(parseInt(code, 16)));
+    .replace(/&amp;/gi, "&");
 }
 
 function cleanText(raw: string, max: number): string {
@@ -109,7 +111,8 @@ export function parseDuckDuckGoHtml(html: string): ParsedSearchSource[] {
   return sanitizeSources(raw);
 }
 
-/** Best-effort parser for Google result HTML (fallback only). */
+/** Parse Google result HTML (primary engine; markup shifts often, so
+ * best-effort — an unrecognised page simply yields zero results). */
 export function parseGoogleHtml(html: string): ParsedSearchSource[] {
   const raw: Omit<ParsedSearchSource, "isExternal">[] = [];
   const resultAnchor = /<a\b[^>]*href=["'](\/url\?q=[^"']+)["'][^>]*>[\s\S]{0,700}?<h3[^>]*>([\s\S]*?)<\/h3>/gi;
@@ -121,6 +124,49 @@ export function parseGoogleHtml(html: string): ParsedSearchSource[] {
       url: googleResultUrl(match[1]),
       snippet: firstClassContent(nearby, "VwiC3b") || firstClassContent(nearby, "IsZvec"),
       source: "google",
+    });
+  }
+  return sanitizeSources(raw);
+}
+
+/** Resolve Bing's /ck/a click-tracking redirect ("u=a1<base64url>") to the
+ * real target; pass any direct URL through unchanged. */
+function bingResultUrl(href: string): string {
+  const decoded = decodeEntities(href);
+  try {
+    const url = new URL(decoded, "https://www.bing.com");
+    if (url.hostname.endsWith("bing.com") && url.pathname === "/ck/a") {
+      const u = url.searchParams.get("u") ?? "";
+      if (u.startsWith("a1")) {
+        const b64 = u.slice(2).replace(/-/g, "+").replace(/_/g, "/");
+        return decodeURIComponent(
+          Array.from(atob(b64), (c) =>
+            "%" + c.charCodeAt(0).toString(16).padStart(2, "0")
+          ).join("")
+        );
+      }
+      return "";
+    }
+    return decoded;
+  } catch {
+    return "";
+  }
+}
+
+/** Parse Bing result HTML: <li class="b_algo"> blocks with an <h2><a> title
+ * and a nearby <p> snippet. Bing is the mainland-reachable middle engine. */
+export function parseBingHtml(html: string): ParsedSearchSource[] {
+  const raw: Omit<ParsedSearchSource, "isExternal">[] = [];
+  const resultAnchor = /<li\b[^>]*class=["'][^"']*b_algo[^"']*["'][^>]*>[\s\S]{0,600}?<h2[^>]*>\s*<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = resultAnchor.exec(html))) {
+    const nearby = html.slice(resultAnchor.lastIndex, resultAnchor.lastIndex + 2000);
+    const snippet = /<p\b[^>]*>([\s\S]*?)<\/p>/i.exec(nearby)?.[1] ?? "";
+    raw.push({
+      title: match[2],
+      url: bingResultUrl(match[1]),
+      snippet,
+      source: "bing",
     });
   }
   return sanitizeSources(raw);

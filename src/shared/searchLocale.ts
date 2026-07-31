@@ -9,6 +9,7 @@ export interface SearchLocale {
   acceptLanguage: string;
   duckDuckGoRegion: string;
   googleLanguage: string;
+  bingMarket: string;
 }
 
 /** Keep external search-result language aligned with the extension UI. */
@@ -19,12 +20,14 @@ export function searchLocaleFor(lang: UiLanguage): SearchLocale {
         acceptLanguage: "ja-JP,ja;q=0.9,en;q=0.7",
         duckDuckGoRegion: "jp-jp",
         googleLanguage: "ja",
+        bingMarket: "ja-JP",
       };
     case "en-US":
       return {
         acceptLanguage: "en-US,en;q=0.9,zh;q=0.5",
         duckDuckGoRegion: "us-en",
         googleLanguage: "en",
+        bingMarket: "en-US",
       };
     case "zh-CN":
     default:
@@ -32,6 +35,7 @@ export function searchLocaleFor(lang: UiLanguage): SearchLocale {
         acceptLanguage: "zh-CN,zh;q=0.9,en;q=0.7",
         duckDuckGoRegion: "cn-zh",
         googleLanguage: "zh-CN",
+        bingMarket: "zh-CN",
       };
   }
 }
@@ -48,5 +52,14 @@ export function googleSearchUrl(query: string, lang: UiLanguage, maxResults: num
     q: query.slice(0, 400),
     hl: searchLocaleFor(lang).googleLanguage,
     num: String(maxResults),
+  })}`;
+}
+
+export function bingSearchUrl(query: string, lang: UiLanguage): string {
+  // www.bing.com self-redirects to the China edition when needed, so one
+  // host works both inside and outside the mainland.
+  return `https://www.bing.com/search?${new URLSearchParams({
+    q: query.slice(0, 400),
+    mkt: searchLocaleFor(lang).bingMarket,
   })}`;
 }
