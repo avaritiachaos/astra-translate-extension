@@ -35,12 +35,12 @@ import {
   learnSiteLexiconPairs,
   touchSiteLexiconPairs,
 } from "./siteLexiconStore";
-import { clearChat, getChatState, sendChatMessage } from "./chatService";
 import {
-  CHAT_STAGED_ATTACH_KEY,
-  POPUP_MODE_STORAGE_KEY,
-  type ChatAttachment,
-} from "../shared/types";
+  clearChat,
+  getChatState,
+  regenerateChatMessage,
+  sendChatMessage,
+} from "./chatService";
 import { siteLexiconHost } from "../shared/siteLexicon";
 import { StreamBatchItemParser, topLevelJsonObjects } from "../shared/streamBatchParser";
 
@@ -63,6 +63,24 @@ function senderHost(sender?: chrome.runtime.MessageSender): string | null {
 function isExtensionPageSender(sender?: chrome.runtime.MessageSender): boolean {
   const url = sender?.url;
   return !!url && url.startsWith(`chrome-extension://${chrome.runtime.id}/`);
+}
+
+/**
+ * Who may read or drive the chat conversation: our own extension pages, and
+ * our content script running in an http(s) tab (which hosts the in-page chat
+ * panel).
+ *
+ * Trade-off, deliberately taken so chat can live in the page: this browser
+ * session's conversation becomes readable by our content script on any
+ * http(s) page. Page JavaScript still cannot reach it — content scripts run
+ * in an isolated world, and the manifest declares no `externally_connectable`,
+ * so no website can message or connect to this extension directly.
+ */
+function isChatSenderAllowed(sender?: chrome.runtime.MessageSender): boolean {
+  if (isExtensionPageSender(sender)) return true;
+  // A tab-bound sender is a content script; require a normal web origin.
+  if (!sender?.tab) return false;
+  return !!senderHost(sender);
 }
 
 /**
@@ -220,68 +238,63 @@ export async function handleMessage(
     }
 
     case "CHAT_MESSAGE": {
-      // Chat is a popup-only surface — page contexts get nothing.
-      if (!isExtensionPageSender(sender)) {
+      // Extension pages and our own in-page panel (see isChatSenderAllowed).
+      if (!isChatSenderAllowed(sender)) {
         return { success: false, appended: false };
       }
       const payload = msg.payload as
-        | { text?: unknown; attachment?: unknown; webSearch?: unknown }
+        | {
+            text?: unknown;
+            attachment?: unknown;
+            webSearch?: unknown;
+            effort?: unknown;
+          }
         | undefined;
       return sendChatMessage(
         typeof payload?.text === "string" ? payload.text : "",
         payload?.attachment,
-        !!payload?.webSearch
+        !!payload?.webSearch,
+        payload?.effort
       );
     }
 
+    case "REGENERATE_CHAT": {
+      if (!isChatSenderAllowed(sender)) {
+        return { success: false, appended: false };
+      }
+      const payload = msg.payload as { effort?: unknown } | undefined;
+      return regenerateChatMessage(payload?.effort);
+    }
+
     case "GET_CHAT_STATE": {
-      if (!isExtensionPageSender(sender)) {
+      if (!isChatSenderAllowed(sender)) {
         return { success: false, turns: [], pending: false, gen: 0 };
       }
       return getChatState();
     }
 
     case "CLEAR_CHAT": {
-      if (!isExtensionPageSender(sender)) {
+      if (!isChatSenderAllowed(sender)) {
         return { success: false };
       }
       return clearChat();
     }
 
-    case "OPEN_CHAT_WITH_SELECTION": {
-      // From the selection bubble (content script): stage the user's own
-      // selection as a chat attachment, then try to open the popup. Staging
-      // writes only user-selected text into a single-use session key.
-      const payload = msg.payload as
-        | { text?: unknown; title?: unknown; url?: unknown }
-        | undefined;
-      const text =
-        typeof payload?.text === "string" ? payload.text.trim().slice(0, 4000) : "";
-      if (!text) return { success: false, opened: false };
-      const attachment: ChatAttachment = {
-        title: typeof payload?.title === "string" ? payload.title.slice(0, 200) : "",
-        url: typeof payload?.url === "string" ? payload.url.slice(0, 500) : "",
-        selected: true,
-        text,
-      };
+    case "OPEN_CHAT_PANEL": {
+      // Toolbar/popup asking the active tab to open its in-page chat panel.
+      // Only our own extension pages may drive another tab's UI.
+      if (!isExtensionPageSender(sender)) return { success: false };
+      const payload = msg.payload as { tabId?: unknown } | undefined;
+      const tabId =
+        typeof payload?.tabId === "number" ? payload.tabId : undefined;
+      if (tabId === undefined) return { success: false };
       try {
-        await chrome.storage.session?.set({
-          [CHAT_STAGED_ATTACH_KEY]: attachment,
-          [POPUP_MODE_STORAGE_KEY]: "chat",
-        });
+        await chrome.tabs.sendMessage(tabId, { type: "OPEN_CHAT_PANEL" });
+        return { success: true };
       } catch {
-        return { success: false, opened: false };
+        // No content script on this page (chrome://, Web Store, …).
+        return { success: false };
       }
-      let opened = false;
-      try {
-        // Chrome 127+; older versions throw / lack the API — the bubble then
-        // hints the user to click the toolbar icon instead.
-        await chrome.action.openPopup();
-        opened = true;
-      } catch {
-        // fall through with opened=false
-      }
-      return { success: true, opened };
     }
 
     case "OPEN_OPTIONS_PAGE":

@@ -454,11 +454,24 @@ body::-webkit-scrollbar-thumb:hover {
   border-bottom-left-radius: 4px;
 }
 
-/* Hover-reveal copy button on assistant replies */
-.ast-chat-bubble-copy {
+/* Hover-reveal action buttons on assistant replies (copy / regenerate) */
+.ast-chat-bubble-tools {
   position: absolute;
   top: 4px;
   right: 4px;
+  display: flex;
+  gap: 3px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
+.ast-chat-bubble--assistant:hover .ast-chat-bubble-tools {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ast-chat-bubble-tool {
   width: 22px;
   height: 22px;
   display: flex;
@@ -469,17 +482,10 @@ body::-webkit-scrollbar-thumb:hover {
   background: var(--ast-card-bg);
   color: var(--ast-muted);
   cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease-out, color 120ms ease-out;
+  transition: color 120ms ease-out;
 }
 
-.ast-chat-bubble--assistant:hover .ast-chat-bubble-copy {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.ast-chat-bubble-copy:hover {
+.ast-chat-bubble-tool:hover {
   color: var(--ast-primary);
 }
 
@@ -686,6 +692,28 @@ body::-webkit-scrollbar-thumb:hover {
    explains what to do), but visibly dormant. */
 .ast-chat-web-toggle--locked {
   opacity: 0.45;
+}
+
+/* Per-session thinking effort, inline with the composer action row */
+.ast-chat-effort {
+  align-self: stretch;
+  padding: 0 6px;
+  border: 1px solid var(--ast-border);
+  border-radius: 999px;
+  background: var(--ast-card-bg);
+  color: var(--ast-muted);
+  font-family: var(--ast-font);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 120ms ease-out, color 120ms ease-out;
+}
+
+.ast-chat-effort:hover,
+.ast-chat-effort:focus {
+  border-color: var(--ast-primary);
+  color: var(--ast-primary);
 }
 
 /* Whitelist markdown inside assistant bubbles */

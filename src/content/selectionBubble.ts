@@ -4,6 +4,7 @@
 
 import { escapeHtml } from "../shared/utils";
 import { t, type UiLanguage } from "../shared/i18n";
+import { openChatPanel } from "./chatPanel";
 
 // Constants
 const BUBBLE_PREFIX = "ast";
@@ -144,15 +145,6 @@ export function injectThemeVars(): void {
     .${BUBBLE_PREFIX}-bubble-actions {
       display: flex;
       gap: 4px;
-    }
-    .${BUBBLE_PREFIX}-ask-hint {
-      padding: 6px 12px;
-      font-size: 11px;
-      color: #10b981;
-      border-top: 1px solid rgba(0, 0, 0, 0.06);
-    }
-    @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-ask-hint { border-top-color: #2d2d44; }
     }
     .${BUBBLE_PREFIX}-btn {
       width: 24px;
@@ -711,6 +703,25 @@ export function injectThemeVars(): void {
     .ast-ball-settings-translate:hover {
       background: #4f46e5;
     }
+    .ast-ball-settings-chat {
+      width: 100%;
+      padding: 7px 0;
+      border: 1px solid #6366f1;
+      border-radius: 8px;
+      background: transparent;
+      color: #6366f1;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 120ms, color 120ms;
+    }
+    .ast-ball-settings-chat:hover {
+      background: #eef2ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      .ast-ball-settings-chat { border-color: #818cf8; color: #818cf8; }
+      .ast-ball-settings-chat:hover { background: #1e1b4b; }
+    }
     .ast-ball-settings-hide {
       width: 100%;
       padding: 6px 0;
@@ -1209,7 +1220,7 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
   const askBtn = el.querySelector(`.${BUBBLE_PREFIX}-ask-btn`);
   askBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
-    void askAiAboutSelection(sourceText, askBtn as HTMLElement, el);
+    askAiAboutSelection(sourceText, askBtn as HTMLElement);
   });
 
   // Source toggle
@@ -1505,39 +1516,19 @@ async function requestTranslation(text: string): Promise<void> {
 }
 
 /**
- * Stage the selection as a chat attachment in the extension popup and try to
- * open it. Chrome older than ~127 can't open the popup programmatically —
- * a small hint then points at the toolbar icon (the context is staged either
- * way, so clicking the icon lands in chat with the text attached).
+ * Open the in-page chat panel with the selection attached. Chat used to be
+ * staged into session storage and handed to chrome.action.openPopup(), which
+ * doesn't exist before Chrome 127 — the panel keeps the user on the page they
+ * are reading either way.
  */
-async function askAiAboutSelection(
-  text: string,
-  btn: HTMLElement,
-  host: HTMLElement
-): Promise<void> {
+function askAiAboutSelection(text: string, btn: HTMLElement): void {
   const trimmed = text.trim();
   if (!trimmed) return;
-  try {
-    const res = await chrome.runtime.sendMessage({
-      type: "OPEN_CHAT_WITH_SELECTION",
-      payload: { text: trimmed, title: document.title || "", url: location.href },
-    });
-    if (res?.success) {
-      btn.style.color = "#10b981";
-      setTimeout(() => {
-        btn.style.color = "";
-      }, 1000);
-      if (!res.opened && !host.querySelector(`.${BUBBLE_PREFIX}-ask-hint`)) {
-        const hint = document.createElement("div");
-        hint.className = `${BUBBLE_PREFIX}-ask-hint`;
-        hint.textContent = t(cachedLang, "bubble.askAIStaged");
-        host.appendChild(hint);
-        setTimeout(() => hint.remove(), 3000);
-      }
-    }
-  } catch {
-    // Extension context gone (extension was updated) — needs a page refresh.
-  }
+  btn.style.color = "#10b981";
+  setTimeout(() => {
+    btn.style.color = "";
+  }, 1000);
+  void openChatPanel(trimmed);
 }
 
 /** Show translation bubble directly with given text (for keyboard shortcut). */
@@ -1769,7 +1760,7 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
   popupAskBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
     const src = el.querySelector(`.${BUBBLE_PREFIX}-popup-src`) as HTMLTextAreaElement | null;
-    void askAiAboutSelection(src?.value || "", popupAskBtn as HTMLElement, el);
+    askAiAboutSelection(src?.value || "", popupAskBtn as HTMLElement);
   });
 
   const closeBtn = el.querySelector(`.${BUBBLE_PREFIX}-popup-close-btn`);

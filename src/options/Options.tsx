@@ -241,6 +241,7 @@ export default function Options() {
     { id: "sec-uilang", labelKey: "opt.uiLang" },
     { id: "sec-translation", labelKey: "opt.translation" },
     { id: "sec-floatingball", labelKey: "opt.floatingBall" },
+    { id: "sec-chat-context", labelKey: "opt.chatContext" },
     { id: "sec-web-search", labelKey: "opt.webSearch" },
     { id: "sec-prompt", labelKey: "opt.prompt" },
   ];
@@ -855,6 +856,24 @@ export default function Options() {
               {Math.round(settings.popupScale * 100)}%
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* Chat page-context card */}
+      <div className="ast-card" id="sec-chat-context">
+        <div className="ast-card-title">{t(lang, "opt.chatContext")}</div>
+
+        <div className="ast-toggle-row">
+          <span className="ast-toggle-label">{t(lang, "opt.chatAutoAttach")}</span>
+          <input
+            type="checkbox"
+            className="ast-toggle"
+            checked={settings.chatAutoAttachPage}
+            onChange={(e) => update("chatAutoAttachPage", e.target.checked)}
+          />
+        </div>
+        <div className="ast-form-hint ast-web-search-description">
+          {t(lang, "opt.chatAutoAttachDescription")}
         </div>
       </div>
 

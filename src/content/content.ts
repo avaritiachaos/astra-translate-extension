@@ -16,6 +16,7 @@ import {
   setPopupScale,
 } from "./selectionBubble";
 import { PageTranslator } from "./pageTranslator";
+import { openChatPanel } from "./chatPanel";
 import { ensureFloatingBallMounted, initFloatingBall, updateFloatingBall } from "./floatingBall";
 import type { UiLanguage } from "../shared/i18n";
 
@@ -154,6 +155,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sendResponse({
         active: pageTranslator !== null,
       });
+      break;
+    }
+
+    case "OPEN_CHAT_PANEL": {
+      // The popup handed chat off to this page — no more toolbar round trip.
+      void openChatPanel(msg.payload?.text);
+      sendResponse({ success: true });
       break;
     }
   }

@@ -42,16 +42,28 @@ interface StreamChunk {
 /** Max automatic retries for transient failures (429 / 5xx / network). */
 const MAX_TRANSIENT_RETRIES = 3;
 
+/**
+ * Non-standard body fields (thinking / reasoning controls) that only some
+ * OpenAI-compatible gateways understand. A gateway that doesn't rejects the
+ * whole request with 400, so on the first 400 we drop all of them at once and
+ * retry — see dropOptionalFields.
+ */
+export interface ExtraRequestOptions {
+  /** Merged into the request body; each key is droppable on a 400. */
+  optionalBody?: Record<string, unknown>;
+}
+
 function buildRequestParts(
   settings: UserProviderSettings,
   messages: ChatMessage[],
   stream: boolean,
-  lang: UiLanguage = "zh-CN"
+  lang: UiLanguage = "zh-CN",
+  extra?: ExtraRequestOptions
 ): {
   url: string;
   headers: Record<string, string>;
   body: Record<string, unknown>;
-  thinkingEnabled: boolean;
+  optionalKeys: string[];
 } {
   const { baseUrl, endpoint, apiKey, model, temperature, disableThinking, providerId } = settings;
   if (!apiKey) {
@@ -67,17 +79,39 @@ function buildRequestParts(
     stream,
   };
 
-  let thinkingEnabled = providerId === "deepseek" && disableThinking;
-  if (thinkingEnabled) {
-    body.thinking = { type: "disabled" };
-  }
+  // Translation paths carry no per-request options and keep the historical
+  // DeepSeek behaviour. Chat passes its effort level in via `extra`, which
+  // already accounts for the thinking switch, so the two never stack.
+  const optional: Record<string, unknown> = extra?.optionalBody
+    ? { ...extra.optionalBody }
+    : providerId === "deepseek" && disableThinking
+      ? { thinking: { type: "disabled" } }
+      : {};
+
+  const optionalKeys = Object.keys(optional);
+  for (const key of optionalKeys) body[key] = optional[key];
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${apiKey}`,
   };
 
-  return { url, headers, body, thinkingEnabled };
+  return { url, headers, body, optionalKeys };
+}
+
+/**
+ * Remove every optional field after a 400 so one unsupported parameter can't
+ * cost the user their answer. Returns true when something was actually
+ * dropped — the caller then retries without consuming a retry attempt.
+ */
+function dropOptionalFields(
+  body: Record<string, unknown>,
+  optionalKeys: string[]
+): boolean {
+  if (optionalKeys.length === 0) return false;
+  for (const key of optionalKeys) delete body[key];
+  optionalKeys.length = 0;
+  return true;
 }
 
 /**
@@ -88,14 +122,20 @@ function buildRequestParts(
 export async function openAIChat(
   settings: UserProviderSettings,
   messages: ChatMessage[],
-  lang: UiLanguage = "zh-CN"
+  lang: UiLanguage = "zh-CN",
+  extra?: ExtraRequestOptions
 ): Promise<string> {
   if (!settings.apiKey) {
     throw new ProviderRequestError(t(lang, "error.apiKeyNotConfigured"), "API_KEY_MISSING");
   }
 
-  const { url, headers, body } = buildRequestParts(settings, messages, false, lang);
-  let thinkingEnabled = body.thinking != null;
+  const { url, headers, body, optionalKeys } = buildRequestParts(
+    settings,
+    messages,
+    false,
+    lang,
+    extra
+  );
 
   let lastError: unknown;
 
@@ -114,9 +154,7 @@ export async function openAIChat(
       if (!res.ok) {
         // Drop the error body — we only act on the status / headers.
         void res.body?.cancel().catch(() => {});
-        if (thinkingEnabled && res.status === 400) {
-          thinkingEnabled = false;
-          delete body.thinking;
+        if (res.status === 400 && dropOptionalFields(body, optionalKeys)) {
           clearTimeout(timeoutId);
           attempt -= 1;
           continue;
@@ -186,14 +224,20 @@ export async function openAIChatStream(
   messages: ChatMessage[],
   onDelta: (delta: string) => void,
   lang: UiLanguage = "zh-CN",
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  extra?: ExtraRequestOptions
 ): Promise<string> {
   if (!settings.apiKey) {
     throw new ProviderRequestError(t(lang, "error.apiKeyNotConfigured"), "API_KEY_MISSING");
   }
 
-  const { url, headers, body } = buildRequestParts(settings, messages, true, lang);
-  let thinkingEnabled = body.thinking != null;
+  const { url, headers, body, optionalKeys } = buildRequestParts(
+    settings,
+    messages,
+    true,
+    lang,
+    extra
+  );
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= MAX_TRANSIENT_RETRIES; attempt++) {
@@ -227,9 +271,7 @@ export async function openAIChatStream(
       if (!res.ok) {
         // Drop the error body — we only act on the status / headers.
         void res.body?.cancel().catch(() => {});
-        if (thinkingEnabled && res.status === 400) {
-          thinkingEnabled = false;
-          delete body.thinking;
+        if (res.status === 400 && dropOptionalFields(body, optionalKeys)) {
           clearTimeout(timeoutId);
           signal?.removeEventListener("abort", onAbort);
           attempt -= 1;

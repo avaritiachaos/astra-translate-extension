@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-4.6.1-7C5CFF" alt="version" />
+  <img src="https://img.shields.io/badge/version-4.8.0-7C5CFF" alt="version" />
   <img src="https://img.shields.io/badge/Manifest-V3-4F46E5" alt="manifest v3" />
   <img src="https://img.shields.io/badge/TypeScript-React_18-3178C6" alt="tech" />
   <img src="https://img.shields.io/badge/license-MIT-3FB950" alt="license" />
@@ -55,6 +55,16 @@ Selecting a word or short phrase returns not just a translation but its **part
 of speech, common meanings, context-specific explanation, examples, and
 pronunciation** — and it recognizes names / IDs and leaves them unchanged.
 Great for looking up words and reading foreign articles.
+
+### In-page AI chat
+Select text and click 💬, or right-click the floating ball and pick "Ask AI about this page" — the chat panel opens **inside the web page**, so you never get pulled away from what you were reading. Drag it, resize it, `Esc` to close.
+
+- **Reads the page for you** — opening chat extracts the article automatically (scored by content density, skipping nav / header / footer / sidebar) and shows it as a removable context chip. Click ✕ to drop it, or turn the whole behaviour off in Settings
+- **Regenerate** — didn't like the answer? Hit ↻ instead of retyping the question
+- **Three thinking levels** — ⚡ Fast / ⚖ Balanced / 🧠 Deep, trading cost against reasoning depth
+- **Web supplement** — optional: search first, answer from the results, cite the sources
+- **Shared conversation** — the in-page panel and the toolbar popup are the same chat; switch freely without losing context
+- **Leaves no trace** — chats live in this browser session only and clear when you quit
 
 ### Highly customizable
 - **Three independent target languages** — set separate languages for full-page, selection, and default translation

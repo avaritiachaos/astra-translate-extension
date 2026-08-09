@@ -11,13 +11,20 @@ import type {
   ChatTurn,
 } from "../shared/types";
 import {
-  CHAT_STAGED_ATTACH_KEY,
+  CHAT_EFFORT_SESSION_KEY,
   CHAT_STORAGE_KEY,
   CHAT_STREAM_PORT,
   CHAT_WEB_SEARCH_SESSION_KEY,
   POPUP_MODE_STORAGE_KEY,
 } from "../shared/types";
 import { parseChatMarkdown } from "../shared/chatMarkdown";
+import {
+  CHAT_EFFORTS,
+  DEFAULT_CHAT_EFFORT,
+  normalizeChatEffort,
+  type ChatEffort,
+} from "../shared/chatEffort";
+import { extractPageContext } from "../shared/pageExtract";
 import "./popup.css";
 
 /** Whitelist markdown for assistant replies: fenced code, inline code, bold.
@@ -52,36 +59,6 @@ function ChatRichText({ text }: { text: string }): React.ReactElement {
 
 type PopupMode = "translate" | "chat";
 
-/**
- * Runs INSIDE the page via chrome.scripting.executeScript — must stay fully
- * self-contained. Prefers the user's selection; otherwise extracts the main
- * content (main/article, falling back to body), bounded to a few thousand
- * chars so the attachment never blows the chat context budget.
- */
-function grabPageContext(): ChatAttachment {
-  const MAX = 3500;
-  const sel = window.getSelection()?.toString().trim() || "";
-  let text = sel;
-  let selected = true;
-  if (!text) {
-    selected = false;
-    let best = "";
-    for (const selector of ["main", "article"]) {
-      const el = document.querySelector(selector) as HTMLElement | null;
-      const candidate = el?.innerText?.trim() || "";
-      if (candidate.length > best.length) best = candidate;
-    }
-    if (best.length < 200) best = (document.body?.innerText || "").trim();
-    text = best;
-  }
-  return {
-    title: document.title || "",
-    url: location.href,
-    selected,
-    text: text.slice(0, MAX),
-  };
-}
-
 export default function Popup() {
   const [settings, setSettings] = useState<AstraSettings | null>(null);
   const [sourceLang, setSourceLang] = useState("Auto");
@@ -110,6 +87,8 @@ export default function Popup() {
   const [streamText, setStreamText] = useState("");
   /** Per-browser-session opt-in for search-then-answer. */
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  /** Per-browser-session thinking effort, shared with the in-page panel. */
+  const [chatEffort, setChatEffort] = useState<ChatEffort>(DEFAULT_CHAT_EFFORT);
   /** Page context staged for the next question (chip above the input). */
   const [chatAttach, setChatAttach] = useState<ChatAttachment | null>(null);
   const chatListRef = useRef<HTMLDivElement>(null);
@@ -150,25 +129,12 @@ export default function Popup() {
     chrome.storage.session
       ?.get([
         POPUP_MODE_STORAGE_KEY,
-        CHAT_STAGED_ATTACH_KEY,
         CHAT_WEB_SEARCH_SESSION_KEY,
+        CHAT_EFFORT_SESSION_KEY,
       ])
       .then((r) => {
         if (r?.[CHAT_WEB_SEARCH_SESSION_KEY] === true) setWebSearchEnabled(true);
-        // A selection staged by the bubble's "ask AI" button wins: land in
-        // chat with the text pre-attached, and consume the single-use key.
-        const staged = r?.[CHAT_STAGED_ATTACH_KEY] as ChatAttachment | undefined;
-        if (staged && typeof staged.text === "string" && staged.text.trim()) {
-          setChatAttach({
-            title: typeof staged.title === "string" ? staged.title : "",
-            url: typeof staged.url === "string" ? staged.url : "",
-            selected: !!staged.selected,
-            text: staged.text,
-          });
-          setMode("chat");
-          chrome.storage.session?.remove(CHAT_STAGED_ATTACH_KEY).catch(() => {});
-          return;
-        }
+        setChatEffort(normalizeChatEffort(r?.[CHAT_EFFORT_SESSION_KEY]));
         if (r?.[POPUP_MODE_STORAGE_KEY] === "chat") setMode("chat");
       })
       .catch(() => {});
@@ -367,9 +333,13 @@ export default function Popup() {
   );
 
   /** Streaming send over a dedicated port. Returns false when the port
-   * can't be opened so the caller can fall back to the one-shot path. */
+   * can't be opened so the caller can fall back to the one-shot path.
+   * `retry` restores the composer if the request was rejected pre-flight. */
   const sendViaStream = useCallback(
-    (text: string, attach: ChatAttachment | null, webSearch: boolean): boolean => {
+    (
+      payload: Record<string, unknown>,
+      retry?: { text: string; attach: ChatAttachment | null }
+    ): boolean => {
       let port: chrome.runtime.Port;
       try {
         port = chrome.runtime.connect({ name: CHAT_STREAM_PORT });
@@ -401,7 +371,11 @@ export default function Popup() {
           setChatPhase(null);
           setStreamText("");
           if (!event.success && !event.appended) {
-            handleChatRejection(text, attach, event.error);
+            if (retry) {
+              handleChatRejection(retry.text, retry.attach, event.error);
+            } else if (event.error) {
+              setChatError(event.error);
+            }
           }
         };
         void finish().finally(() => {
@@ -426,9 +400,7 @@ export default function Popup() {
       try {
         port.postMessage({
           type: "CHAT_STREAM",
-          payload: attach
-            ? { text, attachment: attach, webSearch, requestId }
-            : { text, webSearch, requestId },
+          payload: { ...payload, requestId },
         });
       } catch {
         finished = true;
@@ -456,15 +428,20 @@ export default function Popup() {
     const doWebSearch = webSearchEnabled;
     setChatPhase(doWebSearch ? "searching" : "answering");
 
+    const payload: Record<string, unknown> = {
+      text,
+      webSearch: doWebSearch,
+      effort: chatEffort,
+    };
+    if (attach) payload.attachment = attach;
+
     // Prefer streaming; fall back to the one-shot message on port failure.
-    if (sendViaStream(text, attach, doWebSearch)) return;
+    if (sendViaStream(payload, { text, attach })) return;
 
     try {
       const res = await chrome.runtime.sendMessage({
         type: "CHAT_MESSAGE",
-        payload: attach
-          ? { text, attachment: attach, webSearch: doWebSearch }
-          : { text, webSearch: doWebSearch },
+        payload,
       });
       if (res && !res.success && !res.appended) {
         handleChatRejection(text, attach, res.error);
@@ -483,6 +460,7 @@ export default function Popup() {
     chatInput,
     chatPending,
     chatAttach,
+    chatEffort,
     lang,
     refreshChatState,
     sendViaStream,
@@ -490,8 +468,44 @@ export default function Popup() {
     webSearchEnabled,
   ]);
 
+  /** Re-answer the last question: the service drops the stale reply and
+   * reuses the stored question, attachment and web-search choice. */
+  const handleRegenerate = useCallback(async () => {
+    if (chatPending) return;
+    setChatError("");
+    setStreamText("");
+    setChatPhase("answering");
+
+    const payload = { text: "", regenerate: true, effort: chatEffort };
+    if (sendViaStream(payload)) return;
+
+    try {
+      const res = await chrome.runtime.sendMessage({
+        type: "REGENERATE_CHAT",
+        payload: { effort: chatEffort },
+      });
+      if (res && !res.success && !res.appended && res.error) {
+        setChatError(res.error);
+      }
+      refreshChatState();
+      setChatPhase(null);
+    } catch {
+      setChatPhase(null);
+      setChatError(t(lang, "popup.connectFail"));
+    }
+  }, [chatPending, chatEffort, lang, refreshChatState, sendViaStream]);
+
+  /** Change the per-session thinking effort (shared with the in-page panel). */
+  const handleEffortChange = useCallback((next: ChatEffort) => {
+    setChatEffort(next);
+    chrome.storage.session
+      ?.set({ [CHAT_EFFORT_SESSION_KEY]: next })
+      .catch(() => {});
+  }, []);
+
   /** Grab context from the active tab: the selection if any, else the main
-   * content — explicit user action only, nothing is attached automatically. */
+   * readable content. Explicit user action — the popup never attaches
+   * automatically (the in-page panel does, where the chip is always visible). */
   const handleAttachPage = useCallback(async () => {
     setChatError("");
     try {
@@ -499,7 +513,7 @@ export default function Popup() {
       if (!tab?.id) throw new Error("no tab");
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: grabPageContext,
+        func: extractPageContext,
       });
       const ctx = results?.[0]?.result as ChatAttachment | undefined;
       if (!ctx || !ctx.text.trim()) throw new Error("empty");
@@ -508,6 +522,23 @@ export default function Popup() {
     } catch {
       // chrome:// pages, the Web Store, or an empty page — nothing to grab.
       setChatError(t(lang, "chat.attachFailed"));
+    }
+  }, [lang]);
+
+  /** Move the conversation into the page itself, where the article is. */
+  const handleOpenInPage = useCallback(async () => {
+    setChatError("");
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) throw new Error("no tab");
+      const res = await chrome.runtime.sendMessage({
+        type: "OPEN_CHAT_PANEL",
+        payload: { tabId: tab.id },
+      });
+      if (!res?.success) throw new Error("no panel");
+      window.close();
+    } catch {
+      setChatError(t(lang, "chat.openInPageFailed"));
     }
   }, [lang]);
 
@@ -596,6 +627,16 @@ export default function Popup() {
 
   const allLangs = ["Auto", ...SUPPORTED_LANGUAGES];
 
+  // Only the newest assistant reply is regenerable — the service always
+  // re-answers the last question, so an older ↻ would be a lie.
+  let lastAssistantIndex = -1;
+  for (let i = chatTurns.length - 1; i >= 0; i--) {
+    if (chatTurns[i].role === "assistant") {
+      lastAssistantIndex = i;
+      break;
+    }
+  }
+
   return (
     <div onKeyDown={handleKeyDown}>
       {/* Header: title · mode segmented control · settings */}
@@ -657,25 +698,48 @@ export default function Popup() {
                 )}
                 {turn.role === "assistant" && !turn.error ? (
                   <>
-                    <button
-                      className="ast-chat-bubble-copy"
-                      title={t(lang, "popup.copy")}
-                      onClick={() => handleCopyTurn(turn.content)}
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        width="12"
-                        height="12"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                    <div className="ast-chat-bubble-tools">
+                      {i === lastAssistantIndex && !chatPending && (
+                        <button
+                          className="ast-chat-bubble-tool"
+                          title={t(lang, "chat.regenerate")}
+                          onClick={handleRegenerate}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="12"
+                            height="12"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M1 4v6h6" />
+                            <path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
+                          </svg>
+                        </button>
+                      )}
+                      <button
+                        className="ast-chat-bubble-tool"
+                        title={t(lang, "popup.copy")}
+                        onClick={() => handleCopyTurn(turn.content)}
                       >
-                        <rect x="9" y="9" width="13" height="13" rx="2" />
-                        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                      </svg>
-                    </button>
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="12"
+                          height="12"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="9" y="9" width="13" height="13" rx="2" />
+                          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                        </svg>
+                      </button>
+                    </div>
                     <ChatRichText text={turn.content} />
                     {turn.ungroundedSearchFallback && (
                       <div className="ast-chat-search-fallback" role="note">
@@ -802,6 +866,18 @@ export default function Popup() {
               <span aria-hidden="true">🌐</span>
               {t(lang, "chat.webSearch")}
             </button>
+            <select
+              className="ast-chat-effort"
+              value={chatEffort}
+              onChange={(e) => handleEffortChange(normalizeChatEffort(e.target.value))}
+              title={t(lang, "chat.effortHint")}
+            >
+              {CHAT_EFFORTS.map((level) => (
+                <option key={level} value={level}>
+                  {t(lang, `chat.effort.${level}`)}
+                </option>
+              ))}
+            </select>
             {!chatAttach && (
               <button
                 className="ast-btn ast-btn-secondary ast-chat-attach-btn"
@@ -811,6 +887,13 @@ export default function Popup() {
                 📎
               </button>
             )}
+            <button
+              className="ast-btn ast-btn-secondary ast-chat-attach-btn"
+              onClick={handleOpenInPage}
+              title={t(lang, "chat.openInPage")}
+            >
+              ⤢
+            </button>
             <span className="ast-keyboard-hint">{t(lang, "chat.kbHint")}</span>
           </div>
         </div>

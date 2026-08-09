@@ -10,7 +10,7 @@ const zhCN: MessageDict = {
   // ---- 通用 ----
   "app.name": "Astra Translate",
   "app.desc": "轻量、优雅、模型服务商中立的浏览器翻译插件。",
-  "app.version": "Astra Translate v4.7.0 · 模型服务商中立的浏览器翻译插件",
+  "app.version": "Astra Translate v4.8.0 · 模型服务商中立的浏览器翻译插件",
 
   // ---- Options 页面 ----
   "opt.provider": "服务商设置",
@@ -92,6 +92,10 @@ const zhCN: MessageDict = {
   "opt.webSearchDescription": "仅作用于 popup「对话」模式。开启后，对话里会出现「联网」开关；打开时优先尝试 Google 搜索，再基于外部结果回答并展示来源。Google 受页面结构或访问限制影响时，会依次自动改用 Bing、DuckDuckGo。无需额外搜索 API Key；查询会发送给搜索站点，并遵循 Chrome / 系统代理设置。划词 / 页面翻译不会联网。",
   "opt.resetPrompts": "恢复默认 Prompt",
 
+  "opt.chatContext": "对话页面上下文",
+  "opt.chatAutoAttach": "自动引用当前页面内容",
+  "opt.chatAutoAttachDescription": "开启后，在页面内打开对话时会自动提取当前页正文并作为引用（顶部会显示可一键移除的引用条）。正文会随提问发送给你配置的模型服务商；关闭后仅在你手动点击 📎 时才引用。",
+
   "opt.save": "保存设置",
   "opt.autoSaving": "保存中…",
   "opt.reset": "恢复默认设置",
@@ -153,6 +157,16 @@ const zhCN: MessageDict = {
   "chat.searchNetwork": "搜索网络失败，请检查 Chrome / 系统代理设置后重试。",
   "chat.searchFailed": "搜索失败（{status}），未生成联网回答。",
   "chat.searchUnavailable": "暂时无法取得搜索结果，未生成联网回答。",
+  "chat.panelTitle": "Astra · 对话",
+  "chat.regenerate": "重新生成",
+  "chat.nothingToRegenerate": "没有可重新生成的回答",
+  "chat.attachRemove": "移除引用",
+  "chat.openInPage": "在页面中打开对话",
+  "chat.openInPageFailed": "当前页面不支持页内对话（浏览器内置页面）",
+  "chat.effort.fast": "⚡ 快速",
+  "chat.effort.balanced": "⚖ 均衡",
+  "chat.effort.deep": "🧠 深度",
+  "chat.effortHint": "思考强度：快速更省更快，深度更慢但推理更充分",
 
   // ---- Content 划词气泡 ----
   "bubble.title": "Astra Translate",
@@ -167,7 +181,6 @@ const zhCN: MessageDict = {
   "bubble.connectFail": "无法连接到翻译服务。",
   "bubble.staleContext": "扩展已更新，请刷新此页面后重试。",
   "bubble.askAI": "继续问 AI（带上这段文本）",
-  "bubble.askAIStaged": "已存入对话——点击工具栏 Astra 图标继续",
   "bubble.resize": "拖动缩放",
   "bubble.translatedTo": "译文 · {lang}",
   "bubble.mayBeIdentifier": "可能是名称、ID 或无需翻译的内容。",
@@ -220,6 +233,7 @@ const zhCN: MessageDict = {
 
   // ---- 悬浮球 ----
   "ball.translatePage": "翻译当前页面",
+  "ball.askAi": "问 AI 这个页面",
   "ball.settings": "设置",
   "ball.opacity": "透明度",
   "ball.size": "大小",
@@ -230,7 +244,7 @@ const enUS: MessageDict = {
   // ---- General ----
   "app.name": "Astra Translate",
   "app.desc": "A lightweight, elegant, provider-neutral browser translator.",
-  "app.version": "Astra Translate v4.1.0 · Provider-neutral browser translator",
+  "app.version": "Astra Translate v4.8.0 · Provider-neutral browser translator",
 
   // ---- Options ----
   "opt.provider": "Provider Settings",
@@ -312,6 +326,10 @@ const enUS: MessageDict = {
   "opt.webSearchDescription": "Only affects popup Chat. When enabled, Chat tries Google first, then answers from clearly marked external results. If Google's public result page is blocked or its markup changes, Chat automatically falls back to Bing, then DuckDuckGo. No separate search API key is needed. Queries are sent to search sites and use Chrome / system proxy settings. Selection and page translation never search.",
   "opt.resetPrompts": "Restore Default Prompts",
 
+  "opt.chatContext": "Chat page context",
+  "opt.chatAutoAttach": "Attach the current page automatically",
+  "opt.chatAutoAttachDescription": "When on, opening the in-page chat extracts the page's main content and attaches it as context (shown as a chip you can remove with one click). That text is sent to your configured model provider with the question. When off, the page is only attached when you click 📎.",
+
   "opt.save": "Save Settings",
   "opt.autoSaving": "Saving…",
   "opt.reset": "Reset All to Default",
@@ -373,6 +391,16 @@ const enUS: MessageDict = {
   "chat.searchNetwork": "Search network error — check Chrome / system proxy settings and retry.",
   "chat.searchFailed": "Search failed ({status}) — no web-grounded answer was generated.",
   "chat.searchUnavailable": "Search results are unavailable — no web-grounded answer was generated.",
+  "chat.panelTitle": "Astra · Chat",
+  "chat.regenerate": "Regenerate",
+  "chat.nothingToRegenerate": "There is no answer to regenerate",
+  "chat.attachRemove": "Remove context",
+  "chat.openInPage": "Open chat in the page",
+  "chat.openInPageFailed": "This page doesn't support the in-page chat (browser-internal page)",
+  "chat.effort.fast": "⚡ Fast",
+  "chat.effort.balanced": "⚖ Balanced",
+  "chat.effort.deep": "🧠 Deep",
+  "chat.effortHint": "Thinking effort: fast is cheaper and quicker, deep reasons more thoroughly",
 
   // ---- Content Bubble ----
   "bubble.title": "Astra Translate",
@@ -387,7 +415,6 @@ const enUS: MessageDict = {
   "bubble.connectFail": "Failed to connect to translation service.",
   "bubble.staleContext": "The extension was updated — refresh this page and try again.",
   "bubble.askAI": "Ask AI about this text",
-  "bubble.askAIStaged": "Saved to chat — click the Astra toolbar icon to continue",
   "bubble.resize": "Drag to resize",
   "bubble.translatedTo": "Translation · {lang}",
   "bubble.mayBeIdentifier": "May be a name, ID, or content that doesn't need translation.",
@@ -440,6 +467,7 @@ const enUS: MessageDict = {
 
   // ---- Floating Ball ----
   "ball.translatePage": "Translate Page",
+  "ball.askAi": "Ask AI about this page",
   "ball.settings": "Settings",
   "ball.opacity": "Opacity",
   "ball.size": "Size",
@@ -450,7 +478,7 @@ const jaJP: MessageDict = {
   // ---- 一般 ----
   "app.name": "Astra Translate",
   "app.desc": "軽量・エレガント・プロバイダー非依存のブラウザ翻訳拡張機能。",
-  "app.version": "Astra Translate v4.1.0 · プロバイダー非依存のブラウザ翻訳拡張機能",
+  "app.version": "Astra Translate v4.8.0 · プロバイダー非依存のブラウザ翻訳拡張機能",
 
   // ---- Options ページ ----
   "opt.provider": "プロバイダー設定",
@@ -532,6 +560,10 @@ const jaJP: MessageDict = {
   "opt.webSearchDescription": "ポップアップのチャットにのみ適用されます。有効にするとまず Google 検索を試し、外部結果に基づいて回答・参照元を表示します。Google の公開結果ページがアクセス制限や構造変更で使えない場合は、Bing、DuckDuckGo の順に自動で切り替えます。検索 API Key は不要です。質問は検索サイトに送信され、Chrome / システムのプロキシ設定に従います。選択翻訳・ページ翻訳では検索しません。",
   "opt.resetPrompts": "デフォルト Prompt に戻す",
 
+  "opt.chatContext": "チャットのページコンテキスト",
+  "opt.chatAutoAttach": "現在のページを自動的に引用する",
+  "opt.chatAutoAttachDescription": "オンにすると、ページ内チャットを開いたときに本文を自動抽出して引用します（上部にワンクリックで削除できるチップが表示されます）。本文は質問とともに設定したモデルプロバイダーに送信されます。オフの場合は 📎 を押したときだけ引用します。",
+
   "opt.save": "設定を保存",
   "opt.autoSaving": "保存中…",
   "opt.reset": "デフォルト設定に戻す",
@@ -593,6 +625,16 @@ const jaJP: MessageDict = {
   "chat.searchNetwork": "検索ネットワークエラーです。Chrome / システムのプロキシ設定を確認して再試行してください。",
   "chat.searchFailed": "検索に失敗しました（{status}）。ウェブに基づく回答は生成されませんでした。",
   "chat.searchUnavailable": "検索結果を取得できません。ウェブに基づく回答は生成されませんでした。",
+  "chat.panelTitle": "Astra · チャット",
+  "chat.regenerate": "再生成",
+  "chat.nothingToRegenerate": "再生成できる回答がありません",
+  "chat.attachRemove": "引用を削除",
+  "chat.openInPage": "ページ内でチャットを開く",
+  "chat.openInPageFailed": "このページではページ内チャットを利用できません（ブラウザ内部ページ）",
+  "chat.effort.fast": "⚡ 高速",
+  "chat.effort.balanced": "⚖ 標準",
+  "chat.effort.deep": "🧠 熟考",
+  "chat.effortHint": "思考の深さ：高速は速く経済的、熟考はより丁寧に推論します",
 
   // ---- Content 選択バブル ----
   "bubble.title": "Astra Translate",
@@ -607,7 +649,6 @@ const jaJP: MessageDict = {
   "bubble.connectFail": "翻訳サービスに接続できません。",
   "bubble.staleContext": "拡張機能が更新されました。ページを再読み込みして再試行してください。",
   "bubble.askAI": "このテキストについて AI に質問",
-  "bubble.askAIStaged": "チャットに保存しました——ツールバーの Astra アイコンをクリックして続行",
   "bubble.resize": "ドラッグしてリサイズ",
   "bubble.translatedTo": "翻訳 · {lang}",
   "bubble.mayBeIdentifier": "名前、ID、翻訳不要のコンテンツの可能性があります。",
@@ -660,6 +701,7 @@ const jaJP: MessageDict = {
 
   // ---- フローティングボール ----
   "ball.translatePage": "ページを翻訳",
+  "ball.askAi": "このページについて AI に質問",
   "ball.settings": "設定",
   "ball.opacity": "透明度",
   "ball.size": "サイズ",

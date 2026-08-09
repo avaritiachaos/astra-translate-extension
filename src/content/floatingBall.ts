@@ -4,6 +4,7 @@
 
 import { t, type UiLanguage } from "../shared/i18n";
 import { injectThemeVars } from "./selectionBubble";
+import { openChatPanel } from "./chatPanel";
 
 const BALL_PREFIX = "ast-ball";
 const STORAGE_POS_KEY = "ast_ball_pos";
@@ -282,6 +283,7 @@ function openSettingsPanel(): void {
         </div>
       </div>
       <button class="${BALL_PREFIX}-settings-translate">${t(cachedLang, "ball.translatePage")}</button>
+      <button class="${BALL_PREFIX}-settings-chat">${t(cachedLang, "ball.askAi")}</button>
       <button class="${BALL_PREFIX}-settings-hide">${t(cachedLang, "ball.close")}</button>
     </div>
   `;
@@ -329,6 +331,14 @@ function openSettingsPanel(): void {
     e.stopPropagation();
     closeSettingsPanel();
     triggerPageTranslation();
+  });
+
+  // Ask-AI button — opens the in-page chat panel for the current page.
+  const chatBtn = panel.querySelector(`.${BALL_PREFIX}-settings-chat`);
+  chatBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeSettingsPanel();
+    void openChatPanel();
   });
 
   // Hide button

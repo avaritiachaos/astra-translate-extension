@@ -4,12 +4,18 @@
 
 import type { UserProviderSettings } from "../shared/types";
 import { t, type UiLanguage } from "../shared/i18n";
-import { openAIChat, openAIChatStream } from "./openAICompatibleClient";
+import {
+  openAIChat,
+  openAIChatStream,
+  type ExtraRequestOptions,
+} from "./openAICompatibleClient";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
+
+export type { ExtraRequestOptions };
 
 function messagesOf(systemPrompt: string, userContent: string): ChatMessage[] {
   return [
@@ -20,16 +26,18 @@ function messagesOf(systemPrompt: string, userContent: string): ChatMessage[] {
 
 /**
  * Multi-turn chat completion (popup chat mode). Same provider dispatch and
- * retry/backoff stack as translation, but the caller owns the messages array.
+ * retry/backoff stack as translation, but the caller owns the messages array
+ * and may pass per-request options (thinking effort).
  */
 export async function chatViaProvider(
   settings: UserProviderSettings,
   messages: ChatMessage[],
-  lang: UiLanguage = "zh-CN"
+  lang: UiLanguage = "zh-CN",
+  extra?: ExtraRequestOptions
 ): Promise<string> {
   switch (settings.apiFormat) {
     case "openai-compatible":
-      return openAIChat(settings, messages, lang);
+      return openAIChat(settings, messages, lang, extra);
 
     case "gemini-compatible":
       throw new Error(t(lang, "error.geminiNotImplemented"));
@@ -51,14 +59,15 @@ export async function chatViaProviderStream(
   messages: ChatMessage[],
   onDelta: (delta: string) => void,
   lang: UiLanguage = "zh-CN",
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  extra?: ExtraRequestOptions
 ): Promise<string> {
   switch (settings.apiFormat) {
     case "openai-compatible":
-      return openAIChatStream(settings, messages, onDelta, lang, signal);
+      return openAIChatStream(settings, messages, onDelta, lang, signal, extra);
 
     default: {
-      const full = await chatViaProvider(settings, messages, lang);
+      const full = await chatViaProvider(settings, messages, lang, extra);
       if (full) onDelta(full);
       return full;
     }

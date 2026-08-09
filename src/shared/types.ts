@@ -85,6 +85,12 @@ export interface AstraSettings extends UserProviderSettings {
    * supplement" toggle. Search only runs for chat — never for translation.
    */
   chatWebSearchEnabled: boolean;
+  /**
+   * Attach the current page's readable content to a new chat automatically.
+   * The extracted text is sent to the configured model provider, so this is
+   * user-visible (a removable chip) and can be turned off globally.
+   */
+  chatAutoAttachPage: boolean;
   // Translation Cache
   enableTranslationCache: boolean;
   translationCacheMaxEntries: number;
@@ -106,9 +112,10 @@ export type MessageType =
   | "PAGE_TRANSLATE_RESTORE"
   | "PAGE_TRANSLATE_STATUS"
   | "CHAT_MESSAGE"
+  | "REGENERATE_CHAT"
   | "GET_CHAT_STATE"
   | "CLEAR_CHAT"
-  | "OPEN_CHAT_WITH_SELECTION"
+  | "OPEN_CHAT_PANEL"
   | "OPEN_OPTIONS_PAGE"
   | "SAVE_FLOATING_BALL_OPACITY"
   | "SAVE_FLOATING_BALL_ENABLED"
@@ -253,12 +260,12 @@ export interface TestProviderResponse {
 export const CHAT_STORAGE_KEY = "astra_chat_v1";
 /** chrome.storage.session key remembering which popup tab was last active. */
 export const POPUP_MODE_STORAGE_KEY = "astra_popup_mode_v1";
-/** chrome.storage.session key holding an attachment staged by the selection
- * bubble's "ask AI" button — the popup consumes and deletes it on open. */
-export const CHAT_STAGED_ATTACH_KEY = "astra_chat_staged_v1";
 /** chrome.storage.session key for the popup chat's per-session web-search
  * toggle. Survives popup close; clears when the browser exits. */
 export const CHAT_WEB_SEARCH_SESSION_KEY = "astra_chat_web_search_v1";
+/** chrome.storage.session key for the chat's per-session thinking-effort
+ * level. Shared by the popup and the in-page panel. */
+export const CHAT_EFFORT_SESSION_KEY = "astra_chat_effort_v1";
 
 /** Page context explicitly attached to a chat question by the user. */
 export interface ChatAttachment {
@@ -325,6 +332,12 @@ export interface ChatStreamRequest {
     /** When true, run built-in web search first and ground the reply on the
      * external results (requires chatWebSearchEnabled). */
     webSearch?: boolean;
+    /** Re-answer the last question instead of appending a new one. `text`,
+     * `attachment` and `webSearch` are then ignored — they come from the
+     * stored turn being regenerated. */
+    regenerate?: boolean;
+    /** Thinking-effort level: "fast" | "balanced" | "deep". */
+    effort?: string;
     /** Correlates events with this request if a port ever carries more than
      * one — events are echoed back tagged with the same id. */
     requestId?: string;

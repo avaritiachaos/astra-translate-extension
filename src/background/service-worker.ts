@@ -23,6 +23,22 @@ function isInjectableUrl(url?: string): boolean {
 }
 
 /**
+ * Who may open a chat stream: our own extension pages (popup), and our content
+ * script in an http(s) tab (the in-page chat panel). Mirrors
+ * isChatSenderAllowed in messageRouter — see the trade-off note there.
+ */
+function isChatPortAllowed(port: chrome.runtime.Port): boolean {
+  const sender = port.sender;
+  if (!sender) return false;
+  if (sender.url?.startsWith(`chrome-extension://${chrome.runtime.id}/`)) {
+    return true;
+  }
+  if (!sender.tab) return false;
+  const url = sender.url || sender.tab.url || "";
+  return /^https?:\/\//i.test(url);
+}
+
+/**
  * Try to send a message to a tab's content script. If it fails, inject
  * the content script and retry — but only on pages where scripting is
  * allowed (http/https/file). Silently skip inaccessible pages.
@@ -136,12 +152,11 @@ chrome.runtime.onConnect.addListener((port) => {
   }
 
   // Streaming chat replies. Unlike page translation, the port disconnecting
-  // must NOT abort the request: closing the popup mid-answer is normal, and
-  // the reply still persists to session storage for the next popup open.
+  // must NOT abort the request: closing the popup or panel mid-answer is
+  // normal, and the reply still persists to session storage for the next open.
   // Only CLEAR_CHAT cancels an in-flight request (inside chatService).
   if (port.name === CHAT_STREAM_PORT) {
-    if (port.sender && !port.sender.url?.startsWith(`chrome-extension://${chrome.runtime.id}/`)) {
-      // Chat is a popup-only surface — page contexts get nothing.
+    if (!isChatPortAllowed(port)) {
       port.disconnect();
       return;
     }
