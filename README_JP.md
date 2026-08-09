@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-4.8.0-7C5CFF" alt="version" />
+  <img src="https://img.shields.io/badge/version-4.8.1-7C5CFF" alt="version" />
   <img src="https://img.shields.io/badge/Manifest-V3-4F46E5" alt="manifest v3" />
   <img src="https://img.shields.io/badge/TypeScript-React_18-3178C6" alt="tech" />
   <img src="https://img.shields.io/badge/license-MIT-3FB950" alt="license" />
@@ -62,7 +62,7 @@
 
 - **今見てるページ、勝手に読んどくね** — チャットを開くと本文を自動で抽出（本文の密度で判定して、ナビ・ヘッダー・フッター・サイドバーはちゃんと除ける）。上に引用チップが出るから、いらなければ ✕ でぽいっ。設定から丸ごとオフにもできるよ。
 - **もう一回** — 答えが気に入らなかったら ↻ を押すだけ。質問を打ち直さなくていいの。
-- **考える深さ、3 段階** — ⚡ 高速 ／ ⚖ 標準 ／ 🧠 熟考。節約したい日も、じっくり考えてほしい日も。
+- **考える深さ、4 段階** — ⚡ 高速 ／ ⚖ 標準 ／ 🧠 熟考 ／ 🔬 最大。DeepSeek 公式の low / high / xhigh / max にそのまま対応してるの。
 - **ウェブ補足** — オンにすれば、先に検索してから答えて、参照元もつけてくれる。
 - **会話はひとつ** — ページ内パネルとポップアップは同じ会話。行ったり来たりしても、話の流れは切れないよ。
 - **あとには何も残らない** — 会話はこのブラウザセッションだけ。閉じたら消えるから……ね？

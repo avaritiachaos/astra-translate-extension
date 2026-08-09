@@ -144,7 +144,36 @@ export function injectThemeVars(): void {
     }
     .${BUBBLE_PREFIX}-bubble-actions {
       display: flex;
+      align-items: center;
       gap: 4px;
+    }
+    /* Primary call-to-action: a filled, labelled button so "ask AI" reads as
+       an action, not one more grey glyph lost among the window controls. */
+    .${BUBBLE_PREFIX}-ask-cta {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      height: 24px;
+      padding: 0 9px;
+      margin-right: 2px;
+      border: none;
+      border-radius: 12px;
+      background: #6366f1;
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background 120ms ease-out, transform 120ms ease-out;
+    }
+    .${BUBBLE_PREFIX}-ask-cta:hover { background: #4f46e5; }
+    .${BUBBLE_PREFIX}-ask-cta:active { transform: scale(0.96); }
+    .${BUBBLE_PREFIX}-ask-cta svg { width: 12px; height: 12px; }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-ask-cta { background: #6366f1; }
+      .${BUBBLE_PREFIX}-ask-cta:hover { background: #818cf8; }
     }
     .${BUBBLE_PREFIX}-btn {
       width: 24px;
@@ -396,6 +425,7 @@ export function injectThemeVars(): void {
     }
     .${BUBBLE_PREFIX}-popup-actions {
       display: flex;
+      align-items: center;
       gap: 4px;
     }
     .${BUBBLE_PREFIX}-popup-body {
@@ -1167,7 +1197,7 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
     <div class="${BUBBLE_PREFIX}-bubble-header">
       <span class="${BUBBLE_PREFIX}-title">${t(cachedLang, "bubble.title")}</span>
       <div class="${BUBBLE_PREFIX}-bubble-actions">
-        <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-ask-btn" title="${t(cachedLang, "bubble.askAI")}">${ASK_ICON}</button>
+        <button class="${BUBBLE_PREFIX}-ask-cta ${BUBBLE_PREFIX}-ask-btn" title="${t(cachedLang, "bubble.askAI")}">${ASK_ICON}<span>${t(cachedLang, "bubble.askAIShort")}</span></button>
         <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-pin-btn" title="${t(cachedLang, "bubble.pin")}">${PIN_ICON}</button>
         <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-copy-btn" title="${t(cachedLang, "bubble.copyTranslation")}">${COPY_ICON}</button>
         <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-close-btn" title="${t(cachedLang, "bubble.close")}">${CLOSE_ICON}</button>
@@ -1220,7 +1250,7 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
   const askBtn = el.querySelector(`.${BUBBLE_PREFIX}-ask-btn`);
   askBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
-    askAiAboutSelection(sourceText, askBtn as HTMLElement);
+    askAiAboutSelection(sourceText, el);
   });
 
   // Source toggle
@@ -1516,19 +1546,21 @@ async function requestTranslation(text: string): Promise<void> {
 }
 
 /**
- * Open the in-page chat panel with the selection attached. Chat used to be
- * staged into session storage and handed to chrome.action.openPopup(), which
- * doesn't exist before Chrome 127 — the panel keeps the user on the page they
- * are reading either way.
+ * Open the in-page chat panel with the selection attached, anchored beside the
+ * host popup so the conversation appears where the user is already looking.
+ * Chat used to be staged into session storage and handed to
+ * chrome.action.openPopup(), which doesn't exist before Chrome 127.
  */
-function askAiAboutSelection(text: string, btn: HTMLElement): void {
+function askAiAboutSelection(text: string, host: HTMLElement): void {
   const trimmed = text.trim();
   if (!trimmed) return;
-  btn.style.color = "#10b981";
-  setTimeout(() => {
-    btn.style.color = "";
-  }, 1000);
-  void openChatPanel(trimmed);
+  const rect = host.getBoundingClientRect();
+  void openChatPanel(trimmed, {
+    left: rect.left,
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom,
+  });
 }
 
 /** Show translation bubble directly with given text (for keyboard shortcut). */
@@ -1600,7 +1632,7 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
     <div class="${BUBBLE_PREFIX}-popup-header">
       <span class="${BUBBLE_PREFIX}-popup-title">${t(cachedLang, "bubble.title")}</span>
       <div class="${BUBBLE_PREFIX}-popup-actions">
-        <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-popup-ask-btn" title="${t(cachedLang, "bubble.askAI")}">${ASK_ICON}</button>
+        <button class="${BUBBLE_PREFIX}-ask-cta ${BUBBLE_PREFIX}-popup-ask-btn" title="${t(cachedLang, "bubble.askAI")}">${ASK_ICON}<span>${t(cachedLang, "bubble.askAIShort")}</span></button>
         <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-popup-copy-btn" title="${t(cachedLang, "bubble.copyTranslation")}">${COPY_ICON}</button>
         <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-popup-close-btn" title="${t(cachedLang, "bubble.close")}">${CLOSE_ICON}</button>
       </div>
@@ -1760,7 +1792,7 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
   popupAskBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
     const src = el.querySelector(`.${BUBBLE_PREFIX}-popup-src`) as HTMLTextAreaElement | null;
-    askAiAboutSelection(src?.value || "", popupAskBtn as HTMLElement);
+    askAiAboutSelection(src?.value || "", el);
   });
 
   const closeBtn = el.querySelector(`.${BUBBLE_PREFIX}-popup-close-btn`);

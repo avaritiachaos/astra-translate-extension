@@ -831,24 +831,17 @@ export default function Popup() {
           />
           <div className="ast-chat-actions">
             <button
-              className="ast-btn ast-btn-primary"
+              className="ast-btn ast-btn-primary ast-chat-send"
               onClick={handleChatSend}
               disabled={chatPending || !chatInput.trim()}
             >
               {chatPending ? t(lang, "chat.thinking") : t(lang, "chat.send")}
             </button>
             <button
-              className="ast-btn ast-btn-secondary"
-              onClick={handleChatClear}
-              disabled={chatTurns.length === 0 && !chatPending}
-            >
-              {t(lang, "chat.clear")}
-            </button>
-            <button
               className={[
-                "ast-chat-web-toggle",
-                webSearchEnabled ? "ast-chat-web-toggle--on" : "",
-                settings?.chatWebSearchEnabled ? "" : "ast-chat-web-toggle--locked",
+                "ast-chat-pill",
+                webSearchEnabled ? "ast-chat-pill--on" : "",
+                settings?.chatWebSearchEnabled ? "" : "ast-chat-pill--locked",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -867,7 +860,7 @@ export default function Popup() {
               {t(lang, "chat.webSearch")}
             </button>
             <select
-              className="ast-chat-effort"
+              className="ast-chat-pill ast-chat-effort"
               value={chatEffort}
               onChange={(e) => handleEffortChange(normalizeChatEffort(e.target.value))}
               title={t(lang, "chat.effortHint")}
@@ -878,24 +871,35 @@ export default function Popup() {
                 </option>
               ))}
             </select>
-            {!chatAttach && (
+
+            <div className="ast-chat-actions-end">
+              {!chatAttach && (
+                <button
+                  className="ast-chat-icon"
+                  onClick={handleAttachPage}
+                  title={t(lang, "chat.attach")}
+                >
+                  📎
+                </button>
+              )}
               <button
-                className="ast-btn ast-btn-secondary ast-chat-attach-btn"
-                onClick={handleAttachPage}
-                title={t(lang, "chat.attach")}
+                className="ast-chat-icon"
+                onClick={handleOpenInPage}
+                title={t(lang, "chat.openInPage")}
               >
-                📎
+                ⤢
               </button>
-            )}
-            <button
-              className="ast-btn ast-btn-secondary ast-chat-attach-btn"
-              onClick={handleOpenInPage}
-              title={t(lang, "chat.openInPage")}
-            >
-              ⤢
-            </button>
-            <span className="ast-keyboard-hint">{t(lang, "chat.kbHint")}</span>
+              <button
+                className="ast-chat-icon"
+                onClick={handleChatClear}
+                disabled={chatTurns.length === 0 && !chatPending}
+                title={t(lang, "chat.clear")}
+              >
+                🗑
+              </button>
+            </div>
           </div>
+          <div className="ast-chat-hint">{t(lang, "chat.kbHint")}</div>
         </div>
       ) : (
         <>

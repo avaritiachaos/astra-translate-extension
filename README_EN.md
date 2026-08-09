@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-4.8.0-7C5CFF" alt="version" />
+  <img src="https://img.shields.io/badge/version-4.8.1-7C5CFF" alt="version" />
   <img src="https://img.shields.io/badge/Manifest-V3-4F46E5" alt="manifest v3" />
   <img src="https://img.shields.io/badge/TypeScript-React_18-3178C6" alt="tech" />
   <img src="https://img.shields.io/badge/license-MIT-3FB950" alt="license" />
@@ -61,7 +61,7 @@ Select text and click 💬, or right-click the floating ball and pick "Ask AI ab
 
 - **Reads the page for you** — opening chat extracts the article automatically (scored by content density, skipping nav / header / footer / sidebar) and shows it as a removable context chip. Click ✕ to drop it, or turn the whole behaviour off in Settings
 - **Regenerate** — didn't like the answer? Hit ↻ instead of retyping the question
-- **Three thinking levels** — ⚡ Fast / ⚖ Balanced / 🧠 Deep, trading cost against reasoning depth
+- **Four thinking levels** — ⚡ Fast / ⚖ Standard / 🧠 Deep / 🔬 Max, mapped straight onto DeepSeek's own low / high / xhigh / max
 - **Web supplement** — optional: search first, answer from the results, cite the sources
 - **Shared conversation** — the in-page panel and the toolbar popup are the same chat; switch freely without losing context
 - **Leaves no trace** — chats live in this browser session only and clear when you quit

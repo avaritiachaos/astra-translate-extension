@@ -569,10 +569,6 @@ body::-webkit-scrollbar-thumb:hover {
   color: var(--ast-error);
 }
 
-.ast-chat-attach-btn {
-  padding: 7px 9px;
-}
-
 .ast-chat-input {
   min-height: 40px;
   max-height: 120px;
@@ -655,34 +651,51 @@ body::-webkit-scrollbar-thumb:hover {
   white-space: nowrap;
 }
 
-/* Small compositional control above the text box. It is intentionally always
-   visible: when unconfigured, clicking it sends the user to no external page
-   and gives a localized inline setup hint instead. */
-/* Per-turn web-search toggle, inline with the send/clear/attach row */
-.ast-chat-web-toggle {
+/* Composer action row: send + two pills, with icon-only utilities pushed to
+   the far end. Everything is one consistent 28px height so the row reads as a
+   single band instead of a pile of differently-shaped controls. */
+.ast-chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ast-chat-send {
+  height: 28px;
+  padding: 0 16px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ast-chat-pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  align-self: stretch;
+  height: 28px;
   padding: 0 10px;
   border: 1px solid var(--ast-border);
-  border-radius: 999px;
+  border-radius: 14px;
   background: var(--ast-card-bg);
   color: var(--ast-muted);
   font-family: var(--ast-font);
   font-size: 11px;
   font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
-  transition: color 120ms ease-out, border-color 120ms ease-out, background 120ms ease-out;
+  outline: none;
+  transition: color 120ms ease-out, border-color 120ms ease-out,
+    background 120ms ease-out;
 }
 
-.ast-chat-web-toggle:hover {
+.ast-chat-pill:hover,
+.ast-chat-pill:focus-visible {
   border-color: var(--ast-primary);
   color: var(--ast-primary);
 }
 
-.ast-chat-web-toggle--on,
-.ast-chat-web-toggle--on:hover {
+.ast-chat-pill--on,
+.ast-chat-pill--on:hover {
   border-color: var(--ast-primary);
   background: var(--ast-primary-light);
   color: var(--ast-primary);
@@ -690,30 +703,55 @@ body::-webkit-scrollbar-thumb:hover {
 
 /* Web supplement not yet enabled in Settings: still clickable (the click
    explains what to do), but visibly dormant. */
-.ast-chat-web-toggle--locked {
+.ast-chat-pill--locked {
   opacity: 0.45;
 }
 
-/* Per-session thinking effort, inline with the composer action row */
+/* The select needs its own padding — no room for a custom arrow at this size */
 .ast-chat-effort {
-  align-self: stretch;
-  padding: 0 6px;
-  border: 1px solid var(--ast-border);
-  border-radius: 999px;
-  background: var(--ast-card-bg);
-  color: var(--ast-muted);
-  font-family: var(--ast-font);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  outline: none;
-  transition: border-color 120ms ease-out, color 120ms ease-out;
+  padding: 0 4px 0 8px;
 }
 
-.ast-chat-effort:hover,
-.ast-chat-effort:focus {
-  border-color: var(--ast-primary);
-  color: var(--ast-primary);
+.ast-chat-actions-end {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.ast-chat-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ast-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease-out, border-color 120ms ease-out;
+}
+
+.ast-chat-icon:hover:not(:disabled) {
+  border-color: var(--ast-border);
+  background: var(--ast-card-bg);
+}
+
+.ast-chat-icon:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Keyboard hint on its own line — it was the thing forcing the action row
+   to wrap once the effort selector joined it. */
+.ast-chat-hint {
+  margin-top: 2px;
+  color: var(--ast-muted);
+  font-size: 10px;
+  text-align: right;
 }
 
 /* Whitelist markdown inside assistant bubbles */
@@ -738,12 +776,6 @@ body::-webkit-scrollbar-thumb:hover {
   background: rgba(127, 127, 127, 0.14);
   font-family: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace;
   font-size: 12px;
-}
-
-.ast-chat-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 /* Success toast */

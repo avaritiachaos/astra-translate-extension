@@ -10,7 +10,7 @@ const zhCN: MessageDict = {
   // ---- 通用 ----
   "app.name": "Astra Translate",
   "app.desc": "轻量、优雅、模型服务商中立的浏览器翻译插件。",
-  "app.version": "Astra Translate v4.8.0 · 模型服务商中立的浏览器翻译插件",
+  "app.version": "Astra Translate v4.8.1 · 模型服务商中立的浏览器翻译插件",
 
   // ---- Options 页面 ----
   "opt.provider": "服务商设置",
@@ -163,10 +163,11 @@ const zhCN: MessageDict = {
   "chat.attachRemove": "移除引用",
   "chat.openInPage": "在页面中打开对话",
   "chat.openInPageFailed": "当前页面不支持页内对话（浏览器内置页面）",
-  "chat.effort.fast": "⚡ 快速",
-  "chat.effort.balanced": "⚖ 均衡",
-  "chat.effort.deep": "🧠 深度",
-  "chat.effortHint": "思考强度：快速更省更快，深度更慢但推理更充分",
+  "chat.effort.low": "⚡ 快速",
+  "chat.effort.high": "⚖ 标准",
+  "chat.effort.xhigh": "🧠 深度",
+  "chat.effort.max": "🔬 极限",
+  "chat.effortHint": "思考强度：快速最省最快，标准为默认，深度 / 极限推理更充分但更慢更贵",
 
   // ---- Content 划词气泡 ----
   "bubble.title": "Astra Translate",
@@ -181,6 +182,7 @@ const zhCN: MessageDict = {
   "bubble.connectFail": "无法连接到翻译服务。",
   "bubble.staleContext": "扩展已更新，请刷新此页面后重试。",
   "bubble.askAI": "继续问 AI（带上这段文本）",
+  "bubble.askAIShort": "问 AI",
   "bubble.resize": "拖动缩放",
   "bubble.translatedTo": "译文 · {lang}",
   "bubble.mayBeIdentifier": "可能是名称、ID 或无需翻译的内容。",
@@ -244,7 +246,7 @@ const enUS: MessageDict = {
   // ---- General ----
   "app.name": "Astra Translate",
   "app.desc": "A lightweight, elegant, provider-neutral browser translator.",
-  "app.version": "Astra Translate v4.8.0 · Provider-neutral browser translator",
+  "app.version": "Astra Translate v4.8.1 · Provider-neutral browser translator",
 
   // ---- Options ----
   "opt.provider": "Provider Settings",
@@ -397,10 +399,11 @@ const enUS: MessageDict = {
   "chat.attachRemove": "Remove context",
   "chat.openInPage": "Open chat in the page",
   "chat.openInPageFailed": "This page doesn't support the in-page chat (browser-internal page)",
-  "chat.effort.fast": "⚡ Fast",
-  "chat.effort.balanced": "⚖ Balanced",
-  "chat.effort.deep": "🧠 Deep",
-  "chat.effortHint": "Thinking effort: fast is cheaper and quicker, deep reasons more thoroughly",
+  "chat.effort.low": "⚡ Fast",
+  "chat.effort.high": "⚖ Standard",
+  "chat.effort.xhigh": "🧠 Deep",
+  "chat.effort.max": "🔬 Max",
+  "chat.effortHint": "Thinking effort: fast is cheapest and quickest, standard is the default, deep / max reason more thoroughly but cost more",
 
   // ---- Content Bubble ----
   "bubble.title": "Astra Translate",
@@ -415,6 +418,7 @@ const enUS: MessageDict = {
   "bubble.connectFail": "Failed to connect to translation service.",
   "bubble.staleContext": "The extension was updated — refresh this page and try again.",
   "bubble.askAI": "Ask AI about this text",
+  "bubble.askAIShort": "Ask AI",
   "bubble.resize": "Drag to resize",
   "bubble.translatedTo": "Translation · {lang}",
   "bubble.mayBeIdentifier": "May be a name, ID, or content that doesn't need translation.",
@@ -478,7 +482,7 @@ const jaJP: MessageDict = {
   // ---- 一般 ----
   "app.name": "Astra Translate",
   "app.desc": "軽量・エレガント・プロバイダー非依存のブラウザ翻訳拡張機能。",
-  "app.version": "Astra Translate v4.8.0 · プロバイダー非依存のブラウザ翻訳拡張機能",
+  "app.version": "Astra Translate v4.8.1 · プロバイダー非依存のブラウザ翻訳拡張機能",
 
   // ---- Options ページ ----
   "opt.provider": "プロバイダー設定",
@@ -631,10 +635,11 @@ const jaJP: MessageDict = {
   "chat.attachRemove": "引用を削除",
   "chat.openInPage": "ページ内でチャットを開く",
   "chat.openInPageFailed": "このページではページ内チャットを利用できません（ブラウザ内部ページ）",
-  "chat.effort.fast": "⚡ 高速",
-  "chat.effort.balanced": "⚖ 標準",
-  "chat.effort.deep": "🧠 熟考",
-  "chat.effortHint": "思考の深さ：高速は速く経済的、熟考はより丁寧に推論します",
+  "chat.effort.low": "⚡ 高速",
+  "chat.effort.high": "⚖ 標準",
+  "chat.effort.xhigh": "🧠 熟考",
+  "chat.effort.max": "🔬 最大",
+  "chat.effortHint": "思考の深さ：高速は最も速く経済的、標準が既定、熟考／最大はより丁寧に推論しますが遅く高価です",
 
   // ---- Content 選択バブル ----
   "bubble.title": "Astra Translate",
@@ -649,6 +654,7 @@ const jaJP: MessageDict = {
   "bubble.connectFail": "翻訳サービスに接続できません。",
   "bubble.staleContext": "拡張機能が更新されました。ページを再読み込みして再試行してください。",
   "bubble.askAI": "このテキストについて AI に質問",
+  "bubble.askAIShort": "AI に質問",
   "bubble.resize": "ドラッグしてリサイズ",
   "bubble.translatedTo": "翻訳 · {lang}",
   "bubble.mayBeIdentifier": "名前、ID、翻訳不要のコンテンツの可能性があります。",

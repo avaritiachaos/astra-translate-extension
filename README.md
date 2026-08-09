@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-4.8.0-7C5CFF" alt="version" />
+  <img src="https://img.shields.io/badge/version-4.8.1-7C5CFF" alt="version" />
   <img src="https://img.shields.io/badge/Manifest-V3-4F46E5" alt="manifest v3" />
   <img src="https://img.shields.io/badge/TypeScript-React_18-3178C6" alt="tech" />
   <img src="https://img.shields.io/badge/license-MIT-3FB950" alt="license" />
@@ -57,7 +57,7 @@ Astra 反着来：**它不绑架你，只做一件事——把翻译做好。**
 
 - **自动读懂当前页** —— 打开对话时自动提取页面正文（按正文密度打分，跳过导航 / 页眉页脚 / 侧栏），顶部显示可一键移除的引用条；不想带就点 ✕，也可在设置里全局关闭
 - **重新生成** —— 回答不满意，↻ 一下换个说法，不用重打问题
-- **思考强度三档** —— ⚡ 快速 / ⚖ 均衡 / 🧠 深度，按需在省钱和推理深度之间取舍
+- **思考强度四档** —— ⚡ 快速 / ⚖ 标准 / 🧠 深度 / 🔬 极限，直接对齐 DeepSeek 官方的 low / high / xhigh / max
 - **联网补充** —— 可选开启，先搜再答并附上来源
 - **会话互通** —— 页内面板与插件弹窗共享同一段对话，来回切换不丢上下文
 - **不留痕** —— 对话只存在于本次浏览器会话，关掉浏览器自动清空

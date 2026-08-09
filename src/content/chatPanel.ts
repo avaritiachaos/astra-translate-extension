@@ -386,7 +386,8 @@ function injectStyles(): void {
       margin-top: 7px;
     }
     .${P}-cp-send {
-      padding: 6px 14px;
+      height: 28px;
+      padding: 0 16px;
       border: none;
       border-radius: 8px;
       background: #6366f1;
@@ -394,23 +395,30 @@ function injectStyles(): void {
       font-family: inherit;
       font-size: 12px;
       font-weight: 500;
+      line-height: 1;
+      white-space: nowrap;
       cursor: pointer;
       transition: background 120ms;
     }
     .${P}-cp-send:hover { background: #4f46e5; }
     .${P}-cp-send:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Pills and icon buttons share one 28px height so the row reads as a
+       single band rather than a pile of differently-shaped controls. */
     .${P}-cp-toggle {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 5px 9px;
+      height: 28px;
+      padding: 0 10px;
       border: 1px solid #e5e7eb;
-      border-radius: 999px;
+      border-radius: 14px;
       background: transparent;
       color: #6b7280;
       font-family: inherit;
       font-size: 11px;
       font-weight: 600;
+      line-height: 1;
+      white-space: nowrap;
       cursor: pointer;
       transition: color 120ms, border-color 120ms, background 120ms;
     }
@@ -428,21 +436,44 @@ function injectStyles(): void {
       }
     }
     .${P}-cp-effort {
-      padding: 5px 6px;
+      height: 28px;
+      padding: 0 4px 0 8px;
       border: 1px solid #e5e7eb;
-      border-radius: 999px;
+      border-radius: 14px;
       background: transparent;
       color: #6b7280;
       font-family: inherit;
       font-size: 11px;
       font-weight: 600;
+      line-height: 1;
       cursor: pointer;
       outline: none;
     }
     @media (prefers-color-scheme: dark) {
       .${P}-cp-effort { border-color: #2d2d44; color: #9ca3af; background: #1a1a2e; }
     }
-    .${P}-cp-attach-btn { margin-left: auto; }
+    .${P}-cp-iconbtn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: #6b7280;
+      font-family: inherit;
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 120ms, border-color 120ms;
+    }
+    .${P}-cp-iconbtn:hover { border-color: #e5e7eb; background: #f7f7fa; }
+    @media (prefers-color-scheme: dark) {
+      .${P}-cp-iconbtn { color: #9ca3af; }
+      .${P}-cp-iconbtn:hover { border-color: #2d2d44; background: #0f0f1a; }
+    }
+    .${P}-cp-rowend { display: flex; align-items: center; gap: 4px; margin-left: auto; }
     .${P}-cp-pre {
       margin: 4px 0;
       padding: 8px 10px;
@@ -708,10 +739,8 @@ function renderFooter(): void {
     }
   }
 
-  const attachBtn = panel.querySelector(
-    `.${P}-cp-attach-btn`
-  ) as HTMLElement | null;
-  if (attachBtn) attachBtn.style.display = attachment ? "none" : "inline-flex";
+  const attachBtn = panel.querySelector(`.${P}-cp-rowend`) as HTMLElement | null;
+  if (attachBtn) attachBtn.style.display = attachment ? "none" : "flex";
 
   const input = panel.querySelector(`.${P}-cp-input`) as HTMLTextAreaElement | null;
   const send = panel.querySelector(`.${P}-cp-send`) as HTMLButtonElement | null;
@@ -949,10 +978,15 @@ export function closeChatPanel(): void {
 /**
  * Open the in-page chat panel. `selectionText` (from the selection bubble)
  * becomes the attachment; otherwise the page's readable content is attached
- * automatically when the user has that setting on.
+ * automatically when the user has that setting on. `anchor` is a viewport rect
+ * to open beside — normally the selection, so the panel lands where the user
+ * is already looking instead of in a far corner.
  */
-export async function openChatPanel(selectionText?: string): Promise<void> {
-  // Already open: just refocus and re-seed the selection, if any.
+export async function openChatPanel(
+  selectionText?: string,
+  anchor?: AnchorRect
+): Promise<void> {
+  // Already open: re-seed the selection and move back beside it.
   if (panel) {
     if (selectionText?.trim()) {
       attachment = {
@@ -963,6 +997,7 @@ export async function openChatPanel(selectionText?: string): Promise<void> {
       };
       renderFooter();
     }
+    if (anchor) positionPanel(panel, anchor);
     focusInput();
     return;
   }
@@ -1011,7 +1046,7 @@ export async function openChatPanel(selectionText?: string): Promise<void> {
   }
 
   await refreshState();
-  buildPanel();
+  buildPanel(anchor);
   render();
   focusInput();
 }
@@ -1023,7 +1058,7 @@ function focusInput(): void {
   if (input instanceof HTMLTextAreaElement) input.focus();
 }
 
-function buildPanel(): void {
+function buildPanel(anchor?: AnchorRect): void {
   const el = document.createElement("div");
   el.className = `${P}-cp`;
 
@@ -1140,7 +1175,7 @@ function buildPanel(): void {
   row.appendChild(effortSel);
 
   const attachBtn = button(
-    `${P}-cp-toggle ${P}-cp-attach-btn`,
+    `${P}-cp-iconbtn`,
     "📎",
     t(lang, "chat.attach"),
     () => {
@@ -1156,7 +1191,11 @@ function buildPanel(): void {
       input.focus();
     }
   );
-  row.appendChild(attachBtn);
+
+  const end = document.createElement("div");
+  end.className = `${P}-cp-rowend`;
+  end.appendChild(attachBtn);
+  row.appendChild(end);
 
   foot.appendChild(row);
   el.appendChild(foot);
@@ -1166,18 +1205,66 @@ function buildPanel(): void {
   resize.title = t(lang, "bubble.resize");
   el.appendChild(resize);
 
-  // ---- position: bottom-right, clear of the floating ball ----
-  const width = 380;
-  const height = 520;
-  el.style.width = `${width}px`;
-  el.style.height = `${height}px`;
-  el.style.left = `${Math.max(8, window.innerWidth - width - 24)}px`;
-  el.style.top = `${Math.max(8, window.innerHeight - height - 90)}px`;
+  // ---- position: beside the anchor (the selection), else bottom-right ----
+  el.style.width = `${PANEL_W}px`;
+  el.style.height = `${PANEL_H}px`;
+  positionPanel(el, anchor);
 
   document.body.appendChild(el);
   panel = el;
 
   attachDragAndResize(el, header, resize);
+}
+
+const PANEL_W = 380;
+const PANEL_H = 520;
+
+/** A viewport-relative rect to open the panel beside. */
+export interface AnchorRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * Place the panel next to the anchor: right of it if there is room, else left,
+ * else pinned to whichever side fits. Vertically centred on the anchor and
+ * clamped to the viewport. Without an anchor (e.g. the floating ball), fall
+ * back to the bottom-right corner, clear of the ball itself.
+ */
+function positionPanel(el: HTMLElement, anchor?: AnchorRect): void {
+  const w = el.offsetWidth || PANEL_W;
+  const h = el.offsetHeight || PANEL_H;
+  const margin = 12;
+  const maxLeft = Math.max(margin, window.innerWidth - w - margin);
+  const maxTop = Math.max(margin, window.innerHeight - h - margin);
+
+  if (!anchor) {
+    el.style.left = `${maxLeft}px`;
+    el.style.top = `${Math.max(margin, window.innerHeight - h - 90)}px`;
+    return;
+  }
+
+  const gap = 10;
+  const roomRight = window.innerWidth - anchor.right;
+  const roomLeft = anchor.left;
+
+  let left: number;
+  if (roomRight >= w + gap + margin) {
+    left = anchor.right + gap;
+  } else if (roomLeft >= w + gap + margin) {
+    left = anchor.left - w - gap;
+  } else {
+    // Neither side fits: sit on the roomier one and let clamping handle it.
+    left = roomRight >= roomLeft ? anchor.right + gap : anchor.left - w - gap;
+  }
+
+  // Vertically centre on the anchor so the conversation reads at eye level.
+  const top = anchor.top + (anchor.bottom - anchor.top) / 2 - h / 2;
+
+  el.style.left = `${Math.min(Math.max(margin, left), maxLeft)}px`;
+  el.style.top = `${Math.min(Math.max(margin, top), maxTop)}px`;
 }
 
 /** Header drags the panel; the corner grip resizes it. Viewport-clamped. */
