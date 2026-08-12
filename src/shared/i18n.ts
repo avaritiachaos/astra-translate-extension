@@ -10,7 +10,7 @@ const zhCN: MessageDict = {
   // ---- 通用 ----
   "app.name": "Astra Translate",
   "app.desc": "轻量、优雅、模型服务商中立的浏览器翻译插件。",
-  "app.version": "Astra Translate v4.8.1 · 模型服务商中立的浏览器翻译插件",
+  "app.version": "Astra Translate v4.8.2 · 模型服务商中立的浏览器翻译插件",
 
   // ---- Options 页面 ----
   "opt.provider": "服务商设置",
@@ -142,6 +142,10 @@ const zhCN: MessageDict = {
   "chat.attachPage": "页面内容",
   "chat.attachChip": "{label} · {n} 字符",
   "chat.attachFailed": "无法读取此页面（浏览器内置页面不支持）",
+  "chat.pageContext": "页面补充",
+  "chat.pageContextOn": "本次发送会补充当前页面内容",
+  "chat.pageContextOff": "本次发送不补充页面内容",
+  "chat.pageContextUsed": "含页面补充",
   "chat.webSearch": "联网",
   "chat.webSearchOn": "联网补充已开——先搜再答",
   "chat.webSearchOff": "联网补充已关",
@@ -163,11 +167,12 @@ const zhCN: MessageDict = {
   "chat.attachRemove": "移除引用",
   "chat.openInPage": "在页面中打开对话",
   "chat.openInPageFailed": "当前页面不支持页内对话（浏览器内置页面）",
-  "chat.effort.low": "⚡ 快速",
-  "chat.effort.high": "⚖ 标准",
-  "chat.effort.xhigh": "🧠 深度",
-  "chat.effort.max": "🔬 极限",
-  "chat.effortHint": "思考强度：快速最省最快，标准为默认，深度 / 极限推理更充分但更慢更贵",
+  "chat.effort.off": "off",
+  "chat.effort.low": "low",
+  "chat.effort.high": "high",
+  "chat.effort.xhigh": "xhigh",
+  "chat.effort.max": "max",
+  "chat.effortHint": "DeepSeek reasoning mode",
 
   // ---- Content 划词气泡 ----
   "bubble.title": "Astra Translate",
@@ -246,7 +251,7 @@ const enUS: MessageDict = {
   // ---- General ----
   "app.name": "Astra Translate",
   "app.desc": "A lightweight, elegant, provider-neutral browser translator.",
-  "app.version": "Astra Translate v4.8.1 · Provider-neutral browser translator",
+  "app.version": "Astra Translate v4.8.2 · Provider-neutral browser translator",
 
   // ---- Options ----
   "opt.provider": "Provider Settings",
@@ -378,6 +383,10 @@ const enUS: MessageDict = {
   "chat.attachPage": "Page content",
   "chat.attachChip": "{label} · {n} chars",
   "chat.attachFailed": "Can't read this page (browser-internal pages are not supported)",
+  "chat.pageContext": "Page context",
+  "chat.pageContextOn": "Include the current page for this message",
+  "chat.pageContextOff": "Don't include the page for this message",
+  "chat.pageContextUsed": "Page context included",
   "chat.webSearch": "Web",
   "chat.webSearchOn": "Web supplement on — search then answer",
   "chat.webSearchOff": "Web supplement off",
@@ -399,11 +408,12 @@ const enUS: MessageDict = {
   "chat.attachRemove": "Remove context",
   "chat.openInPage": "Open chat in the page",
   "chat.openInPageFailed": "This page doesn't support the in-page chat (browser-internal page)",
-  "chat.effort.low": "⚡ Fast",
-  "chat.effort.high": "⚖ Standard",
-  "chat.effort.xhigh": "🧠 Deep",
-  "chat.effort.max": "🔬 Max",
-  "chat.effortHint": "Thinking effort: fast is cheapest and quickest, standard is the default, deep / max reason more thoroughly but cost more",
+  "chat.effort.off": "off",
+  "chat.effort.low": "low",
+  "chat.effort.high": "high",
+  "chat.effort.xhigh": "xhigh",
+  "chat.effort.max": "max",
+  "chat.effortHint": "DeepSeek reasoning mode",
 
   // ---- Content Bubble ----
   "bubble.title": "Astra Translate",
@@ -482,7 +492,7 @@ const jaJP: MessageDict = {
   // ---- 一般 ----
   "app.name": "Astra Translate",
   "app.desc": "軽量・エレガント・プロバイダー非依存のブラウザ翻訳拡張機能。",
-  "app.version": "Astra Translate v4.8.1 · プロバイダー非依存のブラウザ翻訳拡張機能",
+  "app.version": "Astra Translate v4.8.2 · プロバイダー非依存のブラウザ翻訳拡張機能",
 
   // ---- Options ページ ----
   "opt.provider": "プロバイダー設定",
@@ -614,6 +624,10 @@ const jaJP: MessageDict = {
   "chat.attachPage": "ページ内容",
   "chat.attachChip": "{label} · {n} 文字",
   "chat.attachFailed": "このページを読み取れません（ブラウザ内部ページは非対応）",
+  "chat.pageContext": "ページ補足",
+  "chat.pageContextOn": "このメッセージだけ現在のページを補足",
+  "chat.pageContextOff": "このメッセージではページを補足しない",
+  "chat.pageContextUsed": "ページ補足あり",
   "chat.webSearch": "ウェブ",
   "chat.webSearchOn": "ウェブ補足オン — 検索してから回答",
   "chat.webSearchOff": "ウェブ補足オフ",
@@ -635,11 +649,12 @@ const jaJP: MessageDict = {
   "chat.attachRemove": "引用を削除",
   "chat.openInPage": "ページ内でチャットを開く",
   "chat.openInPageFailed": "このページではページ内チャットを利用できません（ブラウザ内部ページ）",
-  "chat.effort.low": "⚡ 高速",
-  "chat.effort.high": "⚖ 標準",
-  "chat.effort.xhigh": "🧠 熟考",
-  "chat.effort.max": "🔬 最大",
-  "chat.effortHint": "思考の深さ：高速は最も速く経済的、標準が既定、熟考／最大はより丁寧に推論しますが遅く高価です",
+  "chat.effort.off": "off",
+  "chat.effort.low": "low",
+  "chat.effort.high": "high",
+  "chat.effort.xhigh": "xhigh",
+  "chat.effort.max": "max",
+  "chat.effortHint": "DeepSeek reasoning mode",
 
   // ---- Content 選択バブル ----
   "bubble.title": "Astra Translate",

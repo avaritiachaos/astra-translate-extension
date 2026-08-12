@@ -246,6 +246,7 @@ export async function handleMessage(
         | {
             text?: unknown;
             attachment?: unknown;
+            pageContext?: unknown;
             webSearch?: unknown;
             effort?: unknown;
           }
@@ -254,7 +255,8 @@ export async function handleMessage(
         typeof payload?.text === "string" ? payload.text : "",
         payload?.attachment,
         !!payload?.webSearch,
-        payload?.effort
+        payload?.effort,
+        payload?.pageContext
       );
     }
 

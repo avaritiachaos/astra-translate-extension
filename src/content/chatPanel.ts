@@ -32,7 +32,7 @@ import {
   normalizeChatEffort,
   type ChatEffort,
 } from "../shared/chatEffort";
-import { extractPageContext } from "../shared/pageExtract";
+import { extractPageContext, type ExtractedPageContext } from "../shared/pageExtract";
 import { t, type UiLanguage } from "../shared/i18n";
 
 const P = "ast";
@@ -58,6 +58,8 @@ let streamText = "";
 let phase: ChatStreamPhase | null = null;
 let errorText = "";
 let attachment: ChatAttachment | null = null;
+/** One-shot page supplement for a selected-text question; never persisted. */
+let supplementPage = false;
 let effort: ChatEffort = DEFAULT_CHAT_EFFORT;
 let webSearchOn = false;
 let streamSeq = 0;
@@ -435,22 +437,65 @@ function injectStyles(): void {
         background: #1e1b4b; border-color: #818cf8; color: #818cf8;
       }
     }
+    .${P}-cp-effort-wrap { position: relative; flex-shrink: 0; }
     .${P}-cp-effort {
-      height: 28px;
-      padding: 0 4px 0 8px;
+      min-width: 82px;
+      justify-content: space-between;
+      padding: 0 8px 0 10px;
+    }
+    .${P}-cp-effort-chevron {
+      margin-left: 7px;
+      font-size: 16px;
+      line-height: 0.7;
+      transition: transform 120ms;
+    }
+    .${P}-cp-effort--open .${P}-cp-effort-chevron {
+      transform: translateY(1px) rotate(180deg);
+    }
+    .${P}-cp-effort-menu {
+      position: absolute;
+      right: 0;
+      bottom: calc(100% + 8px);
+      z-index: 20;
+      min-width: 106px;
+      padding: 5px;
       border: 1px solid #e5e7eb;
-      border-radius: 14px;
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+      animation: ${P}-effort-menu-in 120ms ease-out;
+    }
+    @keyframes ${P}-effort-menu-in {
+      from { opacity: 0; transform: translateY(4px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .${P}-cp-effort-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      height: 28px;
+      padding: 0 8px;
+      border: none;
+      border-radius: 8px;
       background: transparent;
-      color: #6b7280;
+      color: #1a1a2e;
       font-family: inherit;
       font-size: 11px;
-      font-weight: 600;
-      line-height: 1;
+      text-align: left;
       cursor: pointer;
-      outline: none;
     }
+    .${P}-cp-effort-option:hover,
+    .${P}-cp-effort-option--selected {
+      background: #eef2ff;
+      color: #6366f1;
+    }
+    .${P}-cp-effort-check { font-size: 13px; font-weight: 700; }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-effort { border-color: #2d2d44; color: #9ca3af; background: #1a1a2e; }
+      .${P}-cp-effort-menu { border-color: #2d2d44; background: #1a1a2e; }
+      .${P}-cp-effort-option { color: #e5e7eb; }
+      .${P}-cp-effort-option:hover,
+      .${P}-cp-effort-option--selected { background: #1e1b4b; color: #818cf8; }
     }
     .${P}-cp-iconbtn {
       width: 28px;
@@ -573,6 +618,90 @@ function button(
   return btn;
 }
 
+/** Custom reasoning menu; native selects ignore the panel's visual language. */
+function createEffortMenu(): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = `${P}-cp-effort-wrap`;
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = `${P}-cp-toggle ${P}-cp-effort ${P}-cp-effort-trigger`;
+  trigger.title = t(lang, "chat.effortHint");
+  trigger.setAttribute("aria-haspopup", "listbox");
+  trigger.setAttribute("aria-expanded", "false");
+
+  const triggerLabel = document.createElement("span");
+  const triggerChevron = document.createElement("span");
+  triggerChevron.className = `${P}-cp-effort-chevron`;
+  triggerChevron.textContent = "⌄";
+  trigger.append(triggerLabel, triggerChevron);
+
+  const menu = document.createElement("div");
+  menu.className = `${P}-cp-effort-menu`;
+  menu.setAttribute("role", "listbox");
+  menu.style.display = "none";
+
+  const options: HTMLButtonElement[] = [];
+  const renderMenu = () => {
+    triggerLabel.textContent = effort;
+    trigger.setAttribute("aria-expanded", String(menu.style.display !== "none"));
+    options.forEach((option) => {
+      const selected = option.dataset.effort === effort;
+      option.setAttribute("aria-selected", String(selected));
+      option.classList.toggle(`${P}-cp-effort-option--selected`, selected);
+      const check = option.querySelector(`.${P}-cp-effort-check`);
+      if (check) check.textContent = selected ? "✓" : "";
+    });
+  };
+  const setOpen = (open: boolean) => {
+    menu.style.display = open ? "block" : "none";
+    trigger.classList.toggle(`${P}-cp-effort--open`, open);
+    renderMenu();
+  };
+
+  CHAT_EFFORTS.forEach((level) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = `${P}-cp-effort-option`;
+    option.dataset.effort = level;
+    option.setAttribute("role", "option");
+
+    const label = document.createElement("span");
+    label.textContent = level;
+    const check = document.createElement("span");
+    check.className = `${P}-cp-effort-check`;
+    option.append(label, check);
+    option.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      effort = level;
+      chrome.storage.session
+        ?.set({ [CHAT_EFFORT_SESSION_KEY]: effort })
+        .catch(() => {});
+      setOpen(false);
+      renderFooter();
+    });
+    options.push(option);
+    menu.appendChild(option);
+  });
+
+  trigger.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setOpen(menu.style.display === "none");
+  });
+
+  const onOutside = (event: MouseEvent) => {
+    if (!wrap.contains(event.target as Node)) setOpen(false);
+  };
+  document.addEventListener("mousedown", onOutside);
+  cleanupFns.push(() => document.removeEventListener("mousedown", onOutside));
+
+  wrap.append(trigger, menu);
+  renderMenu();
+  return wrap;
+}
+
 /** Redraw the message list from current state. */
 function renderList(): void {
   if (!panel) return;
@@ -615,7 +744,8 @@ function renderList(): void {
       chip.textContent = `🌐 ${t(lang, "chat.webSearchUsed")}`;
       bubble.appendChild(chip);
     }
-    if (turn.attachment) {
+    if (turn.attachment || turn.pageContextUsed) {
+      if (turn.attachment) {
       const chip = document.createElement("div");
       chip.className = `${P}-cp-chip`;
       chip.title = turn.attachment.title || turn.attachment.url;
@@ -625,6 +755,13 @@ function renderList(): void {
           : turn.attachment.title || t(lang, "chat.attachPage")
       }`;
       bubble.appendChild(chip);
+      }
+      if (turn.pageContextUsed) {
+        const supplementChip = document.createElement("div");
+        supplementChip.className = `${P}-cp-chip`;
+        supplementChip.textContent = `＋ ${t(lang, "chat.pageContextUsed")}`;
+        bubble.appendChild(supplementChip);
+      }
     }
 
     if (turn.role === "assistant" && !turn.error) {
@@ -736,11 +873,33 @@ function renderFooter(): void {
           : attachment.title || t(lang, "chat.attachPage"),
         n: attachment.text.length,
       })}`;
+    } else {
+      supplementPage = false;
     }
   }
 
   const attachBtn = panel.querySelector(`.${P}-cp-rowend`) as HTMLElement | null;
   if (attachBtn) attachBtn.style.display = attachment ? "none" : "flex";
+
+  const supplement = panel.querySelector(
+    `.${P}-cp-supplement`
+  ) as HTMLButtonElement | null;
+  if (supplement) {
+    const available = !!attachment?.selected;
+    supplement.style.display = available ? "inline-flex" : "none";
+    supplement.className = [
+      `${P}-cp-toggle`,
+      `${P}-cp-supplement`,
+      supplementPage ? `${P}-cp-toggle--on` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    supplement.setAttribute("aria-pressed", String(supplementPage));
+    supplement.title = t(
+      lang,
+      supplementPage ? "chat.pageContextOn" : "chat.pageContextOff"
+    );
+  }
 
   const input = panel.querySelector(`.${P}-cp-input`) as HTMLTextAreaElement | null;
   const send = panel.querySelector(`.${P}-cp-send`) as HTMLButtonElement | null;
@@ -749,7 +908,7 @@ function renderFooter(): void {
     send.textContent = pending ? t(lang, "chat.thinking") : t(lang, "chat.send");
   }
 
-  const web = panel.querySelector(`.${P}-cp-toggle`) as HTMLElement | null;
+  const web = panel.querySelector(`.${P}-cp-web-toggle`) as HTMLElement | null;
   if (web) {
     web.className = [
       `${P}-cp-toggle`,
@@ -871,6 +1030,24 @@ async function send(): Promise<void> {
   if (!text || pending) return;
 
   const attach = attachment;
+  let pageContext: ExtractedPageContext | null = null;
+  if (supplementPage && attachment?.selected) {
+    try {
+      const page = extractPageContext({ includeSelection: false });
+      if (page.text.trim()) {
+        pageContext = page;
+      } else {
+        errorText = t(lang, "chat.attachFailed");
+        renderFooter();
+        return;
+      }
+    } catch {
+      errorText = t(lang, "chat.attachFailed");
+      renderFooter();
+      return;
+    }
+  }
+  supplementPage = false;
   errorText = "";
   attachment = null;
   streamText = "";
@@ -884,6 +1061,7 @@ async function send(): Promise<void> {
   // Optimistic user bubble: storage confirms it a moment later.
   const optimistic: ChatTurn = { role: "user", content: text, ts: Date.now() };
   if (attach) optimistic.attachment = attach;
+  if (pageContext) optimistic.pageContextUsed = true;
   if (webSearchOn) optimistic.webSearch = true;
   turns = [...turns, optimistic];
   render();
@@ -894,6 +1072,7 @@ async function send(): Promise<void> {
     effort,
   };
   if (attach) payload.attachment = attach;
+  if (pageContext) payload.pageContext = pageContext;
 
   if (sendViaStream(payload)) return;
 
@@ -951,6 +1130,7 @@ function clearChat(): void {
   streamText = "";
   phase = null;
   attachment = null;
+  supplementPage = false;
   chrome.runtime
     .sendMessage({ type: "CLEAR_CHAT" })
     .then(() => refreshState())
@@ -995,6 +1175,7 @@ export async function openChatPanel(
         selected: true,
         text: selectionText.trim().slice(0, 4000),
       };
+      supplementPage = false;
       renderFooter();
     }
     if (anchor) positionPanel(panel, anchor);
@@ -1036,6 +1217,7 @@ export async function openChatPanel(
       selected: true,
       text: selectionText.trim().slice(0, 4000),
     };
+    supplementPage = false;
   } else if (autoAttachEnabled) {
     try {
       const ctx = extractPageContext();
@@ -1103,6 +1285,7 @@ function buildPanel(anchor?: AnchorRect): void {
   chipLabel.className = `${P}-cp-attach-label`;
   const chipX = button(`${P}-cp-attach-x`, "✕", t(lang, "chat.attachRemove"), () => {
     attachment = null;
+    supplementPage = false;
     renderFooter();
   });
   chip.append(chipLabel, chipX);
@@ -1138,7 +1321,7 @@ function buildPanel(anchor?: AnchorRect): void {
   row.appendChild(sendBtn);
 
   const web = button(
-    `${P}-cp-toggle`,
+    `${P}-cp-toggle ${P}-cp-web-toggle`,
     `🌐 ${t(lang, "chat.webSearch")}`,
     t(lang, "chat.webSearchOff"),
     () => {
@@ -1156,23 +1339,20 @@ function buildPanel(anchor?: AnchorRect): void {
   );
   row.appendChild(web);
 
-  const effortSel = document.createElement("select");
-  effortSel.className = `${P}-cp-effort`;
-  for (const level of CHAT_EFFORTS) {
-    const opt = document.createElement("option");
-    opt.value = level;
-    opt.textContent = t(lang, `chat.effort.${level}`);
-    effortSel.appendChild(opt);
-  }
-  effortSel.value = effort;
-  effortSel.title = t(lang, "chat.effortHint");
-  effortSel.addEventListener("change", () => {
-    effort = normalizeChatEffort(effortSel.value);
-    chrome.storage.session
-      ?.set({ [CHAT_EFFORT_SESSION_KEY]: effort })
-      .catch(() => {});
-  });
-  row.appendChild(effortSel);
+  const supplement = button(
+    `${P}-cp-toggle ${P}-cp-supplement`,
+    `＋ ${t(lang, "chat.pageContext")}`,
+    t(lang, "chat.pageContextOff"),
+    () => {
+      if (!attachment?.selected) return;
+      supplementPage = !supplementPage;
+      renderFooter();
+    }
+  );
+  supplement.setAttribute("aria-pressed", "false");
+  row.appendChild(supplement);
+
+  row.appendChild(createEffortMenu());
 
   const attachBtn = button(
     `${P}-cp-iconbtn`,

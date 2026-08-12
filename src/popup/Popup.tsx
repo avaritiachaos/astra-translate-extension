@@ -57,6 +57,123 @@ function ChatRichText({ text }: { text: string }): React.ReactElement {
   );
 }
 
+interface ChatEffortMenuProps {
+  value: ChatEffort;
+  lang: UiLanguage;
+  onChange: (value: ChatEffort) => void;
+}
+
+function ChatEffortMenu({
+  value,
+  lang,
+  onChange,
+}: ChatEffortMenuProps): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selectedIndex = Math.max(0, CHAT_EFFORTS.indexOf(value));
+
+  const focusOption = useCallback((index: number) => {
+    const options = rootRef.current?.querySelectorAll<HTMLButtonElement>(
+      ".ast-chat-effort-option"
+    );
+    options?.[Math.max(0, Math.min(index, options.length - 1))]?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        rootRef.current?.querySelector<HTMLButtonElement>(
+          ".ast-chat-effort-trigger"
+        )?.focus();
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const choose = (next: ChatEffort) => {
+    onChange(next);
+    setOpen(false);
+  };
+
+  const onTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setOpen((current) => !current);
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      setOpen(true);
+      window.setTimeout(() => {
+        focusOption(
+          event.key === "ArrowDown" ? selectedIndex : selectedIndex - 1
+        );
+      }, 0);
+    }
+  };
+
+  const onOptionKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    index: number,
+    level: ChatEffort
+  ) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      choose(level);
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      focusOption(index + (event.key === "ArrowDown" ? 1 : -1));
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      focusOption(event.key === "Home" ? 0 : CHAT_EFFORTS.length - 1);
+    }
+  };
+
+  return (
+    <div className="ast-chat-effort-wrap" ref={rootRef}>
+      <button
+        type="button"
+        className={`ast-chat-pill ast-chat-effort ast-chat-effort-trigger ${open ? "ast-chat-effort--open" : ""}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={t(lang, "chat.effortHint")}
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={onTriggerKeyDown}
+      >
+        <span>{value}</span>
+        <span className="ast-chat-effort-chevron" aria-hidden="true">⌄</span>
+      </button>
+      {open && (
+        <div className="ast-chat-effort-menu" role="listbox" aria-label="Reasoning mode">
+          {CHAT_EFFORTS.map((level, index) => (
+            <button
+              key={level}
+              type="button"
+              role="option"
+              aria-selected={level === value}
+              className={`ast-chat-effort-option ${level === value ? "ast-chat-effort-option--selected" : ""}`}
+              onClick={() => choose(level)}
+              onKeyDown={(event) => onOptionKeyDown(event, index, level)}
+            >
+              <span>{level}</span>
+              {level === value && <span className="ast-chat-effort-check">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type PopupMode = "translate" | "chat";
 
 export default function Popup() {
@@ -685,16 +802,25 @@ export default function Popup() {
                 {turn.webSearch && (
                   <div className="ast-chat-bubble-search">🌐 {t(lang, "chat.webSearchUsed")}</div>
                 )}
-                {turn.attachment && (
-                  <div
-                    className="ast-chat-bubble-attach"
-                    title={turn.attachment.title || turn.attachment.url}
-                  >
-                    📎{" "}
-                    {turn.attachment.selected
-                      ? t(lang, "chat.attachSelection")
-                      : turn.attachment.title || t(lang, "chat.attachPage")}
-                  </div>
+                {(turn.attachment || turn.pageContextUsed) && (
+                  <>
+                    {turn.attachment && (
+                      <div
+                        className="ast-chat-bubble-attach"
+                        title={turn.attachment.title || turn.attachment.url}
+                      >
+                        📎{" "}
+                        {turn.attachment.selected
+                          ? t(lang, "chat.attachSelection")
+                          : turn.attachment.title || t(lang, "chat.attachPage")}
+                      </div>
+                    )}
+                    {turn.pageContextUsed && (
+                      <div className="ast-chat-bubble-attach">
+                        ＋ {t(lang, "chat.pageContextUsed")}
+                      </div>
+                    )}
+                  </>
                 )}
                 {turn.role === "assistant" && !turn.error ? (
                   <>
@@ -859,18 +985,11 @@ export default function Popup() {
               <span aria-hidden="true">🌐</span>
               {t(lang, "chat.webSearch")}
             </button>
-            <select
-              className="ast-chat-pill ast-chat-effort"
+            <ChatEffortMenu
               value={chatEffort}
-              onChange={(e) => handleEffortChange(normalizeChatEffort(e.target.value))}
-              title={t(lang, "chat.effortHint")}
-            >
-              {CHAT_EFFORTS.map((level) => (
-                <option key={level} value={level}>
-                  {t(lang, `chat.effort.${level}`)}
-                </option>
-              ))}
-            </select>
+              lang={lang}
+              onChange={handleEffortChange}
+            />
 
             <div className="ast-chat-actions-end">
               {!chatAttach && (

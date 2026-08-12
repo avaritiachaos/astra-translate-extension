@@ -709,7 +709,77 @@ body::-webkit-scrollbar-thumb:hover {
 
 /* The select needs its own padding — no room for a custom arrow at this size */
 .ast-chat-effort {
-  padding: 0 4px 0 8px;
+  min-width: 94px;
+  justify-content: space-between;
+  padding: 0 8px 0 10px;
+}
+
+.ast-chat-effort-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.ast-chat-effort-chevron {
+  margin-left: 8px;
+  color: currentColor;
+  font-size: 16px;
+  line-height: 0.7;
+  transform: translateY(-1px);
+  transition: transform 120ms ease-out;
+}
+
+.ast-chat-effort--open .ast-chat-effort-chevron {
+  transform: translateY(1px) rotate(180deg);
+}
+
+.ast-chat-effort-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  min-width: 118px;
+  padding: 5px;
+  border: 1px solid var(--ast-border);
+  border-radius: 12px;
+  background: var(--ast-card-bg);
+  box-shadow: var(--ast-shadow-lg);
+  animation: ast-effort-menu-in 120ms ease-out;
+}
+
+@keyframes ast-effort-menu-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ast-chat-effort-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 30px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ast-text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease-out, color 120ms ease-out;
+}
+
+.ast-chat-effort-option:hover,
+.ast-chat-effort-option:focus-visible,
+.ast-chat-effort-option--selected {
+  background: var(--ast-primary-light);
+  color: var(--ast-primary);
+  outline: none;
+}
+
+.ast-chat-effort-check {
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .ast-chat-actions-end {

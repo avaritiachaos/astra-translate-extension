@@ -13,6 +13,13 @@ export interface ChatContextAttachment {
   text: string;
 }
 
+/** A one-request page supplement; it is never part of a stored turn. */
+export interface ChatContextPageContext {
+  title: string;
+  url: string;
+  text: string;
+}
+
 /** Structural subset of ChatSearchSource (shared/types.ts). */
 export interface ChatContextSearchSource {
   title: string;
@@ -28,6 +35,8 @@ export interface ChatContextTurn {
   error?: boolean;
   /** Page context attached to this question. */
   attachment?: ChatContextAttachment;
+  /** One-shot page background for the live question only. */
+  pageContext?: ChatContextPageContext;
   /**
    * Fresh web-search hits for the turn being answered right now.
    * Only applied on the newest user turn at request time — historical
@@ -56,6 +65,18 @@ export function renderTurnContent(turn: ChatContextTurn): string {
       `Context from the current page — ${kind}${title}${url}:\n` +
         `"""\n${a.text}\n"""`
     );
+  }
+
+  const page = turn.pageContext;
+  if (page?.text?.trim()) {
+      const pageTitle = page.title
+        ? `; title: ${page.title}`
+        : "";
+      const pageUrl = page.url ? `; url: ${page.url}` : "";
+      parts.push(
+        `Supplementary context from the current page${pageTitle}${pageUrl}:\n` +
+          `"""\n${page.text}\n"""`
+      );
   }
 
   const sources = turn.searchSources;

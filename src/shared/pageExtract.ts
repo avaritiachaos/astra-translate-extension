@@ -31,17 +31,21 @@ export const PAGE_EXTRACT_MAX_CHARS = 4000;
 
 /**
  * Extract the user's selection, or failing that the page's main readable
- * content. Runs both in the content script and, serialized, inside the page
- * via executeScript — see the constraint note above.
+ * content. Pass `{ includeSelection: false }` when the caller already has a
+ * selection and needs the page as supplementary background instead. Runs both
+ * in the content script and, serialized, inside the page via executeScript —
+ * see the constraint note above.
  */
-export function extractPageContext(): ExtractedPageContext {
+export function extractPageContext(
+  options: { includeSelection?: boolean } = {}
+): ExtractedPageContext {
   const MAX = 4000;
 
   const title = document.title || "";
   const url = location.href;
 
   const selection = window.getSelection()?.toString().trim() || "";
-  if (selection) {
+  if (options.includeSelection !== false && selection) {
     return { title, url, selected: true, text: selection.slice(0, MAX) };
   }
 

@@ -174,4 +174,30 @@ describe("buildChatContext", () => {
     assert.ok(rendered.includes("page body"));
     assert.ok(rendered.includes("News"));
   });
+
+  it("keeps selected text and one-shot page supplement as separate context blocks", () => {
+    const rendered = renderTurnContent({
+      role: "user",
+      content: "这句话在页面里是什么意思？",
+      attachment: {
+        title: "Example",
+        url: "https://example.com",
+        selected: true,
+        text: "selected phrase",
+      },
+      pageContext: {
+          title: "Example",
+          url: "https://example.com",
+          text: "The surrounding article explains the phrase.",
+      },
+    });
+    assert.ok(rendered.includes("selected text"));
+    assert.ok(rendered.includes("selected phrase"));
+    assert.ok(rendered.includes("Supplementary context"));
+    assert.ok(rendered.includes("surrounding article"));
+    assert.ok(
+      rendered.indexOf("这句话在页面里是什么意思？") >
+        rendered.indexOf("surrounding article")
+    );
+  });
 });

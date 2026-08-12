@@ -267,6 +267,13 @@ export const CHAT_WEB_SEARCH_SESSION_KEY = "astra_chat_web_search_v1";
  * level. Shared by the popup and the in-page panel. */
 export const CHAT_EFFORT_SESSION_KEY = "astra_chat_effort_v1";
 
+/** A readable-page supplement attached alongside another chat reference. */
+export interface ChatPageContext {
+  title: string;
+  url: string;
+  text: string;
+}
+
 /** Page context explicitly attached to a chat question by the user. */
 export interface ChatAttachment {
   title: string;
@@ -293,6 +300,8 @@ export interface ChatTurn {
   /** Page context the user attached to this question — travels to the model
    * wrapped around the content, renders as a small chip in the bubble. */
   attachment?: ChatAttachment;
+  /** The question used a one-shot page supplement that is not persisted. */
+  pageContextUsed?: boolean;
   /** Web sources used to ground this assistant reply (citation chips). */
   sources?: ChatSearchSource[];
   /** The user asked to search, but no engine returned usable sources.
@@ -329,6 +338,8 @@ export interface ChatStreamRequest {
     text: string;
     /** Optional page context to ground this question. */
     attachment?: ChatAttachment;
+    /** One-shot readable page background; never persisted in the turn. */
+    pageContext?: ChatPageContext;
     /** When true, run built-in web search first and ground the reply on the
      * external results (requires chatWebSearchEnabled). */
     webSearch?: boolean;
