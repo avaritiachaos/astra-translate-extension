@@ -63,6 +63,14 @@ let supplementPage = false;
 let effort: ChatEffort = DEFAULT_CHAT_EFFORT;
 let webSearchOn = false;
 let streamSeq = 0;
+let refreshEffortMenu: (() => void) | null = null;
+
+interface ChatRetryDraft {
+  text: string;
+  attachment: ChatAttachment | null;
+  /** Re-enable the one-shot page supplement when the user retries. */
+  pageSupplement: boolean;
+}
 
 /** Listeners/handles that must be torn down when the panel closes. */
 let cleanupFns: Array<() => void> = [];
@@ -653,6 +661,7 @@ function createEffortMenu(): HTMLElement {
       if (check) check.textContent = selected ? "✓" : "";
     });
   };
+  refreshEffortMenu = renderMenu;
   const setOpen = (open: boolean) => {
     menu.style.display = open ? "block" : "none";
     trigger.classList.toggle(`${P}-cp-effort--open`, open);
@@ -952,7 +961,23 @@ async function refreshState(): Promise<void> {
  * Open a stream port for one exchange. Returns false when the port can't be
  * opened so the caller can fall back to the one-shot message path.
  */
-function sendViaStream(payload: Record<string, unknown>): boolean {
+function restoreRetryDraft(draft: ChatRetryDraft, message: string): void {
+  const input = panel?.querySelector(`.${P}-cp-input`) as HTMLTextAreaElement | null;
+  if (input) {
+    input.value = draft.text;
+    autoGrow(input);
+  }
+  attachment = draft.attachment;
+  supplementPage = draft.pageSupplement && !!draft.attachment?.selected;
+  errorText = message;
+  render();
+  input?.focus();
+}
+
+function sendViaStream(
+  payload: Record<string, unknown>,
+  retry?: ChatRetryDraft
+): boolean {
   let port: chrome.runtime.Port;
   try {
     port = chrome.runtime.connect({ name: CHAT_STREAM_PORT });
@@ -984,10 +1009,20 @@ function sendViaStream(payload: Record<string, unknown>): boolean {
       .then(() => {
         phase = null;
         streamText = "";
-        if (!event.success && !event.appended && event.error) {
-          errorText = event.error;
+        if (
+          !event.success &&
+          !event.appended &&
+          event.errorCode !== "CHAT_CANCELLED"
+        ) {
+          if (retry) {
+            restoreRetryDraft(retry, event.error || t(lang, "chat.failed"));
+          } else if (event.error) {
+            errorText = event.error;
+          }
         }
-        render();
+        if (!retry || event.success || event.appended || event.errorCode === "CHAT_CANCELLED") {
+          render();
+        }
       })
       .finally(() => {
         try {
@@ -1074,28 +1109,35 @@ async function send(): Promise<void> {
   if (attach) payload.attachment = attach;
   if (pageContext) payload.pageContext = pageContext;
 
-  if (sendViaStream(payload)) return;
+  const retry: ChatRetryDraft = {
+    text,
+    attachment: attach,
+    pageSupplement: !!pageContext,
+  };
+
+  if (sendViaStream(payload, retry)) return;
 
   // Fallback: one-shot message when the port could not be opened.
+  let retryError = "";
   try {
     const res = await chrome.runtime.sendMessage({
       type: "CHAT_MESSAGE",
       payload,
     });
     if (res && !res.success && !res.appended) {
-      errorText = res.error || t(lang, "chat.failed");
-      if (input) input.value = text;
-      if (attach) attachment = attach;
+      retryError = res.error || t(lang, "chat.failed");
     }
   } catch {
-    errorText = t(lang, "popup.connectFail");
-    if (input) input.value = text;
-    if (attach) attachment = attach;
+    retryError = t(lang, "popup.connectFail");
   }
   await refreshState();
   pending = false;
   phase = null;
-  render();
+  if (retryError) {
+    restoreRetryDraft(retry, retryError);
+  } else {
+    render();
+  }
 }
 
 async function regenerate(): Promise<void> {
@@ -1153,6 +1195,7 @@ export function closeChatPanel(): void {
   streamText = "";
   phase = null;
   errorText = "";
+  refreshEffortMenu = null;
 }
 
 /**
@@ -1524,12 +1567,26 @@ function attachDragAndResize(
     area: string
   ) => {
     if (area !== "session") return;
-    const change = changes[CHAT_STORAGE_KEY];
-    if (!change) return;
-    const next = change.newValue as ChatState | undefined;
-    turns = next?.turns ?? [];
-    pending = !!next?.pending;
-    render();
+    let shouldRender = false;
+    const chatChange = changes[CHAT_STORAGE_KEY];
+    if (chatChange) {
+      const next = chatChange.newValue as ChatState | undefined;
+      turns = next?.turns ?? [];
+      pending = !!next?.pending;
+      shouldRender = true;
+    }
+    const effortChange = changes[CHAT_EFFORT_SESSION_KEY];
+    if (effortChange) {
+      effort = normalizeChatEffort(effortChange.newValue);
+      refreshEffortMenu?.();
+      shouldRender = true;
+    }
+    const webSearchChange = changes[CHAT_WEB_SEARCH_SESSION_KEY];
+    if (webSearchChange) {
+      webSearchOn = webSearchAvailable && webSearchChange.newValue === true;
+      shouldRender = true;
+    }
+    if (shouldRender) render();
   };
 
   document.addEventListener("mousemove", onMouseMove);

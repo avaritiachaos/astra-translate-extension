@@ -29,6 +29,30 @@ export interface ExtractedPageContext {
 /** Char cap on extracted page text — bounds the chat context budget. */
 export const PAGE_EXTRACT_MAX_CHARS = 4000;
 
+/** Minimal descriptor used to unit-test the page-context privacy boundary. */
+export interface PageElementPrivacyDescriptor {
+  tagName: string;
+  isContentEditable?: boolean;
+}
+
+/**
+ * Page regions that may contain user-entered or otherwise private text must
+ * never become readable-page context. Keep this policy mirrored in the
+ * self-contained browser-side extractor below.
+ */
+export function isPrivatePageElement(
+  descriptor: PageElementPrivacyDescriptor
+): boolean {
+  const tag = descriptor.tagName.toUpperCase();
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    tag === "OPTION" ||
+    descriptor.isContentEditable === true
+  );
+}
+
 /**
  * Extract the user's selection, or failing that the page's main readable
  * content. Pass `{ includeSelection: false }` when the caller already has a
@@ -45,7 +69,18 @@ export function extractPageContext(
   const url = location.href;
 
   const selection = window.getSelection()?.toString().trim() || "";
-  if (options.includeSelection !== false && selection) {
+  const selectionAnchor = window.getSelection()?.anchorNode;
+  const selectionElement =
+    selectionAnchor instanceof Element
+      ? selectionAnchor
+      : selectionAnchor?.parentElement;
+  const selectionIsPrivate = !!selectionElement &&
+    (selectionElement.tagName.toUpperCase() === "INPUT" ||
+      selectionElement.tagName.toUpperCase() === "TEXTAREA" ||
+      selectionElement.tagName.toUpperCase() === "SELECT" ||
+      selectionElement.tagName.toUpperCase() === "OPTION" ||
+      (selectionElement instanceof HTMLElement && selectionElement.isContentEditable));
+  if (options.includeSelection !== false && selection && !selectionIsPrivate) {
     return { title, url, selected: true, text: selection.slice(0, MAX) };
   }
 
@@ -80,6 +115,7 @@ export function extractPageContext(
     "EMBED",
     "VIDEO",
     "AUDIO",
+    "INPUT",
     "TEXTAREA",
     "SELECT",
     "OPTION",
@@ -89,6 +125,18 @@ export function extractPageContext(
   const isOwnUi = (el: Element): boolean => {
     const cls = el.className ? String(el.className) : "";
     return cls.includes("ast-") || (el.id ? el.id.startsWith("ast-") : false);
+  };
+
+  /** User-entered fields and editors are private, even when visually visible. */
+  const isPrivateRegion = (el: Element): boolean => {
+    const tag = el.tagName.toUpperCase();
+    return (
+      tag === "INPUT" ||
+      tag === "TEXTAREA" ||
+      tag === "SELECT" ||
+      tag === "OPTION" ||
+      (el instanceof HTMLElement && el.isContentEditable)
+    );
   };
 
   const isHidden = (el: Element): boolean => {
@@ -113,7 +161,14 @@ export function extractPageContext(
   const inSkippedRegion = (el: Element): boolean => {
     let node: Element | null = el;
     while (node && node !== document.body) {
-      if (isOwnUi(node) || isChrome(node) || isHidden(node)) return true;
+      if (
+        isOwnUi(node) ||
+        isPrivateRegion(node) ||
+        isChrome(node) ||
+        isHidden(node)
+      ) {
+        return true;
+      }
       node = node.parentElement;
     }
     return false;
@@ -128,7 +183,7 @@ export function extractPageContext(
     const parts: string[] = [];
     const walk = (el: Element): void => {
       if (TECHNICAL_TAGS.has(el.tagName.toUpperCase())) return;
-      if (isOwnUi(el)) return;
+      if (isOwnUi(el) || isPrivateRegion(el)) return;
       if (el !== root && isChrome(el)) return;
       if (isHidden(el)) return;
 

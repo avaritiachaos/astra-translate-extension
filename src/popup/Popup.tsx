@@ -262,11 +262,20 @@ export default function Popup() {
       area: string
     ) => {
       if (area !== "session") return;
-      const change = changes[CHAT_STORAGE_KEY];
-      if (!change) return;
-      const next = change.newValue as ChatState | undefined;
-      setChatTurns(next?.turns ?? []);
-      setChatPending(!!next?.pending);
+      const chatChange = changes[CHAT_STORAGE_KEY];
+      if (chatChange) {
+        const next = chatChange.newValue as ChatState | undefined;
+        setChatTurns(next?.turns ?? []);
+        setChatPending(!!next?.pending);
+      }
+      const effortChange = changes[CHAT_EFFORT_SESSION_KEY];
+      if (effortChange) {
+        setChatEffort(normalizeChatEffort(effortChange.newValue));
+      }
+      const webSearchChange = changes[CHAT_WEB_SEARCH_SESSION_KEY];
+      if (webSearchChange) {
+        setWebSearchEnabled(webSearchChange.newValue === true);
+      }
     };
     chrome.storage.onChanged.addListener(onStorageChanged);
     return () => chrome.storage.onChanged.removeListener(onStorageChanged);

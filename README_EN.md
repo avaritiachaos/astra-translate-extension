@@ -61,7 +61,7 @@ Select text and click 💬, or right-click the floating ball and pick "Ask AI ab
 
 - **Reads the page for you** — opening chat extracts the article automatically (scored by content density, skipping nav / header / footer / sidebar) and shows it as a removable context chip. Click ✕ to drop it, or turn the whole behaviour off in Settings
 - **Regenerate** — didn't like the answer? Hit ↻ instead of retyping the question
-- **Four thinking levels** — ⚡ Fast / ⚖ Standard / 🧠 Deep / 🔬 Max, mapped straight onto DeepSeek's own low / high / xhigh / max
+- **Reasoning modes** — `off / low / high / xhigh / max`, using DeepSeek's official English values directly
 - **Web supplement** — optional: search first, answer from the results, cite the sources
 - **Shared conversation** — the in-page panel and the toolbar popup are the same chat; switch freely without losing context
 - **Leaves no trace** — chats live in this browser session only and clear when you quit

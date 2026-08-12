@@ -347,7 +347,7 @@ export interface ChatStreamRequest {
      * `attachment` and `webSearch` are then ignored — they come from the
      * stored turn being regenerated. */
     regenerate?: boolean;
-    /** Thinking-effort level: "fast" | "balanced" | "deep". */
+    /** Thinking-effort level: "off" | "low" | "high" | "xhigh" | "max". */
     effort?: string;
     /** Correlates events with this request if a port ever carries more than
      * one — events are echoed back tagged with the same id. */
