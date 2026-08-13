@@ -6,9 +6,9 @@
 // translating it into a second, app-specific set of names.
 
 /** DeepSeek chat modes: disabled thinking, or an enabled effort level. */
-export type ChatEffort = "off" | "low" | "high" | "xhigh" | "max";
+export type ChatEffort = "off" | "high" | "max";
 
-export const CHAT_EFFORTS: ChatEffort[] = ["off", "low", "high", "xhigh", "max"];
+export const CHAT_EFFORTS: ChatEffort[] = ["off", "high", "max"];
 
 /** DeepSeek's existing default in this extension. */
 export const DEFAULT_CHAT_EFFORT: ChatEffort = "high";
@@ -16,20 +16,16 @@ export const DEFAULT_CHAT_EFFORT: ChatEffort = "high";
 /** Legacy values kept valid for sessions created by older builds. */
 const LEGACY_EFFORT: Record<string, ChatEffort> = {
   disabled: "off",
-  fast: "low",
+  fast: "high",
   balanced: "high",
-  deep: "xhigh",
+  low: "high",
+  deep: "max",
+  xhigh: "max",
 };
 
 /** Narrow an untrusted stored or messaged value to a known DeepSeek level. */
 export function normalizeChatEffort(raw: unknown): ChatEffort {
-  if (
-    raw === "low" ||
-    raw === "high" ||
-    raw === "xhigh" ||
-    raw === "max" ||
-    raw === "off"
-  ) {
+  if (raw === "high" || raw === "max" || raw === "off") {
     return raw;
   }
   if (typeof raw === "string" && raw in LEGACY_EFFORT) {

@@ -8,6 +8,10 @@ import {
 } from "./chatEffort.ts";
 
 describe("normalizeChatEffort", () => {
+  it("exposes exactly the three official chat modes", () => {
+    assert.deepEqual(CHAT_EFFORTS, ["off", "high", "max"]);
+  });
+
   it("passes through DeepSeek's official values", () => {
     for (const level of CHAT_EFFORTS) {
       assert.equal(normalizeChatEffort(level), level);
@@ -16,9 +20,11 @@ describe("normalizeChatEffort", () => {
 
   it("maps legacy level names so stored sessions keep working", () => {
     assert.equal(normalizeChatEffort("disabled"), "off");
-    assert.equal(normalizeChatEffort("fast"), "low");
+    assert.equal(normalizeChatEffort("fast"), "high");
     assert.equal(normalizeChatEffort("balanced"), "high");
-    assert.equal(normalizeChatEffort("deep"), "xhigh");
+    assert.equal(normalizeChatEffort("low"), "high");
+    assert.equal(normalizeChatEffort("deep"), "max");
+    assert.equal(normalizeChatEffort("xhigh"), "max");
   });
 
   it("falls back to the default for anything else", () => {
