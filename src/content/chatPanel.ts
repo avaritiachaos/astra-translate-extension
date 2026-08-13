@@ -487,13 +487,19 @@ function injectStyles(): void {
       padding: 0 8px 0 10px;
     }
     .${P}-cp-effort-chevron {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 12px;
+      height: 16px;
       margin-left: 7px;
       font-size: 16px;
-      line-height: 0.7;
+      line-height: 1;
+      transform: none;
       transition: transform 120ms;
     }
     .${P}-cp-effort--open .${P}-cp-effort-chevron {
-      transform: translateY(1px) rotate(180deg);
+      transform: rotate(180deg);
     }
     .${P}-cp-effort-menu {
       position: absolute;
