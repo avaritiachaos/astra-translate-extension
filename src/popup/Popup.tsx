@@ -896,6 +896,31 @@ export default function Popup() {
             </button>
           </div>
           <div className="ast-popup-header-actions">
+            {mode === "chat" && (
+              <button
+                type="button"
+                className="ast-popup-clear-btn"
+                onClick={handleChatClear}
+                disabled={chatTurns.length === 0 && !chatPending}
+                title={t(lang, "chat.clear")}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2" />
+                  <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                </svg>
+              </button>
+            )}
             <button
               type="button"
               className={`ast-popup-history-btn ${historyOpen ? "ast-popup-history-btn--active" : ""}`}
@@ -1156,13 +1181,6 @@ export default function Popup() {
           />
           <div className="ast-chat-actions">
             <button
-              className="ast-btn ast-btn-primary ast-chat-send"
-              onClick={handleChatSend}
-              disabled={chatPending || !chatInput.trim()}
-            >
-              {chatPending ? t(lang, "chat.thinking") : t(lang, "chat.send")}
-            </button>
-            <button
               className={[
                 "ast-chat-pill",
                 webSearchEnabled ? "ast-chat-pill--on" : "",
@@ -1181,8 +1199,23 @@ export default function Popup() {
                     : "chat.webSearchNeedSetup"
               )}
             >
-              <span aria-hidden="true">🌐</span>
-              {t(lang, "chat.webSearch")}
+              <svg
+                viewBox="0 0 24 24"
+                width="13"
+                height="13"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ flexShrink: 0 }}
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 2a14.5 14.5 0 0 1 0 20M2 12h20" />
+                <path d="M12 2a14.5 14.5 0 0 0 0 20" />
+              </svg>
+              <span>{t(lang, "chat.webSearch")}</span>
             </button>
             <ChatEffortMenu
               value={chatEffort}
@@ -1208,12 +1241,11 @@ export default function Popup() {
                 ⤢
               </button>
               <button
-                className="ast-chat-icon"
-                onClick={handleChatClear}
-                disabled={chatTurns.length === 0 && !chatPending}
-                title={t(lang, "chat.clear")}
+                className="ast-btn ast-btn-primary ast-chat-send"
+                onClick={handleChatSend}
+                disabled={chatPending || !chatInput.trim()}
               >
-                🗑
+                {chatPending ? t(lang, "chat.thinking") : t(lang, "chat.send")}
               </button>
             </div>
           </div>

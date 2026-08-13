@@ -72,7 +72,8 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .ast-popup-settings-btn,
-.ast-popup-history-btn {
+.ast-popup-history-btn,
+.ast-popup-clear-btn {
   width: 30px;
   height: 30px;
   border: none;
@@ -84,6 +85,18 @@ body::-webkit-scrollbar-thumb:hover {
   align-items: center;
   justify-content: center;
   transition: background 120ms ease-out, color 120ms ease-out;
+}
+
+.ast-popup-clear-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ast-popup-clear-btn:hover:not(:disabled),
+.ast-popup-clear-btn:focus-visible:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  outline: none;
 }
 
 .ast-popup-settings-btn {
@@ -843,9 +856,35 @@ body::-webkit-scrollbar-thumb:hover {
 
 .ast-chat-send {
   height: 28px;
-  padding: 0 16px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 14px;
+  background: var(--ast-primary, #6366f1);
+  color: #ffffff;
+  font-family: var(--ast-font);
+  font-size: 11px;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
+  transition: background 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out;
+}
+
+.ast-chat-send:hover:not(:disabled) {
+  background: var(--ast-primary-hover, #4f46e5);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  transform: translateY(-1px);
+}
+
+.ast-chat-send:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.ast-chat-send:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
 .ast-chat-pill {

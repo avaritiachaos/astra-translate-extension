@@ -1673,6 +1673,7 @@ export function showTranslationBubbleAtPos(text: string, x: number, y: number): 
 let dragPopup: HTMLElement | null = null;
 
 function removeDragPopup(): void {
+  if (dragPopup && isChatPanelEmbeddedIn(dragPopup)) closeChatPanel();
   dragPopup?.remove();
   dragPopup = null;
 }
@@ -1849,12 +1850,32 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
     document.removeEventListener("mousedown", onOutsideClick);
   };
 
+  // Auto-remove after 60 seconds (cleared when entering chat)
+  let autoRemoveTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+    if (dragPopup === el) { cleanup(); removeDragPopup(); }
+  }, 60000);
+
   // ---- Event handlers ----
   const popupAskBtn = el.querySelector(`.${BUBBLE_PREFIX}-popup-ask-btn`);
   popupAskBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
     const src = el.querySelector(`.${BUBBLE_PREFIX}-popup-src`) as HTMLTextAreaElement | null;
-    askAiAboutSelection(src?.value || "", el);
+    const trimmed = (src?.value || "").trim();
+    if (!trimmed) return;
+    if (autoRemoveTimer) {
+      clearTimeout(autoRemoveTimer);
+      autoRemoveTimer = null;
+    }
+    void openChatPanelInHost(trimmed, {
+      host: el,
+      onBack: () => {
+        dragPopup = el;
+      },
+      onClose: () => {
+        cleanup();
+        removeDragPopup();
+      },
+    });
   });
 
   const closeBtn = el.querySelector(`.${BUBBLE_PREFIX}-popup-close-btn`);
@@ -1905,12 +1926,13 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
   await getLang();
   requestTranslationForPopup(text);
 
-  // Auto-remove after 60 seconds
-  const autoRemoveTimer = setTimeout(() => { if (dragPopup === el) { cleanup(); removeDragPopup(); } }, 60000);
-
   // Escape to close
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === "Escape") { clearTimeout(autoRemoveTimer); cleanup(); removeDragPopup(); }
+    if (e.key === "Escape") {
+      if (autoRemoveTimer) clearTimeout(autoRemoveTimer);
+      cleanup();
+      removeDragPopup();
+    }
   };
   document.addEventListener("keydown", onKey);
 
@@ -1918,7 +1940,7 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
   const onOutsideClick = (e: MouseEvent) => {
     if (!dragPopup) return;
     if (dragPopup.contains(e.target as Node)) return;
-    clearTimeout(autoRemoveTimer);
+    if (autoRemoveTimer) clearTimeout(autoRemoveTimer);
     cleanup();
     removeDragPopup();
   };

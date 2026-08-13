@@ -44,6 +44,7 @@ const ICON_TRASH = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" 
 const ICON_SETTINGS = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>`;
 const ICON_COPY = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
 const ICON_REGEN = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>`;
+const ICON_GLOBE = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 1 0 20M2 12h20"/><path d="M12 2a14.5 14.5 0 0 0 0 20"/></svg>`;
 
 // ---- Panel state (one panel per page) ----
 
@@ -1527,14 +1528,9 @@ function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
   const row = document.createElement("div");
   row.className = `${P}-cp-row`;
 
-  const sendBtn = button(`${P}-cp-send`, t(lang, "chat.send"), t(lang, "chat.send"), () =>
-    void send()
-  );
-  row.appendChild(sendBtn);
-
   const web = button(
     `${P}-cp-toggle ${P}-cp-web-toggle`,
-    `🌐 ${t(lang, "chat.webSearch")}`,
+    `${ICON_GLOBE}<span>${t(lang, "chat.webSearch")}</span>`,
     t(lang, "chat.webSearchOff"),
     () => {
       if (!webSearchAvailable) {
@@ -1584,9 +1580,14 @@ function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
     }
   );
 
+  const sendBtn = button(`${P}-cp-send`, t(lang, "chat.send"), t(lang, "chat.send"), () =>
+    void send()
+  );
+
   const end = document.createElement("div");
   end.className = `${P}-cp-rowend`;
   end.appendChild(attachBtn);
+  end.appendChild(sendBtn);
   row.appendChild(end);
 
   foot.appendChild(row);
