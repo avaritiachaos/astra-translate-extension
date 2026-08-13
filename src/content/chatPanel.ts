@@ -487,18 +487,18 @@ function injectStyles(): void {
       padding: 0 8px 0 10px;
     }
     .${P}-cp-effort-chevron {
-      display: inline-block;
-      width: 7px;
-      height: 7px;
-      margin: -3px 3px 0 7px;
-      border-right: 2px solid currentColor;
-      border-bottom: 2px solid currentColor;
-      transform: rotate(45deg);
+      display: block;
+      flex: 0 0 12px;
+      width: 12px;
+      height: 8px;
+      margin-left: 7px;
+      color: currentColor;
+      transform: translateY(1px);
       transform-origin: center;
       transition: transform 120ms;
     }
     .${P}-cp-effort--open .${P}-cp-effort-chevron {
-      transform: rotate(225deg);
+      transform: translateY(1px) rotate(180deg);
     }
     .${P}-cp-effort-menu {
       position: absolute;
@@ -679,9 +679,25 @@ function createEffortMenu(): HTMLElement {
   trigger.setAttribute("aria-expanded", "false");
 
   const triggerLabel = document.createElement("span");
-  const triggerChevron = document.createElement("span");
-  triggerChevron.className = `${P}-cp-effort-chevron`;
-  triggerChevron.textContent = "⌄";
+  const triggerChevron = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "svg"
+  );
+  triggerChevron.classList.add(`${P}-cp-effort-chevron`);
+  triggerChevron.setAttribute("viewBox", "0 0 12 8");
+  triggerChevron.setAttribute("aria-hidden", "true");
+  triggerChevron.setAttribute("focusable", "false");
+  const chevronPath = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "path"
+  );
+  chevronPath.setAttribute("d", "M1.5 2 6 6 10.5 2");
+  chevronPath.setAttribute("fill", "none");
+  chevronPath.setAttribute("stroke", "currentColor");
+  chevronPath.setAttribute("stroke-width", "1.8");
+  chevronPath.setAttribute("stroke-linecap", "round");
+  chevronPath.setAttribute("stroke-linejoin", "round");
+  triggerChevron.append(chevronPath);
   trigger.append(triggerLabel, triggerChevron);
 
   const menu = document.createElement("div");

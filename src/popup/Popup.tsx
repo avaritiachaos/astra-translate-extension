@@ -151,7 +151,21 @@ function ChatEffortMenu({
         onKeyDown={onTriggerKeyDown}
       >
         <span>{value}</span>
-        <span className="ast-chat-effort-chevron" aria-hidden="true" />
+        <svg
+          className="ast-chat-effort-chevron"
+          viewBox="0 0 12 8"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path
+            d="M1.5 2 6 6 10.5 2"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
       {open && (
         <div className="ast-chat-effort-menu" role="listbox" aria-label="Reasoning mode">

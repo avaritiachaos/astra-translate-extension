@@ -901,19 +901,19 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .ast-chat-effort-chevron {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin: -3px 3px 0 8px;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: rotate(45deg);
+  display: block;
+  flex: 0 0 12px;
+  width: 12px;
+  height: 8px;
+  margin-left: 8px;
+  color: currentColor;
+  transform: translateY(1px);
   transform-origin: center;
   transition: transform 120ms ease-out;
 }
 
 .ast-chat-effort--open .ast-chat-effort-chevron {
-  transform: rotate(225deg);
+  transform: translateY(1px) rotate(180deg);
 }
 
 .ast-chat-effort-menu {
