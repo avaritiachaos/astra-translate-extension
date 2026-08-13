@@ -151,7 +151,7 @@ function ChatEffortMenu({
         onKeyDown={onTriggerKeyDown}
       >
         <span>{value}</span>
-        <span className="ast-chat-effort-chevron" aria-hidden="true">⌄</span>
+        <span className="ast-chat-effort-chevron" aria-hidden="true" />
       </button>
       {open && (
         <div className="ast-chat-effort-menu" role="listbox" aria-label="Reasoning mode">

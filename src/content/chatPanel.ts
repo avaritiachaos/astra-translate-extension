@@ -487,19 +487,18 @@ function injectStyles(): void {
       padding: 0 8px 0 10px;
     }
     .${P}-cp-effort-chevron {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 12px;
-      height: 16px;
-      margin-left: 7px;
-      font-size: 16px;
-      line-height: 1;
-      transform: none;
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      margin: -3px 3px 0 7px;
+      border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor;
+      transform: rotate(45deg);
+      transform-origin: center;
       transition: transform 120ms;
     }
     .${P}-cp-effort--open .${P}-cp-effort-chevron {
-      transform: rotate(180deg);
+      transform: rotate(225deg);
     }
     .${P}-cp-effort-menu {
       position: absolute;
