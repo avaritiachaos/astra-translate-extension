@@ -127,6 +127,14 @@ const zhCN: MessageDict = {
   "popup.kbHint": "Enter 翻译 · Shift+Enter 换行 · Esc 清空",
   "popup.modeTranslate": "翻译",
   "popup.modeChat": "对话",
+  "popup.history": "历史",
+  "popup.historySearch": "搜索历史记录",
+  "popup.historyClear": "清空历史",
+  "popup.historyClearConfirm": "确定清空全部翻译历史吗？此操作不可撤销。",
+  "popup.historyEmpty": "暂无翻译历史",
+  "popup.historyNoMatch": "没有匹配的历史记录",
+  "popup.historyLoading": "正在读取历史记录…",
+  "error.identityTranslation": "模型返回了原文，未生成有效译文，请重试。",
 
   // ---- 临时对话模式 ----
   "chat.placeholder": "随便问点什么…",
@@ -368,6 +376,14 @@ const enUS: MessageDict = {
   "popup.kbHint": "Enter to translate · Shift+Enter for newline · Esc to clear",
   "popup.modeTranslate": "Translate",
   "popup.modeChat": "Chat",
+  "popup.history": "History",
+  "popup.historySearch": "Search history",
+  "popup.historyClear": "Clear history",
+  "popup.historyClearConfirm": "Clear all translation history? This cannot be undone.",
+  "popup.historyEmpty": "No translation history yet",
+  "popup.historyNoMatch": "No matching history",
+  "popup.historyLoading": "Loading history…",
+  "error.identityTranslation": "The model returned the source text instead of a translation. Please try again.",
 
   // ---- Ephemeral chat mode ----
   "chat.placeholder": "Ask anything…",
@@ -609,6 +625,14 @@ const jaJP: MessageDict = {
   "popup.kbHint": "Enter で翻訳 · Shift+Enter で改行 · Esc でクリア",
   "popup.modeTranslate": "翻訳",
   "popup.modeChat": "チャット",
+  "popup.history": "履歴",
+  "popup.historySearch": "履歴を検索",
+  "popup.historyClear": "履歴をクリア",
+  "popup.historyClearConfirm": "翻訳履歴をすべて削除しますか？この操作は元に戻せません。",
+  "popup.historyEmpty": "翻訳履歴はまだありません",
+  "popup.historyNoMatch": "一致する履歴がありません",
+  "popup.historyLoading": "履歴を読み込み中…",
+  "error.identityTranslation": "モデルが原文を返し、有効な翻訳を生成しませんでした。もう一度お試しください。",
 
   // ---- 一時チャットモード ----
   "chat.placeholder": "何でも聞いてください…",

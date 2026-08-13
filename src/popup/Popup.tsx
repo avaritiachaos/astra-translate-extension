@@ -9,6 +9,7 @@ import type {
   ChatStreamEvent,
   ChatStreamPhase,
   ChatTurn,
+  TranslationHistoryEntry,
 } from "../shared/types";
 import {
   CHAT_EFFORT_SESSION_KEY,
@@ -190,6 +191,10 @@ export default function Popup() {
   const [toast, setToast] = useState("");
   const [langSaved, setLangSaved] = useState(false);
   const [pageLangSaved, setPageLangSaved] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyItems, setHistoryItems] = useState<TranslationHistoryEntry[]>([]);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // ---- Chat mode state ----
@@ -214,6 +219,22 @@ export default function Popup() {
 
   const lang: UiLanguage = settings?.uiLanguage || "zh-CN";
 
+  const loadTranslationHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "GET_TRANSLATION_HISTORY",
+      });
+      if (response?.success && Array.isArray(response.items)) {
+        setHistoryItems(response.items as TranslationHistoryEntry[]);
+      }
+    } catch {
+      // History is auxiliary UI; keep the last loaded list on read failure.
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
   // Load settings on mount
   useEffect(() => {
     chrome.runtime.sendMessage({ type: "GET_SETTINGS" }).then((s) => {
@@ -225,6 +246,10 @@ export default function Popup() {
     });
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (historyOpen) void loadTranslationHistory();
+  }, [historyOpen, loadTranslationHistory]);
 
   const refreshChatState = useCallback(async () => {
     try {
@@ -371,8 +396,15 @@ export default function Popup() {
       });
 
       if (response?.success) {
-        setResult(response.translation || "");
-        setResolvedLang(response.resolvedLang || "");
+        const translation =
+          typeof response.translation === "string" ? response.translation.trim() : "";
+        if (!translation) {
+          setError(t(lang, "error.invalidResponse"));
+        } else {
+          setResult(translation);
+          setResolvedLang(response.resolvedLang || "");
+          if (historyOpen) void loadTranslationHistory();
+        }
       } else {
         setError(response?.error || t(lang, "error.translationFailed"));
       }
@@ -381,7 +413,7 @@ export default function Popup() {
     } finally {
       setLoading(false);
     }
-  }, [inputText, targetLang, sourceLang, lang]);
+  }, [inputText, targetLang, sourceLang, lang, historyOpen, loadTranslationHistory]);
 
   // Clear
   const handleClear = useCallback(() => {
@@ -404,6 +436,38 @@ export default function Popup() {
     setToast(msg);
     setTimeout(() => setToast(""), 1500);
   }, []);
+
+  const handleHistorySelect = useCallback((entry: TranslationHistoryEntry) => {
+    setMode("translate");
+    chrome.storage.session
+      ?.set({ [POPUP_MODE_STORAGE_KEY]: "translate" })
+      .catch(() => {});
+    setInputText(entry.sourceText);
+    setResult(entry.translation);
+    setResolvedLang(entry.targetLang);
+    setSourceLang(entry.sourceLang || "Auto");
+    setTargetLang(entry.targetLang);
+    setError("");
+    setHistoryOpen(false);
+    setHistoryQuery("");
+    inputRef.current?.focus();
+  }, []);
+
+  const handleHistoryClear = useCallback(async () => {
+    if (!window.confirm(t(lang, "popup.historyClearConfirm"))) return;
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "CLEAR_TRANSLATION_HISTORY",
+      });
+      if (response?.success) {
+        setHistoryItems([]);
+        setHistoryQuery("");
+        showToast(t(lang, "popup.historyClear"));
+      }
+    } catch {
+      // Keep the current list if clearing could not reach the service worker.
+    }
+  }, [lang, showToast]);
 
   // Page translate
   const handlePageTranslate = useCallback(async () => {
@@ -752,6 +816,13 @@ export default function Popup() {
   );
 
   const allLangs = ["Auto", ...SUPPORTED_LANGUAGES];
+  const historySearch = historyQuery.trim().toLocaleLowerCase();
+  const visibleHistory = historyItems.filter((item) => {
+    if (!historySearch) return true;
+    return `${item.sourceText}\n${item.translation}\n${item.targetLang}`
+      .toLocaleLowerCase()
+      .includes(historySearch);
+  });
 
   // Only the newest assistant reply is regenerable — the service always
   // re-answers the last question, so an older ↻ would be a lie.
@@ -786,10 +857,74 @@ export default function Popup() {
             {t(lang, "popup.modeChat")}
           </button>
         </div>
-        <button className="ast-popup-settings-btn" onClick={openOptions} title={t(lang, "popup.openSettings")}>
-          ⚙
-        </button>
+        <div className="ast-popup-header-actions">
+          <button
+            type="button"
+            className={`ast-popup-history-btn ${historyOpen ? "ast-popup-history-btn--active" : ""}`}
+            onClick={() => setHistoryOpen((open) => !open)}
+            aria-expanded={historyOpen}
+            title={t(lang, "popup.history")}
+          >
+            {t(lang, "popup.history")}
+          </button>
+          <button type="button" className="ast-popup-settings-btn" onClick={openOptions} title={t(lang, "popup.openSettings")}>
+            ⚙
+          </button>
+        </div>
       </div>
+
+      {historyOpen && (
+        <div className="ast-history-panel" aria-label={t(lang, "popup.history")}>
+          <div className="ast-history-toolbar">
+            <input
+              className="ast-history-search"
+              type="search"
+              value={historyQuery}
+              onChange={(event) => setHistoryQuery(event.target.value)}
+              placeholder={t(lang, "popup.historySearch")}
+              aria-label={t(lang, "popup.historySearch")}
+            />
+            <button
+              type="button"
+              className="ast-history-clear"
+              onClick={handleHistoryClear}
+              disabled={historyItems.length === 0}
+            >
+              {t(lang, "popup.historyClear")}
+            </button>
+          </div>
+          {historyLoading ? (
+            <div className="ast-history-empty">{t(lang, "popup.historyLoading")}</div>
+          ) : visibleHistory.length === 0 ? (
+            <div className="ast-history-empty">
+              {historyItems.length > 0
+                ? t(lang, "popup.historyNoMatch")
+                : t(lang, "popup.historyEmpty")}
+            </div>
+          ) : (
+            <div className="ast-history-list">
+              {visibleHistory.map((item) => (
+                <button
+                  type="button"
+                  className="ast-history-item"
+                  key={item.id}
+                  onClick={() => handleHistorySelect(item)}
+                  title={item.sourceText}
+                >
+                  <div className="ast-history-item-meta">
+                    <span>{item.targetLang}</span>
+                    <time dateTime={new Date(item.createdAt).toISOString()}>
+                      {new Date(item.createdAt).toLocaleString(lang)}
+                    </time>
+                  </div>
+                  <div className="ast-history-item-source">{item.sourceText}</div>
+                  <div className="ast-history-item-translation">{item.translation}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {mode === "chat" ? (
         <div className="ast-chat">

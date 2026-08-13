@@ -103,6 +103,8 @@ export type MessageType =
   | "TEST_PROVIDER"
   | "TRANSLATE_TEXT"
   | "TRANSLATE_BATCH"
+  | "GET_TRANSLATION_HISTORY"
+  | "CLEAR_TRANSLATION_HISTORY"
   | "GET_SITE_LEXICON"
   | "LEARN_SITE_LEXICON"
   | "TOUCH_SITE_LEXICON"
@@ -236,6 +238,17 @@ export interface TranslateResponse {
   dictionaryResult?: DictionaryResult;
   /** Present when the text is hard-non-translatable (link/path/code/command/hash). */
   nonTranslatable?: NonTranslatableInfo;
+}
+
+/** A user-visible manual or selection translation kept in local history. */
+export interface TranslationHistoryEntry {
+  id: string;
+  sourceText: string;
+  translation: string;
+  sourceLang: string;
+  targetLang: string;
+  mode: "manual" | "selection";
+  createdAt: number;
 }
 
 export interface TranslateBatchResponse {

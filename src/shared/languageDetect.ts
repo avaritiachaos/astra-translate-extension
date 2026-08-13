@@ -160,6 +160,67 @@ export function isSoftIdentifier(text: string): boolean {
   return true;
 }
 
+/**
+ * Detect a likely provider echo when the requested target language differs
+ * from the source language. This deliberately only treats an exact echo as
+ * suspicious; names and technical identifiers are handled by the caller.
+ */
+export function isLikelyIdentityTranslation(
+  sourceText: string,
+  translation: string,
+  targetLang: string,
+  sourceLang?: string,
+): boolean {
+  const source = sourceText.replace(/\r\n/g, "\n").trim();
+  const result = translation.replace(/\r\n/g, "\n").trim();
+  if (!source || source !== result) return false;
+
+  const explicitSource = normalizeLanguageName(sourceLang);
+  const explicitTarget = normalizeLanguageName(targetLang);
+  if (explicitSource && explicitSource !== "auto" && explicitTarget) {
+    return explicitSource !== explicitTarget;
+  }
+
+  const sourceScript = detectDominantScript(source);
+  const targetScript = languageToScript(targetLang);
+  if (sourceScript === "unknown" || sourceScript === "mixed" || !targetScript) {
+    return false;
+  }
+  return sourceScript !== targetScript;
+}
+
+function normalizeLanguageName(lang?: string): string {
+  return (lang || "").trim().toLowerCase();
+}
+
+function languageToScript(
+  lang: string
+): "zh" | "ja" | "ko" | "latin" | "cyrillic" | "arabic" | "thai" | null {
+  const normalized = normalizeLanguageName(lang);
+  if (normalized.includes("chinese") || normalized.includes("中文")) return "zh";
+  if (normalized.includes("japanese") || normalized.includes("日本語")) return "ja";
+  if (normalized.includes("korean") || normalized.includes("한국어")) return "ko";
+  if (
+    normalized.includes("english") ||
+    normalized.includes("french") ||
+    normalized.includes("german") ||
+    normalized.includes("spanish") ||
+    normalized.includes("portuguese") ||
+    normalized.includes("italian") ||
+    normalized.includes("dutch") ||
+    normalized.includes("polish") ||
+    normalized.includes("turkish") ||
+    normalized.includes("vietnamese") ||
+    normalized.includes("indonesian") ||
+    normalized.includes("malay") ||
+    normalized.includes("hindi")
+  ) return "latin";
+  if (normalized.includes("russian")) return "cyrillic";
+  if (normalized.includes("arabic")) return "arabic";
+  if (normalized.includes("thai")) return "thai";
+  return null;
+}
+
 // Common English words that should NOT be treated as identifiers
 const COMMON_WORDS = new Set([
   "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",

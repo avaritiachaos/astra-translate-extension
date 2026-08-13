@@ -13,6 +13,7 @@ import type {
   TranslateBatchResponse,
   AstraSettings,
   DictionaryResult,
+  TranslationHistoryEntry,
 } from "../shared/types";
 import { t, type UiLanguage } from "../shared/i18n";
 import { getSettings, saveSettings } from "../shared/storage";
@@ -20,7 +21,13 @@ import { translateViaProvider, translateViaProviderStream } from "./providerClie
 import { ProviderRequestError, AstraError } from "./errors";
 import { extractJson } from "../shared/utils";
 import { PAGE_SEGMENT_SEPARATOR } from "../shared/constants";
-import { resolveTargetLanguageForText, classifySelectedText, detectNonTranslatableKind, isSoftIdentifier } from "../shared/languageDetect";
+import {
+  resolveTargetLanguageForText,
+  classifySelectedText,
+  detectNonTranslatableKind,
+  isSoftIdentifier,
+  isLikelyIdentityTranslation,
+} from "../shared/languageDetect";
 import {
   createTranslationCacheKey,
   getCachedTranslation,
@@ -43,6 +50,11 @@ import {
 } from "./chatService";
 import { siteLexiconHost } from "../shared/siteLexicon";
 import { StreamBatchItemParser, topLevelJsonObjects } from "../shared/streamBatchParser";
+import {
+  clearTranslationHistory,
+  getTranslationHistory,
+  recordTranslationHistory,
+} from "./translationHistory";
 
 /** Hostname of the page a message came from (content scripts only). */
 function senderHost(sender?: chrome.runtime.MessageSender): string | null {
@@ -125,6 +137,17 @@ export async function handleMessage(
 
     case "TRANSLATE_BATCH":
       return handleTranslateBatch(msg as TranslateBatchMessage);
+
+    case "GET_TRANSLATION_HISTORY":
+      if (!isExtensionPageSender(sender)) {
+        return { success: false, items: [] as TranslationHistoryEntry[] };
+      }
+      return { success: true, items: await getTranslationHistory() };
+
+    case "CLEAR_TRANSLATION_HISTORY":
+      if (!isExtensionPageSender(sender)) return { success: false };
+      await clearTranslationHistory();
+      return { success: true };
 
     case "GET_SITE_LEXICON": {
       const payload = (msg as Message<{ host: string; targetLang: string }>).payload;
@@ -340,6 +363,62 @@ function getLang(settings: AstraSettings): UiLanguage {
   return settings.uiLanguage || "zh-CN";
 }
 
+async function recordHistorySafely(
+  sourceText: string,
+  translation: string,
+  sourceLang: string | undefined,
+  targetLang: string,
+  mode: "manual" | "selection",
+): Promise<void> {
+  try {
+    await recordTranslationHistory({
+      sourceText,
+      translation,
+      sourceLang: sourceLang || "Auto",
+      targetLang,
+      mode,
+    });
+  } catch {
+    // History is auxiliary state. A storage/quota failure must not turn a
+    // successful translation into an error.
+  }
+}
+
+/**
+ * Some providers occasionally answer a cross-language request by echoing the
+ * input. Retry once with an explicit correction, then fail honestly instead
+ * of caching and displaying the echo as a successful translation.
+ */
+async function translatePlainWithEchoRecovery(
+  settings: AstraSettings,
+  systemPrompt: string,
+  text: string,
+  targetLang: string,
+  sourceLang: string | undefined,
+  textClass: ReturnType<typeof classifySelectedText>,
+  lang: UiLanguage,
+): Promise<string> {
+  let translation = await translateViaProvider(settings, systemPrompt, text, lang);
+
+  // A standalone name / identifier is intentionally allowed to remain the
+  // same; it is not a failed translation.
+  if (
+    textClass !== "soft-identifier" &&
+    isLikelyIdentityTranslation(text, translation, targetLang, sourceLang)
+  ) {
+    const retryPrompt = `${systemPrompt}\n\nIMPORTANT RETRY: The previous answer repeated the source text. The source is not in ${targetLang}. Translate it into natural ${targetLang} now. Return only the translation and do not repeat the source text.`;
+    translation = await translateViaProvider(settings, retryPrompt, text, lang);
+    if (isLikelyIdentityTranslation(text, translation, targetLang, sourceLang)) {
+      throw new AstraError(t(lang, "error.identityTranslation"), "IDENTITY_TRANSLATION");
+    }
+  }
+
+  if (!translation.trim()) {
+    throw new ProviderRequestError(t(lang, "error.invalidResponse"), "PARSE_ERROR");
+  }
+  return translation;
+}
+
 async function testProvider(draftSettings?: AstraSettings): Promise<TestProviderResponse> {
   const settings = draftSettings || await getSettings();
   const lang = getLang(settings);
@@ -369,7 +448,16 @@ async function handleTranslateText(
   const settings = await getSettings();
   const lang = getLang(settings);
 
-  const { text, targetLang, prompt, mode, contextBefore, contextAfter, fullLineText } = msg.payload!;
+  const {
+    text,
+    targetLang,
+    sourceLang,
+    prompt,
+    mode,
+    contextBefore,
+    contextAfter,
+    fullLineText,
+  } = msg.payload!;
 
   // Smart target language resolution:
   // When smart mode is active and the caller's targetLang is just the default
@@ -402,11 +490,21 @@ async function handleTranslateText(
   }
 
   if (textClass === "dictionary") {
-    return handleDictionaryTranslation(
+    const dictionaryResponse = await handleDictionaryTranslation(
       settings, lang, text, finalTargetLang,
       contextBefore || "", contextAfter || "", fullLineText || "",
       isSoftIdentifier(text)
     );
+    if (dictionaryResponse.success && dictionaryResponse.translation) {
+      await recordHistorySafely(
+        text,
+        dictionaryResponse.translation,
+        sourceLang,
+        finalTargetLang,
+        effectiveMode === "selection" ? "selection" : "manual",
+      );
+    }
+    return dictionaryResponse;
   }
 
   // "soft-identifier" and "translate" both use plain translation; the prompt
@@ -424,7 +522,18 @@ async function handleTranslateText(
     settings,
   });
   const cached = await getCachedTranslation(cacheKey, settings);
-  if (cached) {
+  if (
+    cached &&
+    (textClass === "soft-identifier" ||
+      !isLikelyIdentityTranslation(text, cached.translation, finalTargetLang, sourceLang))
+  ) {
+    await recordHistorySafely(
+      text,
+      cached.translation,
+      sourceLang,
+      finalTargetLang,
+      effectiveMode === "selection" ? "selection" : "manual",
+    );
     return {
       success: true,
       translation: cached.translation,
@@ -437,11 +546,26 @@ async function handleTranslateText(
   }
 
   try {
-    const translation = await translateViaProvider(settings, systemPrompt, text, lang);
+    const translation = await translatePlainWithEchoRecovery(
+      settings,
+      systemPrompt,
+      text,
+      finalTargetLang,
+      sourceLang,
+      textClass,
+      lang,
+    );
     await setCachedTranslation(
       cacheKey,
       { translation, resolvedLang: finalTargetLang },
       settings
+    );
+    await recordHistorySafely(
+      text,
+      translation,
+      sourceLang,
+      finalTargetLang,
+      effectiveMode === "selection" ? "selection" : "manual",
     );
     return { success: true, translation, resolvedLang: finalTargetLang };
   } catch (err) {

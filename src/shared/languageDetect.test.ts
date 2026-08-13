@@ -17,6 +17,7 @@ import {
   isHardNonTranslatable,
   isSoftIdentifier,
   classifySelectedText,
+  isLikelyIdentityTranslation,
 } from "./languageDetect.ts";
 import type { AstraSettings } from "./types.ts";
 
@@ -155,4 +156,29 @@ test("classifySelectedText: soft identifier → dictionary on selection, soft-id
 
 test("classifySelectedText: a full sentence is translated", () => {
   assert.equal(classifySelectedText("This is a sentence worth translating.", "manual", SETTINGS), "translate");
+});
+
+test("isLikelyIdentityTranslation: flags a Chinese echo when target is Japanese", () => {
+  assert.equal(
+    isLikelyIdentityTranslation(
+      "据说 DeepSeek 的推論強度設定只是几行提示词？",
+      "据说 DeepSeek 的推論強度設定只是几行提示词？",
+      "Japanese",
+    ),
+    true,
+  );
+});
+
+test("isLikelyIdentityTranslation: accepts an unchanged same-language result", () => {
+  assert.equal(
+    isLikelyIdentityTranslation("这是中文", "这是中文", "Simplified Chinese"),
+    false,
+  );
+});
+
+test("isLikelyIdentityTranslation: explicit different languages flag an echo", () => {
+  assert.equal(
+    isLikelyIdentityTranslation("This is a sentence.", "This is a sentence.", "French", "English"),
+    true,
+  );
 });
