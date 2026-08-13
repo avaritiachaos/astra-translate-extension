@@ -4,7 +4,12 @@
 
 import { escapeHtml } from "../shared/utils";
 import { t, type UiLanguage } from "../shared/i18n";
-import { openChatPanel } from "./chatPanel";
+import {
+  closeChatPanel,
+  isChatPanelEmbeddedIn,
+  openChatPanel,
+  openChatPanelInHost,
+} from "./chatPanel";
 
 // Constants
 const BUBBLE_PREFIX = "ast";
@@ -19,6 +24,7 @@ let savedContextBefore = "";
 let savedContextAfter = "";
 let savedFullLineText = "";
 let bubble: HTMLElement | null = null;
+let bubbleCleanup: (() => void) | null = null;
 let isPinned = false;
 let isTranslating = false;
 let cachedLang: UiLanguage = "zh-CN";
@@ -113,6 +119,28 @@ export function injectThemeVars(): void {
         color: #e5e7eb;
         border-color: #2d2d44;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      }
+    }
+    .${BUBBLE_PREFIX}-bubble--chat {
+      display: flex;
+      flex-direction: column;
+      width: min(380px, calc(100vw - 16px));
+      height: min(520px, calc(100vh - 16px));
+      min-width: 0;
+      min-height: 0;
+      max-width: calc(100vw - 16px);
+      max-height: calc(100vh - 16px);
+      box-sizing: border-box;
+    }
+    .${BUBBLE_PREFIX}-bubble--chat > .ast-cp-embedded {
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 0;
+    }
+    @media (max-width: 420px), (max-height: 360px) {
+      .${BUBBLE_PREFIX}-bubble--chat {
+        width: calc(100vw - 16px);
+        height: calc(100vh - 16px);
       }
     }
     @keyframes ${BUBBLE_PREFIX}-bubble-in {
@@ -975,12 +1003,18 @@ function removeSelectionBtn(): void {
 
 function removeBubble(): void {
   if (isPinned) return;
+  if (bubble && isChatPanelEmbeddedIn(bubble)) closeChatPanel();
+  bubbleCleanup?.();
+  bubbleCleanup = null;
   bubble?.remove();
   bubble = null;
 }
 
 function forceRemoveBubble(): void {
   isPinned = false;
+  if (bubble && isChatPanelEmbeddedIn(bubble)) closeChatPanel();
+  bubbleCleanup?.();
+  bubbleCleanup = null;
   bubble?.remove();
   bubble = null;
 }
@@ -1250,7 +1284,22 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
   const askBtn = el.querySelector(`.${BUBBLE_PREFIX}-ask-btn`);
   askBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
-    askAiAboutSelection(sourceText, el);
+    const trimmed = sourceText.trim();
+    if (!trimmed) return;
+    void openChatPanelInHost(trimmed, {
+      host: el,
+      onBack: () => {
+        // The original bubble children and listeners are restored by the chat
+        // mount. Keep the bubble reference so outside-click handling resumes.
+        bubble = el;
+      },
+      onClose: () => {
+        bubbleCleanup?.();
+        bubbleCleanup = null;
+        if (bubble === el) bubble = null;
+        el.remove();
+      },
+    });
   });
 
   // Source toggle
@@ -1323,6 +1372,19 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
 
   document.addEventListener("mousemove", onResizeMove);
   document.addEventListener("mouseup", onResizeEnd);
+
+  const cleanupBubbleResize = () => {
+    document.removeEventListener("mousemove", onResizeMove);
+    document.removeEventListener("mouseup", onResizeEnd);
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+    isResizing = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  };
+  bubbleCleanup = cleanupBubbleResize;
 
   document.body.appendChild(el);
   bubble = el;

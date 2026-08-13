@@ -248,6 +248,29 @@ export default function Popup() {
   }, []);
 
   useEffect(() => {
+    if (!historyOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (!target.closest(".ast-popup-header-actions, #ast-history-panel")) {
+        setHistoryOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setHistoryOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [historyOpen]);
+
+  useEffect(() => {
     if (historyOpen) void loadTranslationHistory();
   }, [historyOpen, loadTranslationHistory]);
 
@@ -835,96 +858,114 @@ export default function Popup() {
   }
 
   return (
-    <div onKeyDown={handleKeyDown}>
-      {/* Header: title · mode segmented control · settings */}
-      <div className="ast-popup-header">
-        <span className="ast-popup-title">{t(lang, "app.name")}</span>
-        <div className="ast-seg" role="tablist">
-          <button
-            role="tab"
-            aria-selected={mode === "translate"}
-            className={`ast-seg-btn ${mode === "translate" ? "ast-seg-btn--active" : ""}`}
-            onClick={() => switchMode("translate")}
-          >
-            {t(lang, "popup.modeTranslate")}
-          </button>
-          <button
-            role="tab"
-            aria-selected={mode === "chat"}
-            className={`ast-seg-btn ${mode === "chat" ? "ast-seg-btn--active" : ""}`}
-            onClick={() => switchMode("chat")}
-          >
-            {t(lang, "popup.modeChat")}
-          </button>
-        </div>
-        <div className="ast-popup-header-actions">
-          <button
-            type="button"
-            className={`ast-popup-history-btn ${historyOpen ? "ast-popup-history-btn--active" : ""}`}
-            onClick={() => setHistoryOpen((open) => !open)}
-            aria-expanded={historyOpen}
-            title={t(lang, "popup.history")}
-          >
-            {t(lang, "popup.history")}
-          </button>
-          <button type="button" className="ast-popup-settings-btn" onClick={openOptions} title={t(lang, "popup.openSettings")}>
-            ⚙
-          </button>
-        </div>
-      </div>
-
-      {historyOpen && (
-        <div className="ast-history-panel" aria-label={t(lang, "popup.history")}>
-          <div className="ast-history-toolbar">
-            <input
-              className="ast-history-search"
-              type="search"
-              value={historyQuery}
-              onChange={(event) => setHistoryQuery(event.target.value)}
-              placeholder={t(lang, "popup.historySearch")}
-              aria-label={t(lang, "popup.historySearch")}
-            />
+    <div className="ast-popup-shell" onKeyDown={handleKeyDown}>
+      <div className="ast-popup-topbar">
+        {/* Header: title · mode segmented control · settings */}
+        <div className="ast-popup-header">
+          <span className="ast-popup-title">{t(lang, "app.name")}</span>
+          <div className="ast-seg" role="tablist">
             <button
-              type="button"
-              className="ast-history-clear"
-              onClick={handleHistoryClear}
-              disabled={historyItems.length === 0}
+              role="tab"
+              aria-selected={mode === "translate"}
+              className={`ast-seg-btn ${mode === "translate" ? "ast-seg-btn--active" : ""}`}
+              onClick={() => switchMode("translate")}
             >
-              {t(lang, "popup.historyClear")}
+              {t(lang, "popup.modeTranslate")}
+            </button>
+            <button
+              role="tab"
+              aria-selected={mode === "chat"}
+              className={`ast-seg-btn ${mode === "chat" ? "ast-seg-btn--active" : ""}`}
+              onClick={() => switchMode("chat")}
+            >
+              {t(lang, "popup.modeChat")}
             </button>
           </div>
-          {historyLoading ? (
-            <div className="ast-history-empty">{t(lang, "popup.historyLoading")}</div>
-          ) : visibleHistory.length === 0 ? (
-            <div className="ast-history-empty">
-              {historyItems.length > 0
-                ? t(lang, "popup.historyNoMatch")
-                : t(lang, "popup.historyEmpty")}
-            </div>
-          ) : (
-            <div className="ast-history-list">
-              {visibleHistory.map((item) => (
-                <button
-                  type="button"
-                  className="ast-history-item"
-                  key={item.id}
-                  onClick={() => handleHistorySelect(item)}
-                  title={item.sourceText}
-                >
-                  <div className="ast-history-item-meta">
-                    <span>{item.targetLang}</span>
-                    <time dateTime={new Date(item.createdAt).toISOString()}>
-                      {new Date(item.createdAt).toLocaleString(lang)}
-                    </time>
-                  </div>
-                  <div className="ast-history-item-source">{item.sourceText}</div>
-                  <div className="ast-history-item-translation">{item.translation}</div>
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="ast-popup-header-actions">
+            <button
+              type="button"
+              className={`ast-popup-history-btn ${historyOpen ? "ast-popup-history-btn--active" : ""}`}
+              onClick={() => setHistoryOpen((open) => !open)}
+              aria-expanded={historyOpen}
+              aria-pressed={historyOpen}
+              aria-controls="ast-history-panel"
+              aria-label={t(lang, "popup.historyToggle")}
+              title={t(lang, "popup.historyToggle")}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M3 12a9 9 0 1 0 3-6.7" />
+                <path d="M3 4v6h6" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="ast-popup-settings-btn"
+              onClick={openOptions}
+              title={t(lang, "popup.openSettings")}
+            >
+              ⚙
+            </button>
+          </div>
         </div>
-      )}
+
+        {historyOpen && (
+          <div
+            id="ast-history-panel"
+            className="ast-history-panel"
+            aria-label={t(lang, "popup.history")}
+          >
+            <div className="ast-history-toolbar">
+              <input
+                className="ast-history-search"
+                type="search"
+                value={historyQuery}
+                onChange={(event) => setHistoryQuery(event.target.value)}
+                placeholder={t(lang, "popup.historySearch")}
+                aria-label={t(lang, "popup.historySearch")}
+              />
+              <button
+                type="button"
+                className="ast-history-clear"
+                onClick={handleHistoryClear}
+                disabled={historyItems.length === 0}
+              >
+                {t(lang, "popup.historyClear")}
+              </button>
+            </div>
+            {historyLoading ? (
+              <div className="ast-history-empty">{t(lang, "popup.historyLoading")}</div>
+            ) : visibleHistory.length === 0 ? (
+              <div className="ast-history-empty">
+                {historyItems.length > 0
+                  ? t(lang, "popup.historyNoMatch")
+                  : t(lang, "popup.historyEmpty")}
+              </div>
+            ) : (
+              <div className="ast-history-list">
+                {visibleHistory.map((item) => (
+                  <button
+                    type="button"
+                    className="ast-history-item"
+                    key={item.id}
+                    onClick={() => handleHistorySelect(item)}
+                    title={item.sourceText}
+                  >
+                    <div className="ast-history-item-meta">
+                      <span>{item.targetLang}</span>
+                      <time dateTime={new Date(item.createdAt).toISOString()}>
+                        {new Date(item.createdAt).toLocaleString(lang)}
+                      </time>
+                    </div>
+                    <div className="ast-history-item-source">{item.sourceText}</div>
+                    <div className="ast-history-item-translation">{item.translation}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {mode === "chat" ? (
         <div className="ast-chat">

@@ -29,6 +29,14 @@ body {
   border-radius: 14px;
 }
 
+.ast-popup-shell {
+  min-width: 0;
+}
+
+.ast-popup-topbar {
+  position: relative;
+}
+
 /* Scrollbar — thin, blends with background */
 body::-webkit-scrollbar {
   width: 5px;
@@ -63,7 +71,8 @@ body::-webkit-scrollbar-thumb:hover {
   letter-spacing: 0.01em;
 }
 
-.ast-popup-settings-btn {
+.ast-popup-settings-btn,
+.ast-popup-history-btn {
   width: 30px;
   height: 30px;
   border: none;
@@ -71,52 +80,66 @@ body::-webkit-scrollbar-thumb:hover {
   cursor: pointer;
   border-radius: 8px;
   color: var(--ast-muted);
-  font-size: 17px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background 120ms ease-out, color 120ms ease-out;
 }
 
-.ast-popup-settings-btn:hover {
-  background: var(--ast-border);
-  color: var(--ast-text);
+.ast-popup-settings-btn {
+  font-size: 17px;
 }
+
+.ast-popup-settings-btn:hover,
+.ast-popup-settings-btn:focus-visible,
+.ast-popup-history-btn:hover,
+.ast-popup-history-btn:focus-visible,
+.ast-popup-history-btn--active {
+  background: var(--ast-border);
+  color: var(--ast-primary);
+  outline: none;
+}
+
+.ast-popup-history-btn svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 
 .ast-popup-header-actions {
   display: flex;
   align-items: center;
   gap: 3px;
+  flex-shrink: 0;
 }
 
-.ast-popup-history-btn {
-  min-width: 38px;
-  height: 30px;
-  padding: 0 7px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ast-muted);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 120ms ease-out, border-color 120ms ease-out,
-    color 120ms ease-out;
-}
 
-.ast-popup-history-btn:hover,
-.ast-popup-history-btn--active {
-  border-color: var(--ast-border);
-  background: var(--ast-card-bg);
-  color: var(--ast-primary);
-}
-
-/* Translation history */
 .ast-history-panel {
-  padding: 9px 16px 10px;
-  border-bottom: 1px solid var(--ast-border);
+  position: absolute;
+  top: calc(100% - 1px);
+  right: 12px;
+  z-index: 20;
+  width: min(430px, calc(100% - 24px));
+  max-height: 330px;
+  padding: 9px 10px 10px;
+  border: 1px solid var(--ast-border);
+  border-radius: 12px;
   background: var(--ast-bg);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+  animation: ast-history-in 120ms ease-out;
 }
+
+@keyframes ast-history-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+
 
 .ast-history-toolbar {
   display: flex;
@@ -137,6 +160,13 @@ body::-webkit-scrollbar-thumb:hover {
   font: inherit;
   font-size: 12px;
   outline: none;
+}
+
+.ast-history-search:focus-visible,
+.ast-history-clear:focus-visible,
+.ast-history-item:focus-visible {
+  outline: 2px solid var(--ast-primary);
+  outline-offset: 1px;
 }
 
 .ast-history-search:focus {

@@ -39,6 +39,7 @@ const P = "ast";
 
 /** Icons kept inline — the content script has no bundler-side asset step. */
 const ICON_CLOSE = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+const ICON_BACK = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>`;
 const ICON_TRASH = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>`;
 const ICON_SETTINGS = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>`;
 const ICON_COPY = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
@@ -75,8 +76,29 @@ interface ChatRetryDraft {
 /** Listeners/handles that must be torn down when the panel closes. */
 let cleanupFns: Array<() => void> = [];
 
+interface HiddenChild {
+  element: HTMLElement;
+  display: string;
+}
+
+interface EmbeddedMount {
+  host: HTMLElement;
+  root: HTMLElement | null;
+  hiddenChildren: HiddenChild[];
+  originalStyle: string | null;
+  originalClassName: string;
+  onBack: () => void;
+  onClose: () => void;
+}
+
+let embeddedMount: EmbeddedMount | null = null;
+
 export function isChatPanelOpen(): boolean {
   return panel !== null;
+}
+
+export function isChatPanelEmbeddedIn(host: HTMLElement): boolean {
+  return embeddedMount?.host === host;
 }
 
 function injectStyles(): void {
@@ -104,6 +126,19 @@ function injectStyles(): void {
       overflow: hidden;
       animation: ${P}-cp-in 160ms ease-out;
     }
+    .${P}-cp-embedded {
+      position: relative;
+      inset: auto;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      animation: none;
+    }
+    .${P}-cp-embedded .${P}-cp-resize { display: none; }
     @keyframes ${P}-cp-in {
       from { opacity: 0; transform: translateY(8px) scale(0.98); }
       to { opacity: 1; transform: translateY(0) scale(1); }
@@ -1187,15 +1222,55 @@ function autoGrow(el: HTMLTextAreaElement): void {
 
 // ---- Panel lifecycle ----
 
-export function closeChatPanel(): void {
-  for (const fn of cleanupFns) fn();
-  cleanupFns = [];
-  panel?.remove();
-  panel = null;
+function resetTransientState(): void {
   streamText = "";
   phase = null;
   errorText = "";
   refreshEffortMenu = null;
+}
+
+function detachPanel(): void {
+  for (const fn of cleanupFns) fn();
+  cleanupFns = [];
+  panel?.remove();
+  panel = null;
+  resetTransientState();
+}
+
+function restoreEmbeddedMount(mount: EmbeddedMount): void {
+  mount.root?.remove();
+  for (const child of mount.hiddenChildren) {
+    child.element.style.display = child.display;
+  }
+  if (mount.originalStyle === null) mount.host.removeAttribute("style");
+  else mount.host.setAttribute("style", mount.originalStyle);
+  mount.host.className = mount.originalClassName;
+}
+
+function leaveEmbeddedChat(restore: boolean): void {
+  const mount = embeddedMount;
+  if (!mount) return;
+  embeddedMount = null;
+  detachPanel();
+  if (restore) {
+    restoreEmbeddedMount(mount);
+    mount.onBack();
+  } else {
+    restoreEmbeddedMount(mount);
+    mount.onClose();
+  }
+}
+
+export function returnFromEmbeddedChat(): void {
+  leaveEmbeddedChat(true);
+}
+
+export function closeChatPanel(): void {
+  if (embeddedMount) {
+    leaveEmbeddedChat(false);
+    return;
+  }
+  detachPanel();
 }
 
 /**
@@ -1209,6 +1284,10 @@ export async function openChatPanel(
   selectionText?: string,
   anchor?: AnchorRect
 ): Promise<void> {
+  // A request from another entry point replaces an embedded view rather than
+  // trying to position that view as if it were a fixed panel.
+  if (embeddedMount) leaveEmbeddedChat(false);
+
   // Already open: re-seed the selection and move back beside it.
   if (panel) {
     if (selectionText?.trim()) {
@@ -1227,7 +1306,78 @@ export async function openChatPanel(
   }
 
   injectStyles();
+  await prepareChatPanel(selectionText);
+  await refreshState();
+  buildPanel(anchor);
+  render();
+  focusInput();
+}
 
+export interface EmbeddedChatOptions {
+  host: HTMLElement;
+  onBack: () => void;
+  onClose: () => void;
+}
+
+/**
+ * Mount the chat view inside an existing translation bubble. The host's
+ * children are kept intact and restored when the user returns to translation.
+ */
+export async function openChatPanelInHost(
+  selectionText: string | undefined,
+  options: EmbeddedChatOptions
+): Promise<void> {
+  if (embeddedMount?.host === options.host && panel) {
+    if (selectionText?.trim()) {
+      attachment = {
+        title: document.title || "",
+        url: location.href,
+        selected: true,
+        text: selectionText.trim().slice(0, 4000),
+      };
+      supplementPage = false;
+      renderFooter();
+    }
+    focusInput();
+    return;
+  }
+
+  if (embeddedMount) leaveEmbeddedChat(false);
+  else if (panel) closeChatPanel();
+
+  injectStyles();
+  await prepareChatPanel(selectionText);
+
+  const mount: EmbeddedMount = {
+    host: options.host,
+    root: null,
+    hiddenChildren: Array.from(options.host.children).map((element) => ({
+      element: element as HTMLElement,
+      display: (element as HTMLElement).style.display,
+    })),
+    originalStyle: options.host.getAttribute("style"),
+    originalClassName: options.host.className,
+    onBack: options.onBack,
+    onClose: options.onClose,
+  };
+  embeddedMount = mount;
+  for (const child of mount.hiddenChildren) child.element.style.display = "none";
+  options.host.classList.add(`${P}-bubble--chat`);
+
+  await refreshState();
+  mount.root = buildPanel(undefined, true);
+  render();
+  focusInput();
+}
+
+/** Focus the composer. Split out so TS doesn't narrow `panel` to null from
+ * the early-return check at the top of openChatPanel. */
+function focusInput(): void {
+  const input = panel?.querySelector(`.${P}-cp-input`);
+  if (input instanceof HTMLTextAreaElement) input.focus();
+}
+
+async function prepareChatPanel(selectionText?: string): Promise<void> {
   // Settings drive the UI language, the auto-attach default and whether the
   // web toggle is unlocked.
   try {
@@ -1269,27 +1419,20 @@ export async function openChatPanel(
       // Unreadable page — chat still works without context.
     }
   }
-
-  await refreshState();
-  buildPanel(anchor);
-  render();
-  focusInput();
 }
 
-/** Focus the composer. Split out so TS doesn't narrow `panel` to null from
- * the early-return check at the top of openChatPanel. */
-function focusInput(): void {
-  const input = panel?.querySelector(`.${P}-cp-input`);
-  if (input instanceof HTMLTextAreaElement) input.focus();
-}
-
-function buildPanel(anchor?: AnchorRect): void {
+function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
   const el = document.createElement("div");
-  el.className = `${P}-cp`;
+  el.className = `${P}-cp${embedded ? ` ${P}-cp-embedded` : ""}`;
 
   // ---- header ----
   const header = document.createElement("div");
   header.className = `${P}-cp-header`;
+  if (embedded) {
+    header.appendChild(
+      button(`${P}-cp-hbtn ${P}-cp-back`, ICON_BACK, t(lang, "chat.backToTranslation"), returnFromEmbeddedChat)
+    );
+  }
   const title = document.createElement("span");
   title.className = `${P}-cp-title`;
   title.textContent = t(lang, "chat.panelTitle");
@@ -1344,6 +1487,11 @@ function buildPanel(anchor?: AnchorRect): void {
     renderFooter();
   });
   input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeChatPanel();
+      return;
+    }
     // Enter sends; Shift+Enter inserts a newline. Skip while composing with an
     // IME — that Enter commits the composition.
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
@@ -1428,15 +1576,18 @@ function buildPanel(anchor?: AnchorRect): void {
   resize.title = t(lang, "bubble.resize");
   el.appendChild(resize);
 
-  // ---- position: beside the anchor (the selection), else bottom-right ----
-  el.style.width = `${PANEL_W}px`;
-  el.style.height = `${PANEL_H}px`;
-  positionPanel(el, anchor);
+  if (!embedded) {
+    el.style.width = `${PANEL_W}px`;
+    el.style.height = `${PANEL_H}px`;
+    positionPanel(el, anchor);
+  }
 
-  document.body.appendChild(el);
+  const target = embeddedMount?.host;
+  (target || document.body).appendChild(el);
   panel = el;
 
-  attachDragAndResize(el, header, resize);
+  attachDragAndResize(el, header, resize, !embedded);
+  return el;
 }
 
 const PANEL_W = 380;
@@ -1494,7 +1645,8 @@ function positionPanel(el: HTMLElement, anchor?: AnchorRect): void {
 function attachDragAndResize(
   el: HTMLElement,
   header: HTMLElement,
-  grip: HTMLElement
+  grip: HTMLElement,
+  interactive = true
 ): void {
   let dragging = false;
   let dragDx = 0;
@@ -1534,6 +1686,7 @@ function attachDragAndResize(
   };
 
   header.addEventListener("mousedown", (e) => {
+    if (!interactive) return;
     if ((e.target as HTMLElement).closest(`.${P}-cp-hbtn`)) return;
     dragging = true;
     const rect = el.getBoundingClientRect();
@@ -1544,6 +1697,7 @@ function attachDragAndResize(
   });
 
   grip.addEventListener("mousedown", (e) => {
+    if (!interactive) return;
     resizing = true;
     const rect = el.getBoundingClientRect();
     startW = rect.width;
