@@ -25,12 +25,17 @@ export class LiveSubtitleHud {
   private levelBar: HTMLDivElement | null = null;
   private originalEl: HTMLDivElement | null = null;
   private translationEl: HTMLDivElement | null = null;
+  private resizeHandle: HTMLDivElement | null = null;
 
   private isVisible = false;
   private showOriginal = true;
   private fontSize = 20;
   private bgOpacity = 80;
   private currentStatus: LiveTranslateStatusKind = "connecting";
+
+  // Hover & Auto-hide toolbar timer
+  private hideToolbarTimer: ReturnType<typeof setTimeout> | null = null;
+  private isToolbarHovered = false;
 
   // Dragging & Resizing state
   private isDragging = false;
@@ -88,12 +93,18 @@ export class LiveSubtitleHud {
       this.isVisible = true;
       this.updateStyles();
       this.restorePositionAndSize();
+      this.showToolbar();
+      this.hideToolbar(2500);
     }
   }
 
   public hide(): void {
     if (this.container) {
       this.container.style.display = "none";
+    }
+    if (this.hideToolbarTimer) {
+      clearTimeout(this.hideToolbarTimer);
+      this.hideToolbarTimer = null;
     }
     this.isVisible = false;
   }
@@ -155,6 +166,10 @@ export class LiveSubtitleHud {
 
   public destroy(): void {
     document.removeEventListener("fullscreenchange", this.handleFullscreenChange);
+    if (this.hideToolbarTimer) {
+      clearTimeout(this.hideToolbarTimer);
+      this.hideToolbarTimer = null;
+    }
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
@@ -174,6 +189,51 @@ export class LiveSubtitleHud {
     }
   }
 
+  private showToolbar(): void {
+    if (this.hideToolbarTimer) {
+      clearTimeout(this.hideToolbarTimer);
+      this.hideToolbarTimer = null;
+    }
+    if (this.headerEl) {
+      this.headerEl.style.opacity = "1";
+      this.headerEl.style.maxHeight = "40px";
+      this.headerEl.style.marginBottom = "8px";
+      this.headerEl.style.pointerEvents = "auto";
+    }
+    if (this.resizeHandle) {
+      this.resizeHandle.style.opacity = "0.5";
+      this.resizeHandle.style.pointerEvents = "auto";
+    }
+    if (this.container) {
+      this.container.style.padding = "10px 18px 12px 18px";
+    }
+  }
+
+  private hideToolbar(delayMs = 0): void {
+    if (this.hideToolbarTimer) {
+      clearTimeout(this.hideToolbarTimer);
+      this.hideToolbarTimer = null;
+    }
+    if (delayMs > 0) {
+      this.hideToolbarTimer = setTimeout(() => this.hideToolbar(0), delayMs);
+      return;
+    }
+    if (this.isToolbarHovered || this.isDragging || this.isResizing) return;
+    if (this.headerEl) {
+      this.headerEl.style.opacity = "0";
+      this.headerEl.style.maxHeight = "0px";
+      this.headerEl.style.marginBottom = "0px";
+      this.headerEl.style.pointerEvents = "none";
+    }
+    if (this.resizeHandle) {
+      this.resizeHandle.style.opacity = "0";
+      this.resizeHandle.style.pointerEvents = "none";
+    }
+    if (this.container) {
+      this.container.style.padding = "8px 16px 10px 16px";
+    }
+  }
+
   private createDom(): void {
     const container = document.createElement("div");
     container.id = "astra-live-subtitle-hud";
@@ -183,23 +243,24 @@ export class LiveSubtitleHud {
       bottom: 60px;
       transform: translateX(-50%);
       width: min(860px, 90vw);
-      min-width: 320px;
+      min-width: 280px;
       max-width: 95vw;
-      min-height: 70px;
+      min-height: 48px;
       max-height: 80vh;
       z-index: 2147483647;
       display: flex;
       flex-direction: column;
       box-sizing: border-box;
-      padding: 12px 18px 16px 18px;
-      border-radius: 18px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      box-shadow: 0 14px 44px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.14) inset;
-      backdrop-filter: blur(28px) saturate(190%);
-      -webkit-backdrop-filter: blur(28px) saturate(190%);
-      transition: box-shadow 0.2s ease, opacity 0.2s ease;
+      padding: 8px 16px 10px 16px;
+      border-radius: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      transition: padding 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, opacity 0.2s ease;
       user-select: none;
       overflow: hidden;
+      cursor: grab;
     `;
 
     // Header toolbar (Hover-revealed)
@@ -209,17 +270,21 @@ export class LiveSubtitleHud {
       align-items: center;
       justify-content: space-between;
       width: 100%;
-      margin-bottom: 8px;
-      cursor: grab;
+      max-height: 0px;
+      margin-bottom: 0px;
+      opacity: 0;
+      pointer-events: none;
+      overflow: hidden;
       user-select: none;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     `;
 
     // Left status info
     const leftInfo = document.createElement("div");
-    leftInfo.style.cssText = "display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(255,255,255,0.7); pointer-events: none;";
+    leftInfo.style.cssText = "display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: rgba(255,255,255,0.75); pointer-events: none;";
 
     const dot = document.createElement("span");
-    dot.style.cssText = "width: 8px; height: 8px; border-radius: 50%; background: #F59E0B; transition: all 0.3s ease;";
+    dot.style.cssText = "width: 7px; height: 7px; border-radius: 50%; background: #F59E0B; transition: all 0.3s ease;";
     this.statusDot = dot;
 
     const statusText = document.createElement("span");
@@ -227,7 +292,7 @@ export class LiveSubtitleHud {
     this.statusText = statusText;
 
     const levelTrack = document.createElement("div");
-    levelTrack.style.cssText = "width: 40px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.2); overflow: hidden;";
+    levelTrack.style.cssText = "width: 36px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.2); overflow: hidden;";
     const levelBar = document.createElement("div");
     levelBar.style.cssText = "width: 0%; height: 100%; background: #10B981; transition: width 0.1s ease;";
     levelTrack.appendChild(levelBar);
@@ -239,7 +304,7 @@ export class LiveSubtitleHud {
 
     // Right action buttons
     const rightActions = document.createElement("div");
-    rightActions.style.cssText = "display: flex; align-items: center; gap: 6px;";
+    rightActions.style.cssText = "display: flex; align-items: center; gap: 5px;";
 
     const makeBtn = (label: string, title: string, onClick: () => void) => {
       const btn = document.createElement("button");
@@ -257,7 +322,7 @@ export class LiveSubtitleHud {
         transition: all 0.15s ease;
         line-height: 1.4;
       `;
-      btn.onmouseenter = () => (btn.style.background = "rgba(255, 255, 255, 0.3)");
+      btn.onmouseenter = () => (btn.style.background = "rgba(255, 255, 255, 0.28)");
       btn.onmouseleave = () => (btn.style.background = "rgba(255, 255, 255, 0.12)");
       btn.onclick = (e) => {
         e.stopPropagation();
@@ -269,7 +334,7 @@ export class LiveSubtitleHud {
     // Cycle Width Presets
     const widthPresets = [560, 860, 1160, -1];
     let currentWidthIdx = 1;
-    const cycleWidthBtn = makeBtn("↔ 宽度", "快速切换字幕框宽度 (紧凑 / 标准 / 宽屏 / 自适应)", () => {
+    const cycleWidthBtn = makeBtn("↔ 宽", "快速切换字幕框宽度 (紧凑 / 标准 / 宽屏 / 自适应)", () => {
       currentWidthIdx = (currentWidthIdx + 1) % widthPresets.length;
       const targetW = widthPresets[currentWidthIdx];
       if (targetW === -1) {
@@ -286,7 +351,7 @@ export class LiveSubtitleHud {
     // Cycle Background Opacity
     const opacityPresets = [80, 50, 20, 95];
     let currentOpacityIdx = 0;
-    const cycleOpacityBtn = makeBtn("🌗 透明度", "切换背景透明度 (80% / 50% / 20% / 95%)", () => {
+    const cycleOpacityBtn = makeBtn("🌗 透明", "切换背景透明度 (80% / 50% / 20% / 95%)", () => {
       currentOpacityIdx = (currentOpacityIdx + 1) % opacityPresets.length;
       this.bgOpacity = opacityPresets[currentOpacityIdx];
       this.updateStyles();
@@ -338,16 +403,17 @@ export class LiveSubtitleHud {
     header.appendChild(rightActions);
     this.headerEl = header;
 
-    // Subtitle content body
+    // Subtitle content body (Movie-grade centered subtitle view)
     const originalEl = document.createElement("div");
     originalEl.id = "astra-hud-original";
     originalEl.style.cssText = `
-      color: rgba(255, 255, 255, 0.7);
-      margin-bottom: 4px;
-      line-height: 1.4;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+      color: rgba(255, 255, 255, 0.75);
+      margin-bottom: 2px;
+      line-height: 1.35;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.8);
       word-break: break-word;
       transition: font-size 0.15s ease;
+      text-align: center;
     `;
     this.originalEl = originalEl;
 
@@ -356,10 +422,11 @@ export class LiveSubtitleHud {
     translationEl.style.cssText = `
       color: #FFFFFF;
       font-weight: 600;
-      line-height: 1.45;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.9);
+      line-height: 1.4;
+      text-shadow: 0 2px 5px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 1);
       word-break: break-word;
       transition: font-size 0.15s ease;
+      text-align: center;
     `;
     translationEl.textContent = "等待音频输入…";
     this.translationEl = translationEl;
@@ -374,25 +441,46 @@ export class LiveSubtitleHud {
       width: 16px;
       height: 16px;
       cursor: nwse-resize;
-      opacity: 0.45;
+      opacity: 0;
+      pointer-events: none;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.8);
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.7);
       user-select: none;
-      transition: opacity 0.15s ease, transform 0.15s ease;
+      transition: opacity 0.2s ease, transform 0.15s ease;
     `;
     resizeHandle.textContent = "◢";
-    resizeHandle.title = "按住拖拽调节字幕框大小 (宽/高)";
+    resizeHandle.title = "按住拖拽调节字幕框大小";
     resizeHandle.onmouseenter = () => {
       resizeHandle.style.opacity = "1";
       resizeHandle.style.transform = "scale(1.2)";
     };
     resizeHandle.onmouseleave = () => {
-      resizeHandle.style.opacity = "0.45";
+      resizeHandle.style.opacity = "0.5";
       resizeHandle.style.transform = "scale(1)";
     };
+    this.resizeHandle = resizeHandle;
+
+    // Hover listeners to reveal toolbar
+    container.addEventListener("mouseenter", () => {
+      this.isToolbarHovered = true;
+      this.showToolbar();
+    });
+    container.addEventListener("mousemove", () => {
+      this.showToolbar();
+      if (this.hideToolbarTimer) clearTimeout(this.hideToolbarTimer);
+      this.hideToolbarTimer = setTimeout(() => {
+        if (!this.isDragging && !this.isResizing) {
+          this.hideToolbar(0);
+        }
+      }, 3000);
+    });
+    container.addEventListener("mouseleave", () => {
+      this.isToolbarHovered = false;
+      this.hideToolbar(300);
+    });
 
     container.appendChild(header);
     container.appendChild(originalEl);
@@ -408,13 +496,14 @@ export class LiveSubtitleHud {
   }
 
   private setupDragging(handle: HTMLElement, target: HTMLElement): void {
-    handle.addEventListener("mousedown", (e) => {
-      if (e.target instanceof HTMLButtonElement) return;
+    target.addEventListener("mousedown", (e) => {
+      if (e.target instanceof HTMLButtonElement || (e.target as HTMLElement).id === "astra-hud-resize-handle") return;
       this.isDragging = true;
+      this.showToolbar();
       const rect = target.getBoundingClientRect();
       this.dragStartX = e.clientX - rect.left;
       this.dragStartY = e.clientY - rect.top;
-      handle.style.cursor = "grabbing";
+      target.style.cursor = "grabbing";
       e.preventDefault();
     });
 
@@ -434,12 +523,15 @@ export class LiveSubtitleHud {
     window.addEventListener("mouseup", () => {
       if (this.isDragging) {
         this.isDragging = false;
-        handle.style.cursor = "grab";
+        if (this.container) this.container.style.cursor = "grab";
         if (this.posX >= 0 && this.posY >= 0) {
           try {
             localStorage.setItem(STORAGE_KEY_POS_X, String(this.posX));
             localStorage.setItem(STORAGE_KEY_POS_Y, String(this.posY));
           } catch {}
+        }
+        if (!this.isToolbarHovered) {
+          this.hideToolbar(1500);
         }
       }
     });
@@ -480,6 +572,9 @@ export class LiveSubtitleHud {
           if (this.customWidth > 0) localStorage.setItem(STORAGE_KEY_WIDTH, String(this.customWidth));
           if (this.customHeight > 0) localStorage.setItem(STORAGE_KEY_HEIGHT, String(this.customHeight));
         } catch {}
+        if (!this.isToolbarHovered) {
+          this.hideToolbar(1500);
+        }
       }
     });
   }
