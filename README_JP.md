@@ -87,14 +87,18 @@
 
 ## 📸 プレビュー
 
-> スクショを `docs/screenshots/` に入れたら、下のコメントを外してね。……それくらいは自分でやってよ？
-
-<!--
 <p align="center">
-  <img src="docs/screenshots/page.png" width="45%" alt="ページ全体翻訳" />
-  <img src="docs/screenshots/dict.png" width="45%" alt="辞書モード" />
+  <img src="docs/screenshots/demo.gif" width="96%" alt="Astra Translate 動作デモ" />
 </p>
--->
+
+<p align="center">
+  <img src="docs/screenshots/popup_chat.png" width="48%" alt="iOS 18 リキッドグラス ポップアップ＆Gemini 3.7 対話" />
+  <img src="docs/screenshots/inpage_chat.png" width="48%" alt="ページ内蔵 AI 伴走チャット＆本文引用" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/selection_dict.png" width="80%" alt="テキスト選択翻訳＆辞書モード" />
+</p>
 
 ---
 

@@ -86,14 +86,18 @@ Built-in official presets for **Google Gemini (AI Studio)** (with `gemini-3.7-fl
 
 ## 📸 Preview
 
-> Drop demo screenshots into `docs/screenshots/`, then uncomment below.
-
-<!--
 <p align="center">
-  <img src="docs/screenshots/page.png" width="45%" alt="Full-page translation" />
-  <img src="docs/screenshots/dict.png" width="45%" alt="Dictionary mode" />
+  <img src="docs/screenshots/demo.gif" width="96%" alt="Astra Translate Live Demo" />
 </p>
--->
+
+<p align="center">
+  <img src="docs/screenshots/popup_chat.png" width="48%" alt="iOS 18 Liquid Glass Popup & Gemini 3.7 Chat" />
+  <img src="docs/screenshots/inpage_chat.png" width="48%" alt="In-Page AI Companion Chat & Context Extraction" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/selection_dict.png" width="80%" alt="Selection Translation & Dictionary Mode" />
+</p>
 
 ---
 

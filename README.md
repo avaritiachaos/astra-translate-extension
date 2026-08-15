@@ -82,14 +82,18 @@ Astra 反着来：**它不绑架你，只做一件事——把翻译做好。**
 
 ## 📸 预览
 
-> 把演示截图放进 `docs/screenshots/` 后，取消下方注释即可显示。
-
-<!--
 <p align="center">
-  <img src="docs/screenshots/page.png"   width="45%" alt="整页翻译" />
-  <img src="docs/screenshots/dict.png"    width="45%" alt="词典模式" />
+  <img src="docs/screenshots/demo.gif" width="96%" alt="Astra Translate 演示动图" />
 </p>
--->
+
+<p align="center">
+  <img src="docs/screenshots/popup_chat.png" width="48%" alt="iOS 18 液态玻璃弹窗与 Gemini 3.7 Flash 对话" />
+  <img src="docs/screenshots/inpage_chat.png" width="48%" alt="网页内嵌 AI 伴读对话与正文智能引用" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/selection_dict.png" width="80%" alt="划词翻译与词典模式" />
+</p>
 
 ---
 
