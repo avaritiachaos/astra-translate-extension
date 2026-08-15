@@ -7,7 +7,7 @@ import {
   SUPPORTED_LANGUAGES,
 } from "../shared/constants";
 import { DEFAULT_SELECTION_PROMPT, DEFAULT_PAGE_PROMPT, DEFAULT_CHAT_PROMPT } from "../shared/prompts";
-import { getDefaultSettings } from "../shared/storage";
+import { getDefaultSettings, switchProviderSettings } from "../shared/storage";
 import "./options.css";
 
 export default function Options() {
@@ -93,6 +93,23 @@ export default function Options() {
     <K extends keyof AstraSettings>(key: K, value: AstraSettings[K]) => {
       setSettings((prev) => {
         const next = { ...prev, [key]: value };
+        const providerKeys = [
+          "apiKey",
+          "baseUrl",
+          "endpoint",
+          "model",
+          "disableThinking",
+          "temperature",
+          "apiFormat",
+        ];
+        if (providerKeys.includes(key as string) && prev.providerId) {
+          const configs = { ...(prev.providerConfigs || {}) };
+          configs[prev.providerId] = {
+            ...(configs[prev.providerId] || {}),
+            [key]: value,
+          };
+          next.providerConfigs = configs;
+        }
         settingsRef.current = next;
         return next;
       });
@@ -101,21 +118,11 @@ export default function Options() {
     [scheduleSave]
   );
 
-  // Provider preset change
+  // Provider preset change: persist current provider's settings and restore target provider's settings
   const handlePresetChange = useCallback(
     (presetId: string) => {
-      const preset = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === presetId);
-      if (!preset) return;
       setSettings((prev) => {
-        const next = {
-          ...prev,
-          providerId: preset.id,
-          providerName: preset.name,
-          apiFormat: preset.apiFormat,
-          baseUrl: preset.baseUrl,
-          endpoint: preset.endpoint,
-          model: preset.defaultModel || prev.model,
-        };
+        const next = switchProviderSettings(prev, presetId);
         settingsRef.current = next;
         return next;
       });
@@ -315,7 +322,7 @@ export default function Options() {
               type="text"
               value={settings.baseUrl}
               onChange={(e) => update("baseUrl", e.target.value)}
-              placeholder="https://api.deepseek.com"
+              placeholder={selectedPreset?.baseUrl || "https://generativelanguage.googleapis.com/v1beta/openai"}
             />
           </div>
           <div className="ast-form-group">
@@ -325,7 +332,7 @@ export default function Options() {
               type="text"
               value={settings.endpoint}
               onChange={(e) => update("endpoint", e.target.value)}
-              placeholder="/chat/completions"
+              placeholder={selectedPreset?.endpoint || "/chat/completions"}
             />
           </div>
         </div>
@@ -338,18 +345,30 @@ export default function Options() {
               type="text"
               value={settings.model}
               onChange={(e) => update("model", e.target.value)}
-              placeholder="deepseek-v4-flash"
+              placeholder={selectedPreset?.defaultModel || "gemini-3.7-flash"}
             />
           </div>
           <div className="ast-form-group">
-            <label className="ast-form-label">{t(lang, "opt.apiKey")}</label>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <label className="ast-form-label" style={{ margin: 0 }}>{t(lang, "opt.apiKey")}</label>
+              {selectedPreset?.website && (
+                <a
+                  href={selectedPreset.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: 12, color: "var(--ast-primary)", textDecoration: "none" }}
+                >
+                  {t(lang, "opt.getApiKey")} ↗
+                </a>
+              )}
+            </div>
             <div className="ast-api-key-group">
               <input
                 className="ast-form-input"
                 type={showKey ? "text" : "password"}
                 value={settings.apiKey}
                 onChange={(e) => update("apiKey", e.target.value)}
-                placeholder="sk-..."
+                placeholder={selectedPreset?.id === "google-gemini" ? "AIzaSy..." : "sk-..."}
               />
               <button
                 className="ast-toggle-visibility"

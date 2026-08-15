@@ -1,5 +1,5 @@
 /* ============================================================
-   Astra Translate – Popup Styles
+   Astra Translate – Popup Styles (iOS Liquid Glass Edition)
    ============================================================ */
 
 @import "../styles/theme.css";
@@ -11,11 +11,13 @@
 }
 
 html {
-  border-radius: 14px;
+  border-radius: var(--ast-radius);
   overflow: hidden;
+  background: transparent;
 }
 
 body {
+  position: relative;
   width: 460px;
   min-height: 200px;
   max-height: 600px;
@@ -24,20 +26,50 @@ body {
   background: var(--ast-bg);
   color: var(--ast-text);
   font-family: var(--ast-font);
-  font-size: 14px;
+  font-size: 13.5px;
   line-height: 1.5;
-  border-radius: 14px;
+  border-radius: var(--ast-radius);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ambient liquid glass glow blobs */
+body::before {
+  content: "";
+  position: fixed;
+  top: -60px;
+  left: -40px;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0) 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  bottom: -60px;
+  right: -50px;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.14) 0%, rgba(168, 85, 247, 0) 70%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .ast-popup-shell {
+  position: relative;
+  z-index: 1;
   min-width: 0;
 }
 
 .ast-popup-topbar {
   position: relative;
+  z-index: 10;
 }
 
-/* Scrollbar — thin, blends with background */
+/* Scrollbar — iOS ultra-thin rounded capsule */
 body::-webkit-scrollbar {
   width: 5px;
 }
@@ -47,60 +79,78 @@ body::-webkit-scrollbar-track {
 }
 
 body::-webkit-scrollbar-thumb {
-  background: var(--ast-border);
-  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 9999px;
 }
 
 body::-webkit-scrollbar-thumb:hover {
-  background: var(--ast-muted);
+  background: rgba(0, 0, 0, 0.22);
 }
 
-/* Header */
+@media (prefers-color-scheme: dark) {
+  body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+  }
+  body::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+}
+
+/* ============================================================
+   Header (iOS Liquid Glass Bar)
+   ============================================================ */
+
 .ast-popup-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 16px;
-  border-bottom: 1px solid var(--ast-border);
+  padding: 10px 16px;
+  background: var(--ast-glass-bg);
+  backdrop-filter: var(--ast-glass-blur);
+  -webkit-backdrop-filter: var(--ast-glass-blur);
+  border-bottom: 1px solid var(--ast-glass-border-subtle);
+  box-shadow: 0 1px 12px rgba(0, 0, 0, 0.02);
 }
 
 .ast-popup-title {
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14.5px;
   font-weight: 700;
-  color: var(--ast-primary);
-  letter-spacing: 0.01em;
+  color: var(--ast-text);
+  letter-spacing: -0.01em;
+}
+
+.ast-popup-title-brand {
+  background: var(--ast-primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.ast-popup-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .ast-popup-settings-btn,
 .ast-popup-history-btn,
 .ast-popup-clear-btn {
-  width: 30px;
-  height: 30px;
-  border: none;
-  background: transparent;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  background: rgba(0, 0, 0, 0.03);
   cursor: pointer;
-  border-radius: 8px;
-  color: var(--ast-muted);
+  border-radius: 50%;
+  color: var(--ast-text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 120ms ease-out, color 120ms ease-out;
-}
-
-.ast-popup-clear-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.ast-popup-clear-btn:hover:not(:disabled),
-.ast-popup-clear-btn:focus-visible:not(:disabled) {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-  outline: none;
-}
-
-.ast-popup-settings-btn {
-  font-size: 17px;
+  font-size: 15px;
+  transition: all var(--ast-transition);
 }
 
 .ast-popup-settings-btn:hover,
@@ -108,8 +158,24 @@ body::-webkit-scrollbar-thumb:hover {
 .ast-popup-history-btn:hover,
 .ast-popup-history-btn:focus-visible,
 .ast-popup-history-btn--active {
-  background: var(--ast-border);
+  background: var(--ast-primary-light);
   color: var(--ast-primary);
+  border-color: rgba(99, 102, 241, 0.2);
+  transform: scale(1.04);
+  outline: none;
+}
+
+.ast-popup-clear-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.ast-popup-clear-btn:hover:not(:disabled),
+.ast-popup-clear-btn:focus-visible:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--ast-error);
+  border-color: rgba(239, 68, 68, 0.2);
+  transform: scale(1.04);
   outline: none;
 }
 
@@ -123,117 +189,173 @@ body::-webkit-scrollbar-thumb:hover {
   stroke-linejoin: round;
 }
 
-
-.ast-popup-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  flex-shrink: 0;
+@media (prefers-color-scheme: dark) {
+  .ast-popup-settings-btn,
+  .ast-popup-history-btn,
+  .ast-popup-clear-btn {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--ast-text-secondary);
+  }
 }
 
+/* ============================================================
+   iOS Segmented Tab Capsule (Translate | Chat)
+   ============================================================ */
+
+.ast-seg {
+  display: flex;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.03);
+  border-radius: 9999px;
+  backdrop-filter: blur(10px);
+}
+
+.ast-seg-btn {
+  min-width: 64px;
+  padding: 4px 14px;
+  border: none;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--ast-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: var(--ast-font);
+  cursor: pointer;
+  transition: all var(--ast-transition);
+}
+
+.ast-seg-btn:hover {
+  color: var(--ast-text);
+}
+
+.ast-seg-btn--active,
+.ast-seg-btn--active:hover {
+  background: #ffffff;
+  color: var(--ast-text);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  .ast-seg {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+  .ast-seg-btn--active,
+  .ast-seg-btn--active:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* ============================================================
+   History Drawer (iOS Frosted Glass Popover)
+   ============================================================ */
 
 .ast-history-panel {
   position: absolute;
-  top: calc(100% - 1px);
+  top: calc(100% + 4px);
   right: 12px;
-  z-index: 20;
+  z-index: 30;
   width: min(430px, calc(100% - 24px));
-  max-height: 330px;
-  padding: 9px 10px 10px;
-  border: 1px solid var(--ast-border);
-  border-radius: 12px;
-  background: var(--ast-bg);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
-  animation: ast-history-in 120ms ease-out;
+  max-height: 340px;
+  padding: 12px;
+  border: 1px solid var(--ast-glass-border);
+  border-radius: var(--ast-radius);
+  background: var(--ast-glass-popover);
+  backdrop-filter: var(--ast-glass-blur);
+  -webkit-backdrop-filter: var(--ast-glass-blur);
+  box-shadow: var(--ast-shadow-lg), var(--ast-glass-specular);
+  animation: ast-history-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes ast-history-in {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-
-
 
 .ast-history-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 7px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .ast-history-search {
   min-width: 0;
   flex: 1;
-  height: 30px;
-  padding: 5px 9px;
-  border: 1px solid var(--ast-border);
-  border-radius: var(--ast-radius-sm);
-  background: var(--ast-card-bg);
+  height: 32px;
+  padding: 6px 12px;
+  border: 1px solid var(--ast-glass-border-subtle);
+  border-radius: 9999px;
+  background: var(--ast-glass-card);
   color: var(--ast-text);
   font: inherit;
   font-size: 12px;
   outline: none;
-}
-
-.ast-history-search:focus-visible,
-.ast-history-clear:focus-visible,
-.ast-history-item:focus-visible {
-  outline: 2px solid var(--ast-primary);
-  outline-offset: 1px;
+  box-shadow: var(--ast-glass-specular);
+  transition: all var(--ast-transition);
 }
 
 .ast-history-search:focus {
   border-color: var(--ast-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
 .ast-history-clear {
-  height: 30px;
-  padding: 0 8px;
-  border: none;
-  border-radius: var(--ast-radius-sm);
-  background: var(--ast-border);
-  color: var(--ast-text);
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--ast-glass-border-subtle);
+  border-radius: 9999px;
+  background: var(--ast-glass-card);
+  color: var(--ast-text-secondary);
   font: inherit;
-  font-size: 11px;
+  font-size: 11.5px;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
+  transition: all var(--ast-transition);
 }
 
 .ast-history-clear:hover:not(:disabled) {
-  background: var(--ast-error);
-  color: #fff;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--ast-error);
+  border-color: rgba(239, 68, 68, 0.2);
 }
 
 .ast-history-clear:disabled {
   cursor: not-allowed;
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
 .ast-history-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  max-height: 235px;
+  gap: 6px;
+  max-height: 240px;
   overflow-y: auto;
 }
 
 .ast-history-item {
   width: 100%;
-  padding: 7px 9px;
-  border: 1px solid var(--ast-border);
+  padding: 8px 11px;
+  border: 1px solid var(--ast-glass-border-subtle);
   border-radius: var(--ast-radius-sm);
-  background: var(--ast-card-bg);
+  background: var(--ast-glass-card);
   color: var(--ast-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 120ms ease-out, background 120ms ease-out;
+  transition: all var(--ast-transition);
 }
 
 .ast-history-item:hover,
 .ast-history-item:focus-visible {
   border-color: var(--ast-primary);
   background: var(--ast-primary-light);
+  transform: translateY(-1px);
   outline: none;
 }
 
@@ -241,90 +363,97 @@ body::-webkit-scrollbar-thumb:hover {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
   color: var(--ast-muted);
   font-size: 10px;
-}
-
-.ast-history-item-meta time {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ast-history-item-source,
-.ast-history-item-translation {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  word-break: break-word;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
 .ast-history-item-source {
   color: var(--ast-muted);
-  font-size: 11px;
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ast-history-item-translation {
-  margin-top: 2px;
-  font-size: 12px;
+  margin-top: 3px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ast-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ast-history-empty {
-  padding: 15px 8px 10px;
+  padding: 18px 8px;
   color: var(--ast-muted);
   font-size: 12px;
   text-align: center;
 }
 
-/* Language bar */
+/* ============================================================
+   Language Bar & Translation Controls
+   ============================================================ */
+
 .ast-lang-bar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 16px;
-  border-bottom: 1px solid var(--ast-border);
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--ast-glass-bg);
+  border-bottom: 1px solid var(--ast-glass-border-subtle);
 }
 
 .ast-lang-select {
   flex: 1;
-  padding: 5px 9px;
-  border: 1px solid var(--ast-border);
-  border-radius: var(--ast-radius-sm);
-  background: var(--ast-card-bg);
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ast-glass-border);
+  border-radius: 10px;
+  background: var(--ast-glass-card);
+  backdrop-filter: blur(12px);
   color: var(--ast-text);
-  font-size: 12px;
+  font-size: 12.5px;
   font-family: var(--ast-font);
+  font-weight: 500;
   cursor: pointer;
   outline: none;
-  transition: border-color 120ms ease-out;
+  box-shadow: var(--ast-shadow), var(--ast-glass-specular);
+  transition: all var(--ast-transition);
 }
 
 .ast-lang-select:focus {
   border-color: var(--ast-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
 }
 
 .ast-lang-swap {
-  width: 30px;
-  height: 30px;
-  border: none;
-  background: transparent;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--ast-glass-border-subtle);
+  background: var(--ast-glass-card);
   cursor: pointer;
-  border-radius: 8px;
-  color: var(--ast-muted);
+  border-radius: 50%;
+  color: var(--ast-text-secondary);
   font-size: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 120ms ease-out, color 120ms ease-out;
+  box-shadow: var(--ast-glass-specular);
+  transition: all var(--ast-transition);
 }
 
 .ast-lang-swap:hover {
-  background: var(--ast-border);
+  background: var(--ast-primary-light);
   color: var(--ast-primary);
+  border-color: rgba(99, 102, 241, 0.2);
+  transform: rotate(180deg);
 }
 
-/* Language saved indicator */
 .ast-lang-saved {
   font-size: 13px;
   color: var(--ast-success);
@@ -340,109 +469,121 @@ body::-webkit-scrollbar-thumb:hover {
   opacity: 1;
 }
 
-/* Input area */
+/* ============================================================
+   Input & Result Areas (Liquid Glass Cards)
+   ============================================================ */
+
 .ast-input-area {
-  padding: 9px 16px;
+  padding: 12px 16px 8px;
 }
 
 .ast-input-box {
   width: 100%;
-  min-height: 68px;
-  max-height: 150px;
-  padding: 9px 11px;
-  border: 1px solid var(--ast-border);
-  border-radius: var(--ast-radius-sm);
-  background: var(--ast-card-bg);
+  min-height: 72px;
+  max-height: 160px;
+  padding: 11px 13px;
+  border: 1px solid var(--ast-glass-border);
+  border-radius: var(--ast-radius);
+  background: var(--ast-glass-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   color: var(--ast-text);
-  font-size: 13px;
+  font-size: 13.5px;
   font-family: var(--ast-font);
-  line-height: 1.5;
+  line-height: 1.55;
   resize: vertical;
   outline: none;
-  transition: border-color 120ms ease-out;
+  box-shadow: var(--ast-shadow), var(--ast-glass-specular);
+  transition: all var(--ast-transition);
 }
 
 .ast-input-box:focus {
-  border-color: var(--ast-primary);
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.16), var(--ast-shadow);
 }
 
 .ast-input-box::placeholder {
   color: var(--ast-muted);
 }
 
-/* Actions row — buttons + keyboard hint inline */
 .ast-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 16px 9px;
+  gap: 8px;
+  padding: 0 16px 10px;
 }
 
 .ast-keyboard-hint {
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--ast-muted);
   margin-left: auto;
   white-space: nowrap;
 }
 
 .ast-btn {
-  padding: 7px 14px;
+  padding: 7px 16px;
   border: none;
-  border-radius: var(--ast-radius-sm);
+  border-radius: 9999px;
   font-size: 12px;
   font-family: var(--ast-font);
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 120ms ease-out, transform 120ms ease-out;
+  transition: all var(--ast-transition);
 }
 
 .ast-btn:active {
-  transform: scale(0.97);
+  transform: scale(0.96);
 }
 
 .ast-btn-primary {
-  background: var(--ast-primary);
+  background: var(--ast-primary-gradient);
   color: #fff;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.3);
 }
 
 .ast-btn-primary:hover {
-  background: var(--ast-primary-hover);
+  filter: brightness(1.08);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.45);
 }
 
 .ast-btn-secondary {
-  background: var(--ast-border);
+  background: var(--ast-glass-card);
+  border: 1px solid var(--ast-glass-border-subtle);
   color: var(--ast-text);
+  box-shadow: var(--ast-glass-specular);
 }
 
 .ast-btn-secondary:hover {
-  background: var(--ast-muted);
-  color: #fff;
+  background: var(--ast-border);
 }
 
 .ast-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
+  box-shadow: none;
   cursor: not-allowed;
 }
 
-/* Result area */
 .ast-result-area {
-  padding: 0 16px 12px;
+  padding: 0 16px 14px;
 }
 
 .ast-result-box {
-  min-height: 60px;
-  max-height: 160px;
+  min-height: 64px;
+  max-height: 180px;
   overflow-y: auto;
-  padding: 10px 12px;
-  border: 1px solid var(--ast-border);
-  border-radius: var(--ast-radius-sm);
-  background: var(--ast-card-bg);
-  font-size: 13px;
-  line-height: 1.5;
+  padding: 12px 14px;
+  border: 1px solid var(--ast-glass-border);
+  border-radius: var(--ast-radius);
+  background: var(--ast-glass-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  font-size: 13.5px;
+  line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--ast-text);
   user-select: text;
+  box-shadow: var(--ast-shadow), var(--ast-glass-specular);
 }
 
 .ast-result-placeholder {
@@ -450,34 +591,26 @@ body::-webkit-scrollbar-thumb:hover {
   font-style: italic;
 }
 
-/* Smart target language label */
-.ast-result-lang-label {
+.ast-result-lang-label,
+.ast-result-hint {
   font-size: 11px;
   color: var(--ast-muted);
   margin-bottom: 4px;
 }
 
-/* Identifier hint (when translation === source) */
-.ast-result-hint {
-  font-size: 11px;
-  color: var(--ast-muted);
-  margin-top: 4px;
-}
-
-/* Loading */
 .ast-loading-inline {
   display: flex;
   align-items: center;
-  gap: 7px;
-  color: var(--ast-muted);
+  gap: 8px;
+  color: var(--ast-text-secondary);
   font-size: 12px;
   padding: 6px 0;
 }
 
 .ast-spinner-sm {
-  width: 13px;
-  height: 13px;
-  border: 2px solid var(--ast-border);
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(99, 102, 241, 0.2);
   border-top-color: var(--ast-primary);
   border-radius: 50%;
   animation: ast-spin 600ms linear infinite;
@@ -487,45 +620,44 @@ body::-webkit-scrollbar-thumb:hover {
   to { transform: rotate(360deg); }
 }
 
-/* Error */
 .ast-error-msg {
   color: var(--ast-error);
   font-size: 12px;
-  padding: 7px 10px;
-  background: rgba(239, 68, 68, 0.08);
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: var(--ast-radius-sm);
-  margin: 0 16px 9px;
+  margin: 0 16px 10px;
   display: flex;
   align-items: flex-start;
-  gap: 5px;
+  gap: 6px;
 }
 
-/* Page translate section */
 .ast-page-section {
-  border-top: 1px solid var(--ast-border);
-  padding: 10px 16px 12px;
+  border-top: 1px solid var(--ast-glass-border-subtle);
+  padding: 10px 16px 14px;
+  background: var(--ast-glass-bg);
 }
 
 .ast-page-title {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ast-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 7px;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
 }
 
 .ast-page-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
-/* Section title + target-language select share one row */
 .ast-page-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 7px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .ast-page-header .ast-page-title {
@@ -540,62 +672,31 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .ast-page-status {
-  margin-top: 7px;
+  margin-top: 8px;
   font-size: 11px;
   color: var(--ast-muted);
 }
 
-/* Mode segmented control (Translate | Chat) — lives in the header */
-.ast-seg {
-  display: flex;
-  padding: 2px;
-  background: var(--ast-border);
-  border-radius: 8px;
-}
+/* ============================================================
+   Chat Mode (iOS Liquid Glass Conversation)
+   ============================================================ */
 
-.ast-seg-btn {
-  min-width: 62px;
-  padding: 4px 12px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ast-muted);
-  font-size: 12px;
-  font-weight: 500;
-  font-family: var(--ast-font);
-  cursor: pointer;
-  transition: background 120ms ease-out, color 120ms ease-out;
-}
-
-.ast-seg-btn:hover {
-  color: var(--ast-text);
-}
-
-.ast-seg-btn--active,
-.ast-seg-btn--active:hover {
-  background: var(--ast-card-bg);
-  color: var(--ast-primary);
-  font-weight: 600;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-/* Chat mode */
 .ast-chat {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 9px 16px 12px;
+  gap: 10px;
+  padding: 10px 16px 14px;
 }
 
 .ast-chat-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   min-height: 220px;
   max-height: 340px;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 2px;
+  padding: 4px 2px;
 }
 
 .ast-chat-list::-webkit-scrollbar {
@@ -607,26 +708,26 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .ast-chat-list::-webkit-scrollbar-thumb {
-  background: var(--ast-border);
-  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 9999px;
 }
 
 .ast-chat-empty {
   margin: auto;
-  padding: 24px 20px;
+  padding: 32px 20px;
   color: var(--ast-muted);
-  font-size: 12px;
-  font-style: italic;
+  font-size: 12.5px;
   text-align: center;
   line-height: 1.6;
 }
 
+/* Chat Bubbles */
 .ast-chat-bubble {
-  max-width: 85%;
-  padding: 8px 11px;
-  border-radius: 12px;
-  font-size: 13px;
-  line-height: 1.5;
+  max-width: 86%;
+  padding: 9px 13px;
+  border-radius: 18px;
+  font-size: 13.5px;
+  line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
   user-select: text;
@@ -634,309 +735,370 @@ body::-webkit-scrollbar-thumb:hover {
 
 .ast-chat-bubble--user {
   align-self: flex-end;
-  background: var(--ast-primary);
-  color: #fff;
+  background: var(--ast-primary-gradient);
+  color: #ffffff;
   border-bottom-right-radius: 4px;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.28);
 }
 
 .ast-chat-bubble--assistant {
   position: relative;
   align-self: flex-start;
-  background: var(--ast-card-bg);
-  border: 1px solid var(--ast-border);
+  background: var(--ast-glass-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--ast-glass-border);
   color: var(--ast-text);
   border-bottom-left-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04), var(--ast-glass-specular);
 }
 
-/* Hover-reveal action buttons on assistant replies (copy / regenerate) */
 .ast-chat-bubble-tools {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 6px;
+  right: 6px;
   display: flex;
   gap: 3px;
   opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease-out;
+  transition: opacity var(--ast-transition);
 }
 
 .ast-chat-bubble--assistant:hover .ast-chat-bubble-tools {
   opacity: 1;
-  pointer-events: auto;
 }
 
 .ast-chat-bubble-tool {
   width: 22px;
   height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--ast-muted);
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--ast-border);
-  border-radius: 6px;
-  background: var(--ast-card-bg);
-  color: var(--ast-muted);
-  cursor: pointer;
-  transition: color 120ms ease-out;
+  transition: all var(--ast-transition);
 }
 
 .ast-chat-bubble-tool:hover {
+  background: var(--ast-primary-light);
   color: var(--ast-primary);
+  transform: scale(1.08);
 }
 
-.ast-chat-bubble--error {
-  align-self: flex-start;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  color: var(--ast-error);
-  border-bottom-left-radius: 4px;
-}
-
-.ast-chat-bubble--thinking {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--ast-muted);
-}
-
-/* Typewriter caret on the live streaming bubble */
-.ast-chat-cursor {
-  display: inline-block;
-  width: 2px;
-  height: 13px;
-  margin-left: 2px;
-  vertical-align: text-bottom;
-  background: var(--ast-primary);
-  animation: ast-caret-blink 900ms steps(1) infinite;
-}
-
-@keyframes ast-caret-blink {
-  50% {
-    opacity: 0;
-  }
-}
-
-.ast-chat .ast-error-msg {
-  margin: 0;
-}
-
-/* Attachment marker inside a sent bubble */
+.ast-chat-bubble-search,
 .ast-chat-bubble-attach {
-  margin-bottom: 4px;
   font-size: 11px;
-  opacity: 0.85;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Staged page-context chip above the input */
-.ast-chat-attach-chip {
+  color: var(--ast-muted);
+  margin-bottom: 5px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  border: 1px dashed var(--ast-border);
-  border-radius: 8px;
-  background: var(--ast-card-bg);
-  color: var(--ast-muted);
-  font-size: 11px;
+  gap: 4px;
 }
 
-.ast-chat-attach-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ast-chat-attach-remove {
-  margin-left: auto;
-  padding: 0 2px;
-  border: none;
-  background: transparent;
-  color: var(--ast-muted);
-  font-size: 12px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.ast-chat-attach-remove:hover {
-  color: var(--ast-error);
-}
-
-.ast-chat-input {
-  min-height: 40px;
-  max-height: 120px;
-  resize: none;
-  overflow-y: auto;
-}
-
-/* Search status on a sent user bubble */
-.ast-chat-bubble-search {
-  margin-bottom: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  opacity: 0.82;
-}
-
-/* When both engines completed but found nothing, distinguish a useful normal
-   answer from a sourced answer without turning it into an error state. */
 .ast-chat-search-fallback {
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.1);
+  color: #b45309;
+  font-size: 11px;
   display: flex;
   gap: 5px;
-  margin-top: 8px;
-  padding: 6px 7px;
-  border: 1px solid var(--ast-border);
-  border-radius: 7px;
-  background: var(--ast-bg);
-  color: var(--ast-muted);
-  font-size: 10px;
-  line-height: 1.4;
 }
 
-/* Sources stay compact inside the assistant response instead of becoming a
-   competing card. Each result is a proper link, opened only by user action. */
 .ast-chat-sources {
   margin-top: 8px;
-  padding-top: 7px;
-  border-top: 1px solid var(--ast-border);
+  padding-top: 6px;
+  border-top: 1px solid var(--ast-glass-border-subtle);
 }
 
 .ast-chat-sources-label {
-  margin-bottom: 5px;
-  color: var(--ast-muted);
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-weight: 700;
   text-transform: uppercase;
+  color: var(--ast-muted);
+  margin-bottom: 4px;
 }
 
 .ast-chat-sources-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.ast-chat-source-link {
-  display: inline-flex;
-  min-width: 0;
-  max-width: 100%;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 6px;
-  overflow: hidden;
-  border: 1px solid var(--ast-border);
-  border-radius: 6px;
+.ast-chat-source-item {
   color: var(--ast-primary);
-  background: var(--ast-primary-light);
-  font-size: 10px;
-  line-height: 1.25;
+  font-size: 11.5px;
   text-decoration: none;
-  transition: border-color 120ms ease-out, background 120ms ease-out;
-}
-
-.ast-chat-source-link:hover {
-  border-color: var(--ast-primary);
-  background: var(--ast-card-bg);
-}
-
-.ast-chat-source-link span:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Composer action row: send + two pills, with icon-only utilities pushed to
-   the far end. Everything is one consistent 28px height so the row reads as a
-   single band instead of a pile of differently-shaped controls. */
-.ast-chat-actions {
+.ast-chat-source-item:hover {
+  text-decoration: underline;
+}
+
+.ast-chat-bubble-retry {
+  margin-top: 6px;
   display: flex;
-  align-items: center;
   gap: 6px;
 }
 
-.ast-chat-send {
-  height: 28px;
-  padding: 0 14px;
-  border: none;
-  border-radius: 14px;
-  background: var(--ast-primary, #6366f1);
-  color: #ffffff;
-  font-family: var(--ast-font);
+/* ============================================================
+   Chat Input Composer & Liquid Glass Action Pills
+   ============================================================ */
+
+.ast-chat-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ast-chat-attach-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: fit-content;
+  padding: 3px 10px;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 9999px;
+  background: rgba(99, 102, 241, 0.08);
+  backdrop-filter: blur(10px);
+  color: var(--ast-primary);
   font-size: 11px;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
+  font-weight: 500;
+}
+
+.ast-chat-attach-remove {
+  border: none;
+  background: transparent;
+  color: inherit;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
-  transition: background 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out;
+  font-size: 11px;
 }
 
-.ast-chat-send:hover:not(:disabled) {
-  background: var(--ast-primary-hover, #4f46e5);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
-  transform: translateY(-1px);
+.ast-chat-input {
+  min-height: 52px;
+  max-height: 120px;
 }
 
-.ast-chat-send:active:not(:disabled) {
-  transform: scale(0.96);
+.ast-chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  min-width: 0;
 }
 
-.ast-chat-send:disabled {
-  opacity: 0.5;
-  box-shadow: none;
-  cursor: not-allowed;
-}
-
+/* Action Pills (Glassmorphic Capsules) */
 .ast-chat-pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--ast-border);
-  border-radius: 14px;
-  background: var(--ast-card-bg);
-  color: var(--ast-muted);
+  padding: 0 9px;
+  border: 1px solid var(--ast-glass-border);
+  border-radius: 9999px;
+  background: var(--ast-glass-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--ast-text);
   font-family: var(--ast-font);
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
   outline: none;
-  transition: color 120ms ease-out, border-color 120ms ease-out,
-    background 120ms ease-out;
+  box-shadow: var(--ast-shadow), var(--ast-glass-specular);
+  transition: all var(--ast-transition);
 }
 
 .ast-chat-pill:hover,
 .ast-chat-pill:focus-visible {
   border-color: var(--ast-primary);
   color: var(--ast-primary);
+  transform: translateY(-1px);
 }
 
 .ast-chat-pill--on,
 .ast-chat-pill--on:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.14), rgba(79, 70, 229, 0.2));
   border-color: var(--ast-primary);
-  background: var(--ast-primary-light);
   color: var(--ast-primary);
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.2), var(--ast-glass-specular);
 }
 
-/* Web supplement not yet enabled in Settings: still clickable (the click
-   explains what to do), but visibly dormant. */
 .ast-chat-pill--locked {
   opacity: 0.45;
 }
 
-/* The select needs its own padding — no room for a custom arrow at this size */
-.ast-chat-effort {
-  min-width: 94px;
-  justify-content: space-between;
-  padding: 0 8px 0 10px;
+/* Model Selector Pill (Vibrant High-Contrast Glass) */
+.ast-chat-model-wrap {
+  position: relative;
+  flex-shrink: 0;
 }
 
+.ast-chat-model {
+  max-width: 142px;
+  padding: 0 8px 0 9px;
+  gap: 5px;
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.28);
+  color: #4338ca;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+@media (prefers-color-scheme: dark) {
+  .ast-chat-model {
+    background: rgba(129, 140, 248, 0.16);
+    border-color: rgba(129, 140, 248, 0.35);
+    color: #c7d2fe;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.12);
+  }
+}
+
+.ast-chat-model-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ast-chat-model-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 40;
+  min-width: 230px;
+  padding: 6px;
+  border: 1px solid var(--ast-glass-border);
+  border-radius: var(--ast-radius);
+  background: var(--ast-glass-popover);
+  backdrop-filter: var(--ast-glass-blur);
+  -webkit-backdrop-filter: var(--ast-glass-blur);
+  box-shadow: var(--ast-shadow-lg), var(--ast-glass-specular);
+  animation: ast-popover-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes ast-popover-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ast-chat-model-header {
+  padding: 4px 8px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ast-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--ast-glass-border-subtle);
+  margin-bottom: 4px;
+}
+
+.ast-chat-model-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ast-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--ast-transition);
+}
+
+.ast-chat-model-option:hover,
+.ast-chat-model-option:focus-visible,
+.ast-chat-model-option--selected {
+  background: var(--ast-primary-light);
+  color: var(--ast-primary);
+  outline: none;
+}
+
+.ast-chat-model-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  margin-right: 6px;
+}
+
+.ast-chat-model-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.ast-chat-model-sub {
+  font-size: 10.5px;
+  color: var(--ast-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ast-chat-model-option--selected .ast-chat-model-sub {
+  color: var(--ast-primary);
+  opacity: 0.9;
+}
+
+.ast-chat-model-badge {
+  font-size: 9.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--ast-error);
+  margin-left: 5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ast-chat-model-footer {
+  border-top: 1px solid var(--ast-glass-border-subtle);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.ast-chat-model-manage-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ast-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--ast-transition);
+}
+
+.ast-chat-model-manage-btn:hover {
+  background: var(--ast-primary-light);
+  color: var(--ast-primary);
+}
+
+/* Effort Menu (Reasoning Level) */
 .ast-chat-effort-wrap {
   position: relative;
   flex-shrink: 0;
+}
+
+.ast-chat-effort {
+  min-width: 76px;
+  justify-content: space-between;
+  padding: 0 8px 0 9px;
 }
 
 .ast-chat-effort-chevron {
@@ -944,11 +1106,11 @@ body::-webkit-scrollbar-thumb:hover {
   flex: 0 0 12px;
   width: 12px;
   height: 8px;
-  margin-left: 8px;
+  margin-left: 4px;
   color: currentColor;
   transform: translateY(1px);
   transform-origin: center;
-  transition: transform 120ms ease-out;
+  transition: transform var(--ast-transition);
 }
 
 .ast-chat-effort--open .ast-chat-effort-chevron {
@@ -959,19 +1121,16 @@ body::-webkit-scrollbar-thumb:hover {
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
-  z-index: 20;
+  z-index: 40;
   min-width: 118px;
   padding: 5px;
-  border: 1px solid var(--ast-border);
-  border-radius: 12px;
-  background: var(--ast-card-bg);
-  box-shadow: var(--ast-shadow-lg);
-  animation: ast-effort-menu-in 120ms ease-out;
-}
-
-@keyframes ast-effort-menu-in {
-  from { opacity: 0; transform: translateY(4px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  border: 1px solid var(--ast-glass-border);
+  border-radius: var(--ast-radius);
+  background: var(--ast-glass-popover);
+  backdrop-filter: var(--ast-glass-blur);
+  -webkit-backdrop-filter: var(--ast-glass-blur);
+  box-shadow: var(--ast-shadow-lg), var(--ast-glass-specular);
+  animation: ast-popover-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .ast-chat-effort-option {
@@ -980,16 +1139,17 @@ body::-webkit-scrollbar-thumb:hover {
   justify-content: space-between;
   width: 100%;
   height: 30px;
-  padding: 0 9px;
+  padding: 0 10px;
   border: none;
   border-radius: 8px;
   background: transparent;
   color: var(--ast-text);
   font: inherit;
   font-size: 12px;
+  font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition: background 120ms ease-out, color 120ms ease-out;
+  transition: all var(--ast-transition);
 }
 
 .ast-chat-effort-option:hover,
@@ -1010,6 +1170,7 @@ body::-webkit-scrollbar-thumb:hover {
   align-items: center;
   gap: 4px;
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 .ast-chat-icon {
@@ -1018,19 +1179,23 @@ body::-webkit-scrollbar-thumb:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ast-muted);
-  font-size: 13px;
+  border: 1px solid var(--ast-glass-border-subtle);
+  border-radius: 50%;
+  background: var(--ast-glass-card);
+  color: var(--ast-text-secondary);
+  font-size: 12.5px;
   line-height: 1;
+  flex-shrink: 0;
   cursor: pointer;
-  transition: background 120ms ease-out, border-color 120ms ease-out;
+  box-shadow: var(--ast-glass-specular);
+  transition: all var(--ast-transition);
 }
 
 .ast-chat-icon:hover:not(:disabled) {
-  border-color: var(--ast-border);
-  background: var(--ast-card-bg);
+  border-color: var(--ast-primary);
+  background: var(--ast-primary-light);
+  color: var(--ast-primary);
+  transform: scale(1.05);
 }
 
 .ast-chat-icon:disabled {
@@ -1038,56 +1203,77 @@ body::-webkit-scrollbar-thumb:hover {
   cursor: not-allowed;
 }
 
-/* Keyboard hint on its own line — it was the thing forcing the action row
-   to wrap once the effort selector joined it. */
+.ast-chat-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 52px;
+}
+
 .ast-chat-hint {
-  margin-top: 2px;
-  color: var(--ast-muted);
   font-size: 10px;
+  color: var(--ast-muted);
   text-align: right;
+  margin-top: 2px;
 }
 
-/* Whitelist markdown inside assistant bubbles */
-.ast-chat-pre {
-  margin: 4px 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(127, 127, 127, 0.12);
-  overflow-x: auto;
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.ast-chat-pre code {
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace;
-  white-space: pre;
-}
-
-.ast-chat-code {
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: rgba(127, 127, 127, 0.14);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace;
-  font-size: 12px;
-}
-
-/* Success toast */
+/* Toast (iOS Dynamic Island Floating Capsule - below header bar) */
 .ast-toast {
   position: fixed;
-  bottom: 12px;
+  top: 56px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--ast-success);
-  color: #fff;
-  padding: 6px 16px;
-  border-radius: 20px;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--ast-glass-border);
+  border-radius: 9999px;
+  background: var(--ast-glass-popover);
+  backdrop-filter: var(--ast-glass-blur);
+  -webkit-backdrop-filter: var(--ast-glass-blur);
+  color: var(--ast-text);
+  font-family: var(--ast-font);
   font-size: 12px;
-  font-weight: 500;
-  animation: ast-toast-in 200ms ease-out;
-  z-index: 100;
+  font-weight: 600;
+  box-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.14), 0 3px 8px rgba(0, 0, 0, 0.05), var(--ast-glass-specular);
+  animation: ast-toast-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.ast-toast-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ast-primary-light);
+  color: var(--ast-primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ast-toast-text {
+  line-height: 1;
 }
 
 @keyframes ast-toast-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  from { opacity: 0; transform: translate(-50%, -8px) scale(0.94); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+@media (prefers-color-scheme: dark) {
+  .ast-toast {
+    box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.6), var(--ast-glass-specular);
+  }
 }

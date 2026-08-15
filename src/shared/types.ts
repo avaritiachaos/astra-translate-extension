@@ -21,6 +21,16 @@ export interface ProviderPreset {
   supportsThinkingToggle?: boolean;
 }
 
+export interface ProviderConfigItem {
+  apiKey?: string;
+  baseUrl?: string;
+  endpoint?: string;
+  model?: string;
+  disableThinking?: boolean;
+  temperature?: number;
+  apiFormat?: ProviderApiFormat;
+}
+
 export interface UserProviderSettings {
   providerId: string;
   providerName: string;
@@ -36,6 +46,7 @@ export interface UserProviderSettings {
 
 // ---------- Full settings ----------
 export interface AstraSettings extends UserProviderSettings {
+  providerConfigs?: Record<string, ProviderConfigItem>;
   uiLanguage: UiLanguage;
   defaultTargetLang: string;
   pageTargetLang: string;

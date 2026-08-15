@@ -10,7 +10,7 @@ const zhCN: MessageDict = {
   // ---- 通用 ----
   "app.name": "Astra Translate",
   "app.desc": "轻量、优雅、模型服务商中立的浏览器翻译插件。",
-  "app.version": "Astra Translate v4.8.4 · 模型服务商中立的浏览器翻译插件",
+  "app.version": "Astra Translate v4.9.0 · 模型服务商中立的浏览器翻译插件",
 
   // ---- Options 页面 ----
   "opt.provider": "服务商设置",
@@ -20,6 +20,7 @@ const zhCN: MessageDict = {
   "opt.endpoint": "Endpoint / 接口路径",
   "opt.model": "模型",
   "opt.apiKey": "API Key",
+  "opt.getApiKey": "获取 API Key",
   "opt.disableThinking": "禁用思考模式以提升翻译速度",
   "opt.testConnection": "测试连接",
   "opt.testing": "测试中…",
@@ -155,6 +156,10 @@ const zhCN: MessageDict = {
   "chat.pageContextOn": "本次发送会补充当前页面内容",
   "chat.pageContextOff": "本次发送不补充页面内容",
   "chat.pageContextUsed": "含页面补充",
+  "chat.switchModel": "切换模型",
+  "chat.modelNoKey": "未配置 Key",
+  "chat.modelSwitched": "已切换至 {model}",
+  "chat.manageProviders": "服务商设置…",
   "chat.webSearch": "联网",
   "chat.webSearchOn": "联网补充已开——先搜再答",
   "chat.webSearchOff": "联网补充已关",
@@ -261,7 +266,7 @@ const enUS: MessageDict = {
   // ---- General ----
   "app.name": "Astra Translate",
   "app.desc": "A lightweight, elegant, provider-neutral browser translator.",
-  "app.version": "Astra Translate v4.8.4 · Provider-neutral browser translator",
+  "app.version": "Astra Translate v4.9.0 · Provider-neutral browser translator",
 
   // ---- Options ----
   "opt.provider": "Provider Settings",
@@ -271,6 +276,7 @@ const enUS: MessageDict = {
   "opt.endpoint": "Endpoint",
   "opt.model": "Model",
   "opt.apiKey": "API Key",
+  "opt.getApiKey": "Get API Key",
   "opt.disableThinking": "Disable thinking (for faster translation)",
   "opt.testConnection": "Test Connection",
   "opt.testing": "Testing…",
@@ -406,6 +412,10 @@ const enUS: MessageDict = {
   "chat.pageContextOn": "Include the current page for this message",
   "chat.pageContextOff": "Don't include the page for this message",
   "chat.pageContextUsed": "Page context included",
+  "chat.switchModel": "Switch Model",
+  "chat.modelNoKey": "No Key",
+  "chat.modelSwitched": "Switched to {model}",
+  "chat.manageProviders": "Provider Settings…",
   "chat.webSearch": "Web",
   "chat.webSearchOn": "Web supplement on — search then answer",
   "chat.webSearchOff": "Web supplement off",
@@ -512,7 +522,7 @@ const jaJP: MessageDict = {
   // ---- 一般 ----
   "app.name": "Astra Translate",
   "app.desc": "軽量・エレガント・プロバイダー非依存のブラウザ翻訳拡張機能。",
-  "app.version": "Astra Translate v4.8.4 · プロバイダー非依存のブラウザ翻訳拡張機能",
+  "app.version": "Astra Translate v4.9.0 · プロバイダー非依存のブラウザ翻訳拡張機能",
 
   // ---- Options ページ ----
   "opt.provider": "プロバイダー設定",
@@ -522,6 +532,7 @@ const jaJP: MessageDict = {
   "opt.endpoint": "Endpoint",
   "opt.model": "モデル",
   "opt.apiKey": "API Key",
+  "opt.getApiKey": "APIキーを取得",
   "opt.disableThinking": "思考モードを無効にして翻訳速度を向上",
   "opt.testConnection": "接続テスト",
   "opt.testing": "テスト中…",
@@ -657,6 +668,10 @@ const jaJP: MessageDict = {
   "chat.pageContextOn": "このメッセージだけ現在のページを補足",
   "chat.pageContextOff": "このメッセージではページを補足しない",
   "chat.pageContextUsed": "ページ補足あり",
+  "chat.switchModel": "モデル切り替え",
+  "chat.modelNoKey": "Key未設定",
+  "chat.modelSwitched": "{model} に切り替えました",
+  "chat.manageProviders": "プロバイダー設定…",
   "chat.webSearch": "ウェブ",
   "chat.webSearchOn": "ウェブ補足オン — 検索してから回答",
   "chat.webSearchOff": "ウェブ補足オフ",

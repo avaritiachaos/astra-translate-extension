@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { AstraSettings } from "./types";
-import { STORAGE_KEY, DEFAULT_TARGET_LANG } from "./constants";
+import { STORAGE_KEY, DEFAULT_TARGET_LANG, DEFAULT_PROVIDER_PRESETS } from "./constants";
 import {
   DEFAULT_SELECTION_PROMPT,
   DEFAULT_PAGE_PROMPT,
@@ -56,6 +56,26 @@ export function getDefaultSettings(): AstraSettings {
     chatAutoAttachPage: true,
     enableTranslationCache: true,
     translationCacheMaxEntries: 5000,
+    providerConfigs: {
+      deepseek: {
+        apiKey: "",
+        baseUrl: "https://api.deepseek.com",
+        endpoint: "/chat/completions",
+        model: "deepseek-v4-flash",
+        disableThinking: true,
+        temperature: 0.2,
+        apiFormat: "openai-compatible",
+      },
+      "google-gemini": {
+        apiKey: "",
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+        endpoint: "/chat/completions",
+        model: "gemini-3.7-flash",
+        disableThinking: false,
+        temperature: 0.2,
+        apiFormat: "openai-compatible",
+      },
+    },
   };
 }
 
@@ -64,6 +84,21 @@ export async function getSettings(): Promise<AstraSettings> {
   const saved = result[STORAGE_KEY] as Partial<AstraSettings> | undefined;
   if (!saved) return getDefaultSettings();
   const merged = { ...getDefaultSettings(), ...saved };
+  if (!merged.providerConfigs) {
+    merged.providerConfigs = {};
+  }
+  if (merged.providerId) {
+    merged.providerConfigs[merged.providerId] = {
+      apiKey: merged.apiKey,
+      baseUrl: merged.baseUrl,
+      endpoint: merged.endpoint,
+      model: merged.model,
+      disableThinking: merged.disableThinking,
+      temperature: merged.temperature,
+      apiFormat: merged.apiFormat,
+      ...merged.providerConfigs[merged.providerId],
+    };
+  }
   // Auto-upgrade the dictionary prompt for users who never customized it, so the
   // dictionary / name-meaning behavior applies without a manual "restore default".
   const savedPrompt = saved.dictionaryPrompt?.trim();
@@ -81,4 +116,43 @@ export async function resetSettings(): Promise<AstraSettings> {
   const defaults = getDefaultSettings();
   await saveSettings(defaults);
   return defaults;
+}
+
+/** Switch active provider preset while preserving per-provider configurations. */
+export function switchProviderSettings(
+  settings: AstraSettings,
+  targetPresetId: string
+): AstraSettings {
+  const preset = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === targetPresetId);
+  if (!preset) return settings;
+
+  const configs = { ...(settings.providerConfigs || {}) };
+  if (settings.providerId) {
+    configs[settings.providerId] = {
+      apiKey: settings.apiKey,
+      baseUrl: settings.baseUrl,
+      endpoint: settings.endpoint,
+      model: settings.model,
+      disableThinking: settings.disableThinking,
+      temperature: settings.temperature,
+      apiFormat: settings.apiFormat,
+    };
+  }
+
+  const targetSaved = configs[preset.id];
+  return {
+    ...settings,
+    providerId: preset.id,
+    providerName: preset.name,
+    apiFormat: targetSaved?.apiFormat ?? preset.apiFormat,
+    baseUrl: targetSaved?.baseUrl ?? preset.baseUrl,
+    endpoint: targetSaved?.endpoint ?? preset.endpoint,
+    model: targetSaved?.model ?? (preset.defaultModel || ""),
+    apiKey: targetSaved?.apiKey ?? "",
+    disableThinking:
+      targetSaved?.disableThinking ??
+      (preset.supportsThinkingToggle ? false : true),
+    temperature: targetSaved?.temperature ?? settings.temperature,
+    providerConfigs: configs,
+  };
 }

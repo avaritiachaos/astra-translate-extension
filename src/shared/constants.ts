@@ -18,6 +18,16 @@ export const PAGE_SEGMENT_SEPARATOR = String.fromCharCode(0xe000);
 
 export const DEFAULT_PROVIDER_PRESETS: ProviderPreset[] = [
   {
+    id: "google-gemini",
+    name: "Google Gemini (AI Studio)",
+    apiFormat: "openai-compatible",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    endpoint: "/chat/completions",
+    defaultModel: "gemini-3.7-flash",
+    website: "https://aistudio.google.com/apikey",
+    supportsThinkingToggle: false,
+  },
+  {
     id: "deepseek",
     name: "DeepSeek",
     apiFormat: "openai-compatible",

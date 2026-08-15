@@ -333,7 +333,7 @@ async function runExchange(
       },
       ...buildChatContext(contextTurns),
     ];
-    const extra = { optionalBody: buildEffortBody(effort) };
+    const extra = { optionalBody: buildEffortBody(effort, settings.providerId) };
     const content = opts.onDelta
       ? await chatViaProviderStream(
           settings,

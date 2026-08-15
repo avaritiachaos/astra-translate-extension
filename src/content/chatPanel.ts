@@ -25,10 +25,12 @@ import {
   type ChatStreamEvent,
   type ChatStreamPhase,
   type ChatTurn,
+  type AstraSettings,
 } from "../shared/types";
+import { DEFAULT_PROVIDER_PRESETS, STORAGE_KEY } from "../shared/constants";
+import { switchProviderSettings } from "../shared/storage";
 import {
-  CHAT_EFFORTS,
-  DEFAULT_CHAT_EFFORT,
+  getChatEffortsForProvider,
   normalizeChatEffort,
   type ChatEffort,
 } from "../shared/chatEffort";
@@ -62,10 +64,13 @@ let errorText = "";
 let attachment: ChatAttachment | null = null;
 /** One-shot page supplement for a selected-text question; never persisted. */
 let supplementPage = false;
-let effort: ChatEffort = DEFAULT_CHAT_EFFORT;
+let effort: ChatEffort = "high";
+let providerId = "deepseek";
+let cachedSettings: AstraSettings | null = null;
 let webSearchOn = false;
 let streamSeq = 0;
 let refreshEffortMenu: (() => void) | null = null;
+let refreshModelMenu: (() => void) | null = null;
 
 interface ChatRetryDraft {
   text: string;
@@ -110,22 +115,26 @@ function injectStyles(): void {
     .${P}-cp {
       position: fixed;
       z-index: 2147483646;
+      width: 440px;
+      height: 520px;
+      min-width: 320px;
+      min-height: 360px;
+      max-width: 90vw;
+      max-height: 90vh;
       display: flex;
       flex-direction: column;
-      width: 380px;
-      height: 520px;
-      min-width: 300px;
-      min-height: 320px;
-      background: #ffffff;
-      color: #1a1a2e;
-      border: 1px solid #e5e7eb;
-      border-radius: 14px;
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      font-size: 13px;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(28px) saturate(190%);
+      -webkit-backdrop-filter: blur(28px) saturate(190%);
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      border-radius: 18px;
+      box-shadow: 0 16px 48px -8px rgba(0, 0, 0, 0.16), 0 4px 12px rgba(0, 0, 0, 0.06), inset 0 1px 1.5px rgba(255, 255, 255, 0.9);
+      color: #1d1d1f;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      font-size: 13.5px;
       line-height: 1.5;
       overflow: hidden;
-      animation: ${P}-cp-in 160ms ease-out;
+      animation: ${P}-cp-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
     }
     .${P}-cp-embedded {
       position: relative;
@@ -141,15 +150,15 @@ function injectStyles(): void {
     }
     .${P}-cp-embedded .${P}-cp-resize { display: none; }
     @keyframes ${P}-cp-in {
-      from { opacity: 0; transform: translateY(8px) scale(0.98); }
+      from { opacity: 0; transform: translateY(8px) scale(0.97); }
       to { opacity: 1; transform: translateY(0) scale(1); }
     }
     @media (prefers-color-scheme: dark) {
       .${P}-cp {
-        background: #1a1a2e;
-        color: #e5e7eb;
-        border-color: #2d2d44;
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+        background: rgba(22, 23, 34, 0.85);
+        color: #f5f5f7;
+        border-color: rgba(255, 255, 255, 0.14);
+        box-shadow: 0 20px 52px -8px rgba(0, 0, 0, 0.6), inset 0 1px 1.5px rgba(255, 255, 255, 0.12);
       }
     }
     .${P}-cp-header {
@@ -481,6 +490,140 @@ function injectStyles(): void {
         background: #1e1b4b; border-color: #818cf8; color: #818cf8;
       }
     }
+    .${P}-cp-model-wrap { position: relative; flex-shrink: 0; }
+    .${P}-cp-model {
+      max-width: 155px;
+      padding: 0 9px 0 10px;
+      gap: 5px;
+      background: rgba(99, 102, 241, 0.08);
+      border-color: rgba(99, 102, 241, 0.28);
+      color: #4338ca;
+      font-weight: 600;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${P}-cp-model {
+        background: rgba(129, 140, 248, 0.16);
+        border-color: rgba(129, 140, 248, 0.35);
+        color: #c7d2fe;
+      }
+    }
+    .${P}-cp-model-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .${P}-cp-model--open .${P}-cp-effort-chevron {
+      transform: translateY(1px) rotate(180deg);
+    }
+    .${P}-cp-model-menu {
+      position: absolute;
+      left: 0;
+      bottom: calc(100% + 8px);
+      z-index: 25;
+      min-width: 210px;
+      padding: 5px;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+      animation: ${P}-effort-menu-in 120ms ease-out;
+    }
+    .${P}-cp-model-header {
+      padding: 3px 6px 5px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #e5e7eb;
+      margin-bottom: 3px;
+    }
+    .${P}-cp-model-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 6px 8px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: #1a1a2e;
+      font-family: inherit;
+      font-size: 11px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .${P}-cp-model-option:hover,
+    .${P}-cp-model-option--selected {
+      background: #eef2ff;
+      color: #6366f1;
+    }
+    .${P}-cp-model-info {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      overflow: hidden;
+      margin-right: 6px;
+    }
+    .${P}-cp-model-name {
+      font-weight: 600;
+      line-height: 1.2;
+    }
+    .${P}-cp-model-sub {
+      font-size: 10px;
+      color: #6b7280;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .${P}-cp-model-option--selected .${P}-cp-model-sub {
+      color: #6366f1;
+      opacity: 0.85;
+    }
+    .${P}-cp-model-badge {
+      font-size: 9px;
+      padding: 1px 4px;
+      border-radius: 4px;
+      background: rgba(239, 68, 68, 0.12);
+      color: #ef4444;
+      margin-left: 4px;
+      font-weight: 500;
+    }
+    .${P}-cp-model-footer {
+      border-top: 1px solid #e5e7eb;
+      margin-top: 3px;
+      padding-top: 3px;
+    }
+    .${P}-cp-model-manage-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      padding: 5px 6px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: #6b7280;
+      font-size: 10px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .${P}-cp-model-manage-btn:hover {
+      background: #f3f4f6;
+      color: #6366f1;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${P}-cp-model-menu { border-color: #2d2d44; background: #1a1a2e; }
+      .${P}-cp-model-header { border-color: #2d2d44; color: #9ca3af; }
+      .${P}-cp-model-option { color: #e5e7eb; }
+      .${P}-cp-model-option:hover,
+      .${P}-cp-model-option--selected { background: #1e1b4b; color: #818cf8; }
+      .${P}-cp-model-sub { color: #9ca3af; }
+      .${P}-cp-model-option--selected .${P}-cp-model-sub { color: #818cf8; }
+      .${P}-cp-model-footer { border-color: #2d2d44; }
+      .${P}-cp-model-manage-btn { color: #9ca3af; }
+      .${P}-cp-model-manage-btn:hover { background: #252538; color: #818cf8; }
+    }
     .${P}-cp-effort-wrap { position: relative; flex-shrink: 0; }
     .${P}-cp-effort {
       min-width: 82px;
@@ -667,6 +810,180 @@ function button(
   return btn;
 }
 
+function getModelDisplayLabel(providerId?: string, model?: string): string {
+  if (providerId === "google-gemini") {
+    if (!model || model.includes("3.7")) return "Gemini 3.7 Flash";
+    if (model.includes("2.5")) return "Gemini 2.5";
+    if (model.includes("2.0")) return "Gemini 2.0";
+    return model;
+  }
+  if (providerId === "deepseek") {
+    if (!model || model.includes("v4") || model.includes("flash")) return "DeepSeek V4";
+    if (model.includes("chat") || model.includes("v3")) return "DeepSeek V3";
+    return "DeepSeek";
+  }
+  return model || "Custom";
+}
+
+/** Custom model selector menu. */
+function createModelMenu(): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = `${P}-cp-model-wrap`;
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = `${P}-cp-toggle ${P}-cp-model ${P}-cp-model-trigger`;
+  trigger.setAttribute("aria-haspopup", "listbox");
+  trigger.setAttribute("aria-expanded", "false");
+
+  const triggerIcon = document.createElement("span");
+  triggerIcon.innerHTML = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z" fill="currentColor" fill-opacity="0.18"/></svg>`;
+
+  const triggerLabel = document.createElement("span");
+  triggerLabel.className = `${P}-cp-model-label`;
+
+  const triggerChevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  triggerChevron.classList.add(`${P}-cp-effort-chevron`);
+  triggerChevron.setAttribute("viewBox", "0 0 12 8");
+  triggerChevron.setAttribute("aria-hidden", "true");
+  triggerChevron.setAttribute("focusable", "false");
+  const chevronPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  chevronPath.setAttribute("d", "M1.5 2 6 6 10.5 2");
+  chevronPath.setAttribute("fill", "none");
+  chevronPath.setAttribute("stroke", "currentColor");
+  chevronPath.setAttribute("stroke-width", "1.8");
+  chevronPath.setAttribute("stroke-linecap", "round");
+  chevronPath.setAttribute("stroke-linejoin", "round");
+  triggerChevron.append(chevronPath);
+  trigger.append(triggerIcon, triggerLabel, triggerChevron);
+
+  const menu = document.createElement("div");
+  menu.className = `${P}-cp-model-menu`;
+  menu.setAttribute("role", "listbox");
+  menu.style.display = "none";
+
+  const renderMenu = () => {
+    const currentPreset = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === providerId);
+    const activeModel = cachedSettings?.model || currentPreset?.defaultModel || providerId;
+    const displayLabel = getModelDisplayLabel(providerId, activeModel);
+    triggerLabel.textContent = displayLabel;
+    trigger.title = `${t(lang, "chat.switchModel")}: ${activeModel}`;
+    trigger.setAttribute("aria-expanded", String(menu.style.display !== "none"));
+    menu.innerHTML = "";
+
+    const header = document.createElement("div");
+    header.className = `${P}-cp-model-header`;
+    header.textContent = t(lang, "chat.switchModel");
+    menu.appendChild(header);
+
+    DEFAULT_PROVIDER_PRESETS.forEach((preset) => {
+      const isSelected = preset.id === providerId;
+      const savedConfig = cachedSettings?.providerConfigs?.[preset.id];
+      const modelName = isSelected
+        ? cachedSettings?.model
+        : savedConfig?.model || preset.defaultModel || "";
+      const hasKey = isSelected ? !!cachedSettings?.apiKey : !!savedConfig?.apiKey;
+      const displaySub = getModelDisplayLabel(preset.id, modelName);
+
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = `${P}-cp-model-option${isSelected ? ` ${P}-cp-model-option--selected` : ""}`;
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", String(isSelected));
+
+      const info = document.createElement("div");
+      info.className = `${P}-cp-model-info`;
+
+      const nameRow = document.createElement("div");
+      nameRow.className = `${P}-cp-model-name`;
+      nameRow.textContent = preset.name;
+      if (!hasKey) {
+        const badge = document.createElement("span");
+        badge.className = `${P}-cp-model-badge`;
+        badge.textContent = t(lang, "chat.modelNoKey");
+        nameRow.appendChild(badge);
+      }
+
+      info.appendChild(nameRow);
+      if (modelName) {
+        const sub = document.createElement("div");
+        sub.className = `${P}-cp-model-sub`;
+        sub.textContent = `${displaySub} · ${modelName}`;
+        info.appendChild(sub);
+      }
+
+      option.appendChild(info);
+      if (isSelected) {
+        const check = document.createElement("span");
+        check.className = `${P}-cp-effort-check`;
+        check.textContent = "✓";
+        option.appendChild(check);
+      }
+
+      option.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (cachedSettings) {
+          const next = switchProviderSettings(cachedSettings, preset.id);
+          cachedSettings = next;
+          providerId = preset.id;
+          effort = normalizeChatEffort(effort, providerId);
+          await chrome.runtime
+            .sendMessage({ type: "SAVE_SETTINGS", payload: next })
+            .catch(() => {});
+          await chrome.storage.session
+            ?.set({ [CHAT_EFFORT_SESSION_KEY]: effort })
+            .catch(() => {});
+          setOpen(false);
+          refreshEffortMenu?.();
+          renderMenu();
+          renderFooter();
+        }
+      });
+
+      menu.appendChild(option);
+    });
+
+    const footer = document.createElement("div");
+    footer.className = `${P}-cp-model-footer`;
+    const manageBtn = document.createElement("button");
+    manageBtn.type = "button";
+    manageBtn.className = `${P}-cp-model-manage-btn`;
+    manageBtn.innerHTML = `<span>⚙️</span><span>${t(lang, "chat.manageProviders")}</span>`;
+    manageBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+      chrome.runtime.sendMessage({ type: "OPEN_OPTIONS_PAGE" }).catch(() => {});
+    });
+    footer.appendChild(manageBtn);
+    menu.appendChild(footer);
+  };
+
+  refreshModelMenu = renderMenu;
+
+  const setOpen = (open: boolean) => {
+    menu.style.display = open ? "block" : "none";
+    trigger.classList.toggle(`${P}-cp-model--open`, open);
+    if (open) renderMenu();
+  };
+
+  trigger.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setOpen(menu.style.display === "none");
+  });
+
+  const onOutside = (event: MouseEvent) => {
+    if (!wrap.contains(event.target as Node)) setOpen(false);
+  };
+  document.addEventListener("mousedown", onOutside);
+  cleanupFns.push(() => document.removeEventListener("mousedown", onOutside));
+
+  wrap.append(trigger, menu);
+  return wrap;
+}
+
 /** Custom reasoning menu; native selects ignore the panel's visual language. */
 function createEffortMenu(): HTMLElement {
   const wrap = document.createElement("div");
@@ -706,16 +1023,38 @@ function createEffortMenu(): HTMLElement {
   menu.setAttribute("role", "listbox");
   menu.style.display = "none";
 
-  const options: HTMLButtonElement[] = [];
   const renderMenu = () => {
     triggerLabel.textContent = effort;
     trigger.setAttribute("aria-expanded", String(menu.style.display !== "none"));
-    options.forEach((option) => {
-      const selected = option.dataset.effort === effort;
+    menu.innerHTML = "";
+    const list = getChatEffortsForProvider(providerId);
+    list.forEach((level) => {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = `${P}-cp-effort-option`;
+      option.dataset.effort = level;
+      option.setAttribute("role", "option");
+      const selected = level === effort;
       option.setAttribute("aria-selected", String(selected));
       option.classList.toggle(`${P}-cp-effort-option--selected`, selected);
-      const check = option.querySelector(`.${P}-cp-effort-check`);
-      if (check) check.textContent = selected ? "✓" : "";
+
+      const label = document.createElement("span");
+      label.textContent = level;
+      const check = document.createElement("span");
+      check.className = `${P}-cp-effort-check`;
+      check.textContent = selected ? "✓" : "";
+      option.append(label, check);
+      option.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        effort = level;
+        chrome.storage.session
+          ?.set({ [CHAT_EFFORT_SESSION_KEY]: effort })
+          .catch(() => {});
+        setOpen(false);
+        renderFooter();
+      });
+      menu.appendChild(option);
     });
   };
   refreshEffortMenu = renderMenu;
@@ -724,32 +1063,6 @@ function createEffortMenu(): HTMLElement {
     trigger.classList.toggle(`${P}-cp-effort--open`, open);
     renderMenu();
   };
-
-  CHAT_EFFORTS.forEach((level) => {
-    const option = document.createElement("button");
-    option.type = "button";
-    option.className = `${P}-cp-effort-option`;
-    option.dataset.effort = level;
-    option.setAttribute("role", "option");
-
-    const label = document.createElement("span");
-    label.textContent = level;
-    const check = document.createElement("span");
-    check.className = `${P}-cp-effort-check`;
-    option.append(label, check);
-    option.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      effort = level;
-      chrome.storage.session
-        ?.set({ [CHAT_EFFORT_SESSION_KEY]: effort })
-        .catch(() => {});
-      setOpen(false);
-      renderFooter();
-    });
-    options.push(option);
-    menu.appendChild(option);
-  });
 
   trigger.addEventListener("click", (event) => {
     event.preventDefault();
@@ -1405,6 +1718,8 @@ async function prepareChatPanel(selectionText?: string): Promise<void> {
   try {
     const settings = await chrome.runtime.sendMessage({ type: "GET_SETTINGS" });
     if (settings) {
+      cachedSettings = settings;
+      providerId = settings.providerId || "deepseek";
       lang = settings.uiLanguage || lang;
       autoAttachEnabled = settings.chatAutoAttachPage !== false;
       webSearchAvailable = !!settings.chatWebSearchEnabled;
@@ -1420,7 +1735,7 @@ async function prepareChatPanel(selectionText?: string): Promise<void> {
       CHAT_EFFORT_SESSION_KEY,
     ]);
     webSearchOn = webSearchAvailable && session?.[CHAT_WEB_SEARCH_SESSION_KEY] === true;
-    effort = normalizeChatEffort(session?.[CHAT_EFFORT_SESSION_KEY]);
+    effort = normalizeChatEffort(session?.[CHAT_EFFORT_SESSION_KEY], providerId);
   } catch {
     // Defaults are fine.
   }
@@ -1560,6 +1875,7 @@ function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
   supplement.setAttribute("aria-pressed", "false");
   row.appendChild(supplement);
 
+  row.appendChild(createModelMenu());
   row.appendChild(createEffortMenu());
 
   const attachBtn = button(
@@ -1742,6 +2058,18 @@ function attachDragAndResize(
     changes: Record<string, chrome.storage.StorageChange>,
     area: string
   ) => {
+    if (area === "local") {
+      const settingsChange = changes[STORAGE_KEY];
+      if (settingsChange?.newValue) {
+        cachedSettings = settingsChange.newValue as AstraSettings;
+        providerId = cachedSettings.providerId || "deepseek";
+        effort = normalizeChatEffort(effort, providerId);
+        refreshModelMenu?.();
+        refreshEffortMenu?.();
+        render();
+      }
+      return;
+    }
     if (area !== "session") return;
     let shouldRender = false;
     const chatChange = changes[CHAT_STORAGE_KEY];

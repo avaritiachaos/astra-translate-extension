@@ -1,41 +1,61 @@
 /* ============================================================
-   Astra Translate – Theme Variables
+   Astra Translate – Theme Variables (iOS Liquid Glass)
    ============================================================ */
 
 :root {
-  /* Light theme */
-  --ast-bg: #f7f7fa;
+  /* Light theme — iOS Liquid Glass */
+  --ast-bg: #f5f6fa;
+  --ast-glass-bg: rgba(255, 255, 255, 0.75);
+  --ast-glass-card: rgba(255, 255, 255, 0.85);
+  --ast-glass-popover: rgba(255, 255, 255, 0.92);
+  --ast-glass-border: rgba(255, 255, 255, 0.88);
+  --ast-glass-border-subtle: rgba(0, 0, 0, 0.08);
+  --ast-glass-blur: blur(24px) saturate(190%);
+  --ast-glass-specular: inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.95);
+
   --ast-card-bg: #ffffff;
-  --ast-text: #1a1a2e;
-  --ast-muted: #6b7280;
-  --ast-border: #e5e7eb;
-  --ast-primary: #6366f1;
-  --ast-primary-hover: #4f46e5;
-  --ast-primary-light: #eef2ff;
-  --ast-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  --ast-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
-  --ast-radius: 14px;
-  --ast-radius-sm: 8px;
-  --ast-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --ast-transition: 120ms ease-out;
-  --ast-success: #10b981;
-  --ast-error: #ef4444;
-  --ast-warning: #f59e0b;
-  --ast-overlay: rgba(0, 0, 0, 0.3);
+  --ast-text: #1d1d1f;
+  --ast-text-secondary: #48484a;
+  --ast-muted: #86868b;
+  --ast-border: rgba(0, 0, 0, 0.08);
+  --ast-primary: #5856d6;
+  --ast-primary-hover: #4745b8;
+  --ast-primary-light: rgba(88, 86, 214, 0.1);
+  --ast-primary-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  --ast-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+  --ast-shadow-lg: 0 16px 36px -4px rgba(0, 0, 0, 0.14), 0 6px 16px -2px rgba(0, 0, 0, 0.06);
+  --ast-radius: 16px;
+  --ast-radius-sm: 10px;
+  --ast-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Segoe UI", sans-serif;
+  --ast-transition: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --ast-success: #34c759;
+  --ast-error: #ff3b30;
+  --ast-warning: #ff9500;
+  --ast-overlay: rgba(0, 0, 0, 0.25);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --ast-bg: #0f0f1a;
-    --ast-card-bg: #1a1a2e;
-    --ast-text: #e5e7eb;
-    --ast-muted: #9ca3af;
-    --ast-border: #2d2d44;
-    --ast-primary: #818cf8;
+    --ast-bg: #0c0d14;
+    --ast-glass-bg: rgba(22, 23, 34, 0.75);
+    --ast-glass-card: rgba(30, 31, 46, 0.8);
+    --ast-glass-popover: rgba(26, 27, 40, 0.92);
+    --ast-glass-border: rgba(255, 255, 255, 0.14);
+    --ast-glass-border-subtle: rgba(255, 255, 255, 0.08);
+    --ast-glass-blur: blur(28px) saturate(200%);
+    --ast-glass-specular: inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.14);
+
+    --ast-card-bg: #1c1c28;
+    --ast-text: #f5f5f7;
+    --ast-text-secondary: #aeaeb2;
+    --ast-muted: #8e8e93;
+    --ast-border: rgba(255, 255, 255, 0.1);
+    --ast-primary: #7d7aff;
     --ast-primary-hover: #6366f1;
-    --ast-primary-light: #1e1b4b;
-    --ast-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-    --ast-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --ast-primary-light: rgba(125, 122, 255, 0.16);
+    --ast-primary-gradient: linear-gradient(135deg, #7d7aff 0%, #6366f1 100%);
+    --ast-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4), 0 2px 6px -1px rgba(0, 0, 0, 0.2);
+    --ast-shadow-lg: 0 16px 40px -4px rgba(0, 0, 0, 0.55), 0 6px 18px -2px rgba(0, 0, 0, 0.35);
     --ast-overlay: rgba(0, 0, 0, 0.6);
   }
 }

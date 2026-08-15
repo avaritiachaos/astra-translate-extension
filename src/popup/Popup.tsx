@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
-import { SUPPORTED_LANGUAGES } from "../shared/constants";
+import { DEFAULT_PROVIDER_PRESETS, SUPPORTED_LANGUAGES } from "../shared/constants";
+import { switchProviderSettings } from "../shared/storage";
 import { t, type UiLanguage } from "../shared/i18n";
 import type {
   AstraSettings,
@@ -20,9 +21,9 @@ import {
 } from "../shared/types";
 import { parseChatMarkdown } from "../shared/chatMarkdown";
 import {
-  CHAT_EFFORTS,
-  DEFAULT_CHAT_EFFORT,
+  getChatEffortsForProvider,
   normalizeChatEffort,
+  DEFAULT_CHAT_EFFORT,
   type ChatEffort,
 } from "../shared/chatEffort";
 import { extractPageContext } from "../shared/pageExtract";
@@ -60,18 +61,21 @@ function ChatRichText({ text }: { text: string }): React.ReactElement {
 
 interface ChatEffortMenuProps {
   value: ChatEffort;
+  providerId?: string;
   lang: UiLanguage;
   onChange: (value: ChatEffort) => void;
 }
 
 function ChatEffortMenu({
   value,
+  providerId,
   lang,
   onChange,
 }: ChatEffortMenuProps): React.ReactElement {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const selectedIndex = Math.max(0, CHAT_EFFORTS.indexOf(value));
+  const efforts = getChatEffortsForProvider(providerId);
+  const selectedIndex = Math.max(0, efforts.indexOf(value));
 
   const focusOption = useCallback((index: number) => {
     const options = rootRef.current?.querySelectorAll<HTMLButtonElement>(
@@ -135,7 +139,7 @@ function ChatEffortMenu({
       focusOption(index + (event.key === "ArrowDown" ? 1 : -1));
     } else if (event.key === "Home" || event.key === "End") {
       event.preventDefault();
-      focusOption(event.key === "Home" ? 0 : CHAT_EFFORTS.length - 1);
+      focusOption(event.key === "Home" ? 0 : efforts.length - 1);
     }
   };
 
@@ -169,7 +173,7 @@ function ChatEffortMenu({
       </button>
       {open && (
         <div className="ast-chat-effort-menu" role="listbox" aria-label="Reasoning mode">
-          {CHAT_EFFORTS.map((level, index) => (
+          {efforts.map((level, index) => (
             <button
               key={level}
               type="button"
@@ -183,6 +187,179 @@ function ChatEffortMenu({
               {level === value && <span className="ast-chat-effort-check">✓</span>}
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function getModelDisplayLabel(providerId?: string, model?: string): string {
+  if (providerId === "google-gemini") {
+    if (!model || model.includes("3.7")) return "Gemini 3.7 Flash";
+    if (model.includes("2.5")) return "Gemini 2.5";
+    if (model.includes("2.0")) return "Gemini 2.0";
+    return model;
+  }
+  if (providerId === "deepseek") {
+    if (!model || model.includes("v4") || model.includes("flash")) return "DeepSeek V4";
+    if (model.includes("chat") || model.includes("v3")) return "DeepSeek V3";
+    return "DeepSeek";
+  }
+  return model || "Custom";
+}
+
+interface ChatModelMenuProps {
+  settings: AstraSettings | null;
+  lang: UiLanguage;
+  onSwitch: (presetId: string) => void;
+  onOpenSettings: () => void;
+}
+
+function ChatModelMenu({
+  settings,
+  lang,
+  onSwitch,
+  onOpenSettings,
+}: ChatModelMenuProps): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const currentProviderId = settings?.providerId || "deepseek";
+  const currentModel =
+    settings?.model ||
+    DEFAULT_PROVIDER_PRESETS.find((p) => p.id === currentProviderId)?.defaultModel ||
+    currentProviderId;
+
+  const displayModelLabel = getModelDisplayLabel(currentProviderId, currentModel);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="ast-chat-model-wrap" ref={rootRef}>
+      <button
+        type="button"
+        className={`ast-chat-pill ast-chat-model ${open ? "ast-chat-pill--on" : ""}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={`${t(lang, "chat.switchModel")}: ${currentModel}`}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <svg
+          className="ast-chat-model-icon"
+          viewBox="0 0 24 24"
+          width="13"
+          height="13"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ flexShrink: 0 }}
+          aria-hidden="true"
+        >
+          <path
+            d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"
+            fill="currentColor"
+            fillOpacity="0.18"
+          />
+        </svg>
+        <span className="ast-chat-model-text">{displayModelLabel}</span>
+        <svg
+          className="ast-chat-effort-chevron"
+          style={{ marginLeft: 2 }}
+          viewBox="0 0 12 8"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path
+            d="M1.5 2 6 6 10.5 2"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          className="ast-chat-model-menu"
+          role="listbox"
+          aria-label={t(lang, "chat.switchModel")}
+        >
+          <div className="ast-chat-model-header">{t(lang, "chat.switchModel")}</div>
+          {DEFAULT_PROVIDER_PRESETS.map((preset) => {
+            const isSelected = preset.id === currentProviderId;
+            const savedConfig = settings?.providerConfigs?.[preset.id];
+            const activeModel = isSelected
+              ? settings?.model
+              : savedConfig?.model || preset.defaultModel || "";
+            const hasKey = isSelected ? !!settings?.apiKey : !!savedConfig?.apiKey;
+            const displaySub = getModelDisplayLabel(preset.id, activeModel);
+
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                className={`ast-chat-model-option ${
+                  isSelected ? "ast-chat-model-option--selected" : ""
+                }`}
+                onClick={() => {
+                  onSwitch(preset.id);
+                  setOpen(false);
+                }}
+              >
+                <div className="ast-chat-model-info">
+                  <div className="ast-chat-model-name">
+                    {preset.name}
+                    {!hasKey && (
+                      <span
+                        className="ast-chat-model-badge"
+                        title={t(lang, "chat.modelNoKey")}
+                      >
+                        {t(lang, "chat.modelNoKey")}
+                      </span>
+                    )}
+                  </div>
+                  {activeModel && <div className="ast-chat-model-sub">{displaySub} · {activeModel}</div>}
+                </div>
+                {isSelected && <span className="ast-chat-effort-check">✓</span>}
+              </button>
+            );
+          })}
+          <div className="ast-chat-model-footer">
+            <button
+              type="button"
+              className="ast-chat-model-manage-btn"
+              onClick={() => {
+                setOpen(false);
+                onOpenSettings();
+              }}
+            >
+              <span>⚙️</span>
+              <span>{t(lang, "chat.manageProviders")}</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -256,6 +433,7 @@ export default function Popup() {
         setSettings(s);
         setTargetLang(s.defaultTargetLang || "Simplified Chinese");
         setPageTargetLang(s.pageTargetLang || "Simplified Chinese");
+        setChatEffort((prev) => normalizeChatEffort(prev, s.providerId));
       }
     });
     inputRef.current?.focus();
@@ -723,12 +901,42 @@ export default function Popup() {
   }, [chatPending, chatEffort, lang, refreshChatState, sendViaStream]);
 
   /** Change the per-session thinking effort (shared with the in-page panel). */
-  const handleEffortChange = useCallback((next: ChatEffort) => {
+  const handleEffortChange = (next: ChatEffort) => {
     setChatEffort(next);
     chrome.storage.session
       ?.set({ [CHAT_EFFORT_SESSION_KEY]: next })
       .catch(() => {});
-  }, []);
+  };
+
+  const handleModelSwitch = useCallback(
+    async (presetId: string) => {
+      if (!settings) return;
+      const next = switchProviderSettings(settings, presetId);
+      setSettings(next);
+      const nextEffort = normalizeChatEffort(chatEffort, presetId);
+      setChatEffort(nextEffort);
+      try {
+        await chrome.runtime.sendMessage({
+          type: "SAVE_SETTINGS",
+          payload: next,
+        });
+        await chrome.storage.session?.set({ [CHAT_EFFORT_SESSION_KEY]: nextEffort });
+        const preset = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === presetId);
+        const displayLabel = getModelDisplayLabel(
+          presetId,
+          next.model || preset?.defaultModel || ""
+        );
+        showToast(
+          t(lang, "chat.modelSwitched", {
+            model: displayLabel,
+          })
+        );
+      } catch {
+        showToast(t(lang, "opt.saveFailed"));
+      }
+    },
+    [settings, chatEffort, lang, showToast]
+  );
 
   /** Grab context from the active tab: the selection if any, else the main
    * readable content. Explicit user action — the popup never attaches
@@ -876,7 +1084,9 @@ export default function Popup() {
       <div className="ast-popup-topbar">
         {/* Header: title · mode segmented control · settings */}
         <div className="ast-popup-header">
-          <span className="ast-popup-title">{t(lang, "app.name")}</span>
+          <div className="ast-popup-title">
+            <span className="ast-popup-title-brand">{t(lang, "app.name")}</span>
+          </div>
           <div className="ast-seg" role="tablist">
             <button
               role="tab"
@@ -1180,6 +1390,18 @@ export default function Popup() {
             maxLength={8000}
           />
           <div className="ast-chat-actions">
+            <ChatModelMenu
+              settings={settings}
+              lang={lang}
+              onSwitch={handleModelSwitch}
+              onOpenSettings={openOptions}
+            />
+            <ChatEffortMenu
+              value={chatEffort}
+              providerId={settings?.providerId}
+              lang={lang}
+              onChange={handleEffortChange}
+            />
             <button
               className={[
                 "ast-chat-pill",
@@ -1217,11 +1439,6 @@ export default function Popup() {
               </svg>
               <span>{t(lang, "chat.webSearch")}</span>
             </button>
-            <ChatEffortMenu
-              value={chatEffort}
-              lang={lang}
-              onChange={handleEffortChange}
-            />
 
             <div className="ast-chat-actions-end">
               {!chatAttach && (
@@ -1394,7 +1611,12 @@ export default function Popup() {
       )}
 
       {/* Toast */}
-      {toast && <div className="ast-toast">{toast}</div>}
+      {toast && (
+        <div className="ast-toast" role="status" aria-live="polite">
+          <span className="ast-toast-icon">✓</span>
+          <span className="ast-toast-text">{toast}</span>
+        </div>
+      )}
     </div>
   );
 }
