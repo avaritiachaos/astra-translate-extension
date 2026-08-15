@@ -1813,17 +1813,6 @@ export default function Popup() {
                 <span>透明度 {settings?.liveTranslateBgOpacity ?? 80}%</span>
               </button>
             </div>
-
-            <div className="ast-live-hero-body">
-              <button
-                type="button"
-                className={`ast-btn ${liveState.running ? "ast-btn-danger" : "ast-btn-primary"} ast-live-main-btn`}
-                onClick={handleToggleLive}
-                disabled={liveLoading}
-              >
-                {liveLoading ? "…" : liveState.running ? t(lang, "live.stop") : t(lang, "live.start")}
-              </button>
-            </div>
           </div>
 
           {/* Subtitle Stream Feed Card */}
@@ -1871,6 +1860,18 @@ export default function Popup() {
                 ))
               )}
             </div>
+          </div>
+
+          {/* Bottom Action Button Bar */}
+          <div className="ast-live-bottom-bar">
+            <button
+              type="button"
+              className={`ast-btn ${liveState.running ? "ast-btn-danger" : "ast-btn-primary"} ast-live-main-btn`}
+              onClick={handleToggleLive}
+              disabled={liveLoading}
+            >
+              {liveLoading ? "…" : liveState.running ? t(lang, "live.stop") : t(lang, "live.start")}
+            </button>
           </div>
         </div>
       )}
