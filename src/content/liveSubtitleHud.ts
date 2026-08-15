@@ -1,5 +1,6 @@
 // ============================================================
 // Astra Translate – Live Subtitle HUD Component
+// (Ultimate Cinema-Grade Non-Deforming Subtitle Overlay)
 // ============================================================
 
 import type { LiveTranslateStatusKind } from "../shared/types";
@@ -11,7 +12,6 @@ interface LiveHudOptions {
 }
 
 const STORAGE_KEY_WIDTH = "astra_hud_width";
-const STORAGE_KEY_HEIGHT = "astra_hud_height";
 const STORAGE_KEY_POS_X = "astra_hud_pos_x";
 const STORAGE_KEY_POS_Y = "astra_hud_pos_y";
 const STORAGE_KEY_FONT_SIZE = "astra_hud_font_size";
@@ -25,11 +25,11 @@ export class LiveSubtitleHud {
   private levelBar: HTMLDivElement | null = null;
   private originalEl: HTMLDivElement | null = null;
   private translationEl: HTMLDivElement | null = null;
-  private resizeHandle: HTMLDivElement | null = null;
+  private toggleOrigBtn: HTMLButtonElement | null = null;
 
   private isVisible = false;
-  private showOriginal = true;
-  private fontSize = 20;
+  private showOriginal = false; // Default: Single language (translated text only)
+  private fontSize = 22;
   private bgOpacity = 80;
   private currentStatus: LiveTranslateStatusKind = "connecting";
 
@@ -37,19 +37,13 @@ export class LiveSubtitleHud {
   private hideToolbarTimer: ReturnType<typeof setTimeout> | null = null;
   private isToolbarHovered = false;
 
-  // Dragging & Resizing state
+  // Dragging state
   private isDragging = false;
-  private isResizing = false;
   private dragStartX = 0;
   private dragStartY = 0;
-  private resizeStartX = 0;
-  private resizeStartY = 0;
-  private resizeStartW = 0;
-  private resizeStartH = 0;
   private posX = -1;
   private posY = -1;
   private customWidth = -1;
-  private customHeight = -1;
 
   // Subtitle history in content script for export
   private historyItems: Array<{ original: string; translation: string; timestamp: number }> = [];
@@ -62,10 +56,11 @@ export class LiveSubtitleHud {
 
   private loadSavedLayout(): void {
     try {
+      // Clean up any legacy height that caused box deformation
+      localStorage.removeItem("astra_hud_height");
+
       const savedW = localStorage.getItem(STORAGE_KEY_WIDTH);
       if (savedW) this.customWidth = parseInt(savedW, 10);
-      const savedH = localStorage.getItem(STORAGE_KEY_HEIGHT);
-      if (savedH) this.customHeight = parseInt(savedH, 10);
       const savedX = localStorage.getItem(STORAGE_KEY_POS_X);
       if (savedX) this.posX = parseInt(savedX, 10);
       const savedY = localStorage.getItem(STORAGE_KEY_POS_Y);
@@ -80,7 +75,7 @@ export class LiveSubtitleHud {
   public show(options?: LiveHudOptions): void {
     if (options) {
       if (options.showOriginal !== undefined) this.showOriginal = options.showOriginal;
-      if (options.fontSize !== undefined && this.fontSize === 20) this.fontSize = options.fontSize;
+      if (options.fontSize !== undefined && this.fontSize === 22) this.fontSize = options.fontSize;
       if (options.bgOpacity !== undefined && this.bgOpacity === 80) this.bgOpacity = options.bgOpacity;
     }
 
@@ -94,7 +89,7 @@ export class LiveSubtitleHud {
       this.updateStyles();
       this.restorePositionAndSize();
       this.showToolbar();
-      this.hideToolbar(2500);
+      this.hideToolbar(2200);
     }
   }
 
@@ -141,16 +136,16 @@ export class LiveSubtitleHud {
 
     if (this.statusDot) {
       if (status === "connected") {
-        this.statusDot.style.background = "#10B981"; // green
+        this.statusDot.style.background = "#10B981";
         this.statusDot.style.boxShadow = "0 0 8px #10B981";
       } else if (status === "connecting") {
-        this.statusDot.style.background = "#F59E0B"; // yellow
+        this.statusDot.style.background = "#F59E0B";
         this.statusDot.style.boxShadow = "0 0 8px #F59E0B";
       } else if (status === "error") {
-        this.statusDot.style.background = "#EF4444"; // red
+        this.statusDot.style.background = "#EF4444";
         this.statusDot.style.boxShadow = "0 0 8px #EF4444";
       } else {
-        this.statusDot.style.background = "#6B7280"; // gray
+        this.statusDot.style.background = "#6B7280";
         this.statusDot.style.boxShadow = "none";
       }
     }
@@ -196,16 +191,12 @@ export class LiveSubtitleHud {
     }
     if (this.headerEl) {
       this.headerEl.style.opacity = "1";
-      this.headerEl.style.maxHeight = "40px";
-      this.headerEl.style.marginBottom = "8px";
+      this.headerEl.style.maxHeight = "36px";
+      this.headerEl.style.marginBottom = "6px";
       this.headerEl.style.pointerEvents = "auto";
     }
-    if (this.resizeHandle) {
-      this.resizeHandle.style.opacity = "0.5";
-      this.resizeHandle.style.pointerEvents = "auto";
-    }
     if (this.container) {
-      this.container.style.padding = "10px 18px 12px 18px";
+      this.container.style.padding = "8px 18px 10px 18px";
     }
   }
 
@@ -218,19 +209,15 @@ export class LiveSubtitleHud {
       this.hideToolbarTimer = setTimeout(() => this.hideToolbar(0), delayMs);
       return;
     }
-    if (this.isToolbarHovered || this.isDragging || this.isResizing) return;
+    if (this.isToolbarHovered || this.isDragging) return;
     if (this.headerEl) {
       this.headerEl.style.opacity = "0";
       this.headerEl.style.maxHeight = "0px";
       this.headerEl.style.marginBottom = "0px";
       this.headerEl.style.pointerEvents = "none";
     }
-    if (this.resizeHandle) {
-      this.resizeHandle.style.opacity = "0";
-      this.resizeHandle.style.pointerEvents = "none";
-    }
     if (this.container) {
-      this.container.style.padding = "8px 16px 10px 16px";
+      this.container.style.padding = "6px 16px 8px 16px";
     }
   }
 
@@ -240,24 +227,25 @@ export class LiveSubtitleHud {
     container.style.cssText = `
       position: fixed;
       left: 50%;
-      bottom: 60px;
+      bottom: 50px;
       transform: translateX(-50%);
-      width: min(860px, 90vw);
-      min-width: 280px;
+      width: min(780px, 90vw);
+      min-width: 320px;
       max-width: 95vw;
-      min-height: 48px;
+      height: auto;
+      min-height: auto;
       max-height: 80vh;
       z-index: 2147483647;
       display: flex;
       flex-direction: column;
       box-sizing: border-box;
-      padding: 8px 16px 10px 16px;
-      border-radius: 16px;
+      padding: 6px 16px 8px 16px;
+      border-radius: 14px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
       backdrop-filter: blur(24px) saturate(180%);
       -webkit-backdrop-filter: blur(24px) saturate(180%);
-      transition: padding 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, opacity 0.2s ease;
+      transition: padding 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, opacity 0.2s ease;
       user-select: none;
       overflow: hidden;
       cursor: grab;
@@ -277,11 +265,13 @@ export class LiveSubtitleHud {
       overflow: hidden;
       user-select: none;
       transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      gap: 6px;
+      white-space: nowrap;
     `;
 
     // Left status info
     const leftInfo = document.createElement("div");
-    leftInfo.style.cssText = "display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: rgba(255,255,255,0.75); pointer-events: none;";
+    leftInfo.style.cssText = "display: flex; align-items: center; gap: 6px; font-size: 11px; color: rgba(255,255,255,0.75); pointer-events: none; flex-shrink: 0;";
 
     const dot = document.createElement("span");
     dot.style.cssText = "width: 7px; height: 7px; border-radius: 50%; background: #F59E0B; transition: all 0.3s ease;";
@@ -292,7 +282,7 @@ export class LiveSubtitleHud {
     this.statusText = statusText;
 
     const levelTrack = document.createElement("div");
-    levelTrack.style.cssText = "width: 36px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.2); overflow: hidden;";
+    levelTrack.style.cssText = "width: 32px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.2); overflow: hidden;";
     const levelBar = document.createElement("div");
     levelBar.style.cssText = "width: 0%; height: 100%; background: #10B981; transition: width 0.1s ease;";
     levelTrack.appendChild(levelBar);
@@ -304,26 +294,27 @@ export class LiveSubtitleHud {
 
     // Right action buttons
     const rightActions = document.createElement("div");
-    rightActions.style.cssText = "display: flex; align-items: center; gap: 5px;";
+    rightActions.style.cssText = "display: flex; align-items: center; gap: 4px; flex-shrink: 0;";
 
     const makeBtn = (label: string, title: string, onClick: () => void) => {
       const btn = document.createElement("button");
       btn.textContent = label;
       btn.title = title;
       btn.style.cssText = `
-        background: rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.14);
         border: 1px solid rgba(255, 255, 255, 0.18);
         color: #FFFFFF;
         border-radius: 6px;
-        padding: 2px 7px;
+        padding: 2px 6px;
         font-size: 11px;
         cursor: pointer;
         outline: none;
         transition: all 0.15s ease;
-        line-height: 1.4;
+        line-height: 1.35;
+        white-space: nowrap;
       `;
-      btn.onmouseenter = () => (btn.style.background = "rgba(255, 255, 255, 0.28)");
-      btn.onmouseleave = () => (btn.style.background = "rgba(255, 255, 255, 0.12)");
+      btn.onmouseenter = () => (btn.style.background = "rgba(255, 255, 255, 0.32)");
+      btn.onmouseleave = () => (btn.style.background = "rgba(255, 255, 255, 0.14)");
       btn.onclick = (e) => {
         e.stopPropagation();
         onClick();
@@ -331,15 +322,15 @@ export class LiveSubtitleHud {
       return btn;
     };
 
-    // Cycle Width Presets
-    const widthPresets = [560, 860, 1160, -1];
-    let currentWidthIdx = 1;
-    const cycleWidthBtn = makeBtn("↔ 宽", "快速切换字幕框宽度 (紧凑 / 标准 / 宽屏 / 自适应)", () => {
+    // Width Presets: 标准 780px -> 宽屏 1060px -> 紧凑 540px -> 自适应
+    const widthPresets = [780, 1060, 540, -1];
+    let currentWidthIdx = 0;
+    const cycleWidthBtn = makeBtn("↔ 宽", "切换宽度 (标准 780px / 宽屏 1060px / 紧凑 540px / 自适应)", () => {
       currentWidthIdx = (currentWidthIdx + 1) % widthPresets.length;
       const targetW = widthPresets[currentWidthIdx];
       if (targetW === -1) {
         this.customWidth = -1;
-        this.container!.style.width = "min(860px, 90vw)";
+        this.container!.style.width = "fit-content";
         localStorage.removeItem(STORAGE_KEY_WIDTH);
       } else {
         this.customWidth = targetW;
@@ -348,34 +339,36 @@ export class LiveSubtitleHud {
       }
     });
 
-    // Cycle Background Opacity
-    const opacityPresets = [80, 50, 20, 95];
+    // Opacity Presets: 80% -> 50% -> 20% -> 95% -> 0% (纯文字)
+    const opacityPresets = [80, 50, 20, 95, 0];
     let currentOpacityIdx = 0;
-    const cycleOpacityBtn = makeBtn("🌗 透明", "切换背景透明度 (80% / 50% / 20% / 95%)", () => {
+    const cycleOpacityBtn = makeBtn("🌗 透", "切换背景透明度 (80% / 50% / 20% / 95% / 纯文字0%)", () => {
       currentOpacityIdx = (currentOpacityIdx + 1) % opacityPresets.length;
       this.bgOpacity = opacityPresets[currentOpacityIdx];
       this.updateStyles();
       localStorage.setItem(STORAGE_KEY_OPACITY, String(this.bgOpacity));
     });
 
-    // Toggle original
-    const toggleOrigBtn = makeBtn("🌐 双语", "切换双语/单语显示", () => {
+    // Toggle original/bilingual
+    const toggleOrigBtn = makeBtn(this.showOriginal ? "🌐 双语" : "🌐 单译", "切换双语/单语显示", () => {
       this.showOriginal = !this.showOriginal;
+      toggleOrigBtn.textContent = this.showOriginal ? "🌐 双语" : "🌐 单译";
       if (this.originalEl) {
         this.originalEl.style.display = this.showOriginal ? "block" : "none";
       }
     });
+    this.toggleOrigBtn = toggleOrigBtn;
 
     // Font size -
     const fontMinusBtn = makeBtn("A-", "减小字号", () => {
-      this.fontSize = Math.max(12, this.fontSize - 2);
+      this.fontSize = Math.max(14, this.fontSize - 2);
       this.updateStyles();
       localStorage.setItem(STORAGE_KEY_FONT_SIZE, String(this.fontSize));
     });
 
     // Font size +
     const fontPlusBtn = makeBtn("A+", "加大字号", () => {
-      this.fontSize = Math.min(48, this.fontSize + 2);
+      this.fontSize = Math.min(42, this.fontSize + 2);
       this.updateStyles();
       localStorage.setItem(STORAGE_KEY_FONT_SIZE, String(this.fontSize));
     });
@@ -385,7 +378,7 @@ export class LiveSubtitleHud {
       this.exportSrt();
     });
 
-    // Stop button
+    // Close button
     const closeBtn = makeBtn("✕", "停止并关闭同传", () => {
       chrome.runtime.sendMessage({ type: "LIVE_TRANSLATE_STOP" });
       this.hide();
@@ -403,17 +396,18 @@ export class LiveSubtitleHud {
     header.appendChild(rightActions);
     this.headerEl = header;
 
-    // Subtitle content body (Movie-grade centered subtitle view)
+    // Subtitle content body (Movie-grade clean typography)
     const originalEl = document.createElement("div");
     originalEl.id = "astra-hud-original";
     originalEl.style.cssText = `
       color: rgba(255, 255, 255, 0.75);
-      margin-bottom: 2px;
+      margin-bottom: 3px;
       line-height: 1.35;
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.8);
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 1);
       word-break: break-word;
       transition: font-size 0.15s ease;
       text-align: center;
+      display: ${this.showOriginal ? "block" : "none"};
     `;
     this.originalEl = originalEl;
 
@@ -422,46 +416,14 @@ export class LiveSubtitleHud {
     translationEl.style.cssText = `
       color: #FFFFFF;
       font-weight: 600;
-      line-height: 1.4;
-      text-shadow: 0 2px 5px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 1);
+      line-height: 1.42;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 1), 0 0 8px rgba(0, 0, 0, 0.6);
       word-break: break-word;
       transition: font-size 0.15s ease;
       text-align: center;
     `;
     translationEl.textContent = "等待音频输入…";
     this.translationEl = translationEl;
-
-    // Drag-to-Resize Handle at Bottom-Right Corner
-    const resizeHandle = document.createElement("div");
-    resizeHandle.id = "astra-hud-resize-handle";
-    resizeHandle.style.cssText = `
-      position: absolute;
-      right: 4px;
-      bottom: 4px;
-      width: 16px;
-      height: 16px;
-      cursor: nwse-resize;
-      opacity: 0;
-      pointer-events: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 10px;
-      color: rgba(255, 255, 255, 0.7);
-      user-select: none;
-      transition: opacity 0.2s ease, transform 0.15s ease;
-    `;
-    resizeHandle.textContent = "◢";
-    resizeHandle.title = "按住拖拽调节字幕框大小";
-    resizeHandle.onmouseenter = () => {
-      resizeHandle.style.opacity = "1";
-      resizeHandle.style.transform = "scale(1.2)";
-    };
-    resizeHandle.onmouseleave = () => {
-      resizeHandle.style.opacity = "0.5";
-      resizeHandle.style.transform = "scale(1)";
-    };
-    this.resizeHandle = resizeHandle;
 
     // Hover listeners to reveal toolbar
     container.addEventListener("mouseenter", () => {
@@ -472,32 +434,30 @@ export class LiveSubtitleHud {
       this.showToolbar();
       if (this.hideToolbarTimer) clearTimeout(this.hideToolbarTimer);
       this.hideToolbarTimer = setTimeout(() => {
-        if (!this.isDragging && !this.isResizing) {
+        if (!this.isDragging) {
           this.hideToolbar(0);
         }
-      }, 3000);
+      }, 2500);
     });
     container.addEventListener("mouseleave", () => {
       this.isToolbarHovered = false;
-      this.hideToolbar(300);
+      this.hideToolbar(250);
     });
 
     container.appendChild(header);
     container.appendChild(originalEl);
     container.appendChild(translationEl);
-    container.appendChild(resizeHandle);
 
-    // Setup dragging & resizing
-    this.setupDragging(header, container);
-    this.setupResizing(resizeHandle, container);
+    // Setup dragging anywhere on container
+    this.setupDragging(container);
 
     document.body.appendChild(container);
     this.container = container;
   }
 
-  private setupDragging(handle: HTMLElement, target: HTMLElement): void {
+  private setupDragging(target: HTMLElement): void {
     target.addEventListener("mousedown", (e) => {
-      if (e.target instanceof HTMLButtonElement || (e.target as HTMLElement).id === "astra-hud-resize-handle") return;
+      if (e.target instanceof HTMLButtonElement) return;
       this.isDragging = true;
       this.showToolbar();
       const rect = target.getBoundingClientRect();
@@ -531,49 +491,7 @@ export class LiveSubtitleHud {
           } catch {}
         }
         if (!this.isToolbarHovered) {
-          this.hideToolbar(1500);
-        }
-      }
-    });
-  }
-
-  private setupResizing(handle: HTMLElement, target: HTMLElement): void {
-    handle.addEventListener("mousedown", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      this.isResizing = true;
-      const rect = target.getBoundingClientRect();
-      this.resizeStartX = e.clientX;
-      this.resizeStartY = e.clientY;
-      this.resizeStartW = rect.width;
-      this.resizeStartH = rect.height;
-      document.body.style.cursor = "nwse-resize";
-    });
-
-    window.addEventListener("mousemove", (e) => {
-      if (!this.isResizing || !this.container) return;
-      const deltaX = e.clientX - this.resizeStartX;
-      const deltaY = e.clientY - this.resizeStartY;
-
-      const newW = Math.max(320, Math.min(window.innerWidth - 20, this.resizeStartW + deltaX));
-      const newH = Math.max(70, Math.min(window.innerHeight - 40, this.resizeStartH + deltaY));
-
-      this.container.style.width = `${newW}px`;
-      this.container.style.height = `${newH}px`;
-      this.customWidth = newW;
-      this.customHeight = newH;
-    });
-
-    window.addEventListener("mouseup", () => {
-      if (this.isResizing) {
-        this.isResizing = false;
-        document.body.style.cursor = "default";
-        try {
-          if (this.customWidth > 0) localStorage.setItem(STORAGE_KEY_WIDTH, String(this.customWidth));
-          if (this.customHeight > 0) localStorage.setItem(STORAGE_KEY_HEIGHT, String(this.customHeight));
-        } catch {}
-        if (!this.isToolbarHovered) {
-          this.hideToolbar(1500);
+          this.hideToolbar(1200);
         }
       }
     });
@@ -584,14 +502,15 @@ export class LiveSubtitleHud {
 
     if (this.customWidth > 0) {
       this.container.style.width = `${this.customWidth}px`;
+    } else {
+      this.container.style.width = "min(780px, 90vw)";
     }
-    if (this.customHeight > 0) {
-      this.container.style.height = `${this.customHeight}px`;
-    }
+    // Always keep height automatic
+    this.container.style.height = "auto";
 
     if (this.posX >= 0 && this.posY >= 0) {
       const maxL = window.innerWidth - (this.container.offsetWidth || 400) - 10;
-      const maxT = window.innerHeight - (this.container.offsetHeight || 100) - 10;
+      const maxT = window.innerHeight - (this.container.offsetHeight || 80) - 10;
       const safeL = Math.max(10, Math.min(maxL, this.posX));
       const safeT = Math.max(10, Math.min(maxT, this.posY));
       this.container.style.transform = "none";
@@ -606,7 +525,7 @@ export class LiveSubtitleHud {
   private repositionDefault(): void {
     if (!this.container) return;
     this.container.style.left = "50%";
-    this.container.style.bottom = "60px";
+    this.container.style.bottom = "50px";
     this.container.style.top = "auto";
     this.container.style.transform = "translateX(-50%)";
   }
@@ -614,10 +533,24 @@ export class LiveSubtitleHud {
   private updateStyles(): void {
     if (!this.container) return;
     const bgAlpha = (this.bgOpacity / 100).toFixed(2);
-    this.container.style.backgroundColor = `rgba(18, 18, 24, ${bgAlpha})`;
+    if (this.bgOpacity === 0) {
+      this.container.style.backgroundColor = "transparent";
+      this.container.style.boxShadow = "none";
+      this.container.style.backdropFilter = "none";
+      this.container.style.setProperty("-webkit-backdrop-filter", "none");
+    } else {
+      this.container.style.backgroundColor = `rgba(15, 15, 20, ${bgAlpha})`;
+      this.container.style.boxShadow = "0 8px 28px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.12) inset";
+      this.container.style.backdropFilter = "blur(24px) saturate(180%)";
+      this.container.style.setProperty("-webkit-backdrop-filter", "blur(24px) saturate(180%)");
+    }
+
+    if (this.toggleOrigBtn) {
+      this.toggleOrigBtn.textContent = this.showOriginal ? "🌐 双语" : "🌐 单译";
+    }
 
     if (this.originalEl) {
-      this.originalEl.style.fontSize = `${Math.round(this.fontSize * 0.75)}px`;
+      this.originalEl.style.fontSize = `${Math.round(this.fontSize * 0.72)}px`;
       this.originalEl.style.display = this.showOriginal ? "block" : "none";
     }
     if (this.translationEl) {

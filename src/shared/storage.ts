@@ -60,7 +60,7 @@ export function getDefaultSettings(): AstraSettings {
     customGlossary: "",
     liveTranslateModel: "models/gemini-3.5-live-translate-preview",
     liveTranslateTargetLang: DEFAULT_TARGET_LANG,
-    liveTranslateShowOriginal: true,
+    liveTranslateShowOriginal: false,
     liveTranslateVadEnabled: true,
     liveTranslateVadThreshold: 200,
     liveTranslateFontSize: 20,

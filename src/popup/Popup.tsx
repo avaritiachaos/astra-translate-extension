@@ -1810,12 +1810,12 @@ export default function Popup() {
             <div className="ast-live-setting-grid">
               <button
                 type="button"
-                className={`ast-live-chip-btn ${settings?.liveTranslateShowOriginal !== false ? "ast-live-chip-btn--active" : ""}`}
+                className={`ast-live-chip-btn ${settings?.liveTranslateShowOriginal ? "ast-live-chip-btn--active" : ""}`}
                 onClick={handleToggleLiveShowOriginal}
-                title="切换悬浮字幕双语/单语"
+                title="切换悬浮字幕双语/单译文"
               >
                 <span className="ast-live-chip-icon">🔤</span>
-                <span>{settings?.liveTranslateShowOriginal !== false ? "双语字幕" : "仅译文"}</span>
+                <span>{settings?.liveTranslateShowOriginal ? "双语字幕" : "单译文"}</span>
               </button>
 
               <button
