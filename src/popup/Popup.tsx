@@ -802,6 +802,48 @@ export default function Popup() {
     showToast(t(lang, "live.clearHistory"));
   }, [lang, showToast]);
 
+  const handleLiveTargetLangChange = useCallback(
+    async (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const val = e.target.value;
+      if (!settings) return;
+      const updated = { ...settings, liveTranslateTargetLang: val };
+      setSettings(updated);
+      await chrome.runtime.sendMessage({
+        type: "SAVE_SETTINGS",
+        payload: updated,
+      });
+      showToast(t(lang, "opt.saved"));
+    },
+    [settings, lang, showToast]
+  );
+
+  const handleToggleLiveShowOriginal = useCallback(async () => {
+    if (!settings) return;
+    const nextVal = !(settings.liveTranslateShowOriginal !== false);
+    const updated = { ...settings, liveTranslateShowOriginal: nextVal };
+    setSettings(updated);
+    await chrome.runtime.sendMessage({
+      type: "SAVE_SETTINGS",
+      payload: updated,
+    });
+    showToast(nextVal ? "已开启双语字幕" : "已切换为单译文");
+  }, [settings, showToast]);
+
+  const handleCycleLiveOpacity = useCallback(async () => {
+    if (!settings) return;
+    const current = settings.liveTranslateBgOpacity ?? 80;
+    const presets = [80, 50, 20, 95];
+    const nextIdx = (presets.indexOf(current) + 1) % presets.length;
+    const nextVal = presets[nextIdx];
+    const updated = { ...settings, liveTranslateBgOpacity: nextVal };
+    setSettings(updated);
+    await chrome.runtime.sendMessage({
+      type: "SAVE_SETTINGS",
+      payload: updated,
+    });
+    showToast(`透明度: ${nextVal}%`);
+  }, [settings, showToast]);
+
   // ---- Chat mode actions ----
 
   const switchMode = useCallback((next: PopupMode) => {
@@ -1184,7 +1226,8 @@ export default function Popup() {
               className={`ast-seg-btn ${mode === "translate" ? "ast-seg-btn--active" : ""}`}
               onClick={() => switchMode("translate")}
             >
-              {t(lang, "popup.modeTranslate")}
+              <span className="ast-seg-icon">🌐</span>
+              <span>{t(lang, "popup.modeTranslate")}</span>
             </button>
             <button
               role="tab"
@@ -1192,7 +1235,8 @@ export default function Popup() {
               className={`ast-seg-btn ${mode === "chat" ? "ast-seg-btn--active" : ""}`}
               onClick={() => switchMode("chat")}
             >
-              {t(lang, "popup.modeChat")}
+              <span className="ast-seg-icon">💬</span>
+              <span>{t(lang, "popup.modeChat")}</span>
             </button>
             <button
               role="tab"
@@ -1200,7 +1244,8 @@ export default function Popup() {
               className={`ast-seg-btn ${mode === "live" ? "ast-seg-btn--active" : ""}`}
               onClick={() => switchMode("live")}
             >
-              {t(lang, "live.title")}
+              <span className="ast-seg-icon">🎙️</span>
+              <span>{t(lang, "popup.modeLive")}</span>
             </button>
           </div>
 
@@ -1315,74 +1360,199 @@ export default function Popup() {
         )}
       </div>
 
-      {mode === "chat" ? (
-        <div className="ast-chat">
-          <div className="ast-chat-list" ref={chatListRef}>
-            {chatTurns.length === 0 && !chatPending && !streamText && (
-              <div className="ast-chat-empty">{t(lang, "chat.empty")}</div>
-            )}
-            {chatTurns.map((turn, i) => (
-              <div
-                key={`${turn.ts}-${i}`}
-                className={
-                  turn.role === "user"
-                    ? "ast-chat-bubble ast-chat-bubble--user"
-                    : turn.error
-                      ? "ast-chat-bubble ast-chat-bubble--error"
-                      : "ast-chat-bubble ast-chat-bubble--assistant"
-                }
+      {mode === "translate" && (
+        <div className="ast-translate-panel">
+          {/* Language bar */}
+          <div className="ast-lang-bar">
+            <select
+              className="ast-lang-select"
+              value={sourceLang}
+              onChange={(e) => setSourceLang(e.target.value)}
+            >
+              {allLangs.map((l) => (
+                <option key={l} value={l}>
+                  {l === "Auto" ? t(lang, "popup.auto") : l}
+                </option>
+              ))}
+            </select>
+            <button className="ast-lang-swap" onClick={swapLangs} title="⇄">
+              ⇄
+            </button>
+            <select
+              className="ast-lang-select"
+              value={targetLang}
+              onChange={(e) => {
+                const v = e.target.value;
+                setTargetLang(v);
+                saveTargetLang(v);
+              }}
+            >
+              {SUPPORTED_LANGUAGES.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+            <span className={`ast-lang-saved ${langSaved ? "ast-lang-saved--show" : ""}`}>
+              ✓
+            </span>
+          </div>
+
+          {/* Input */}
+          <div className="ast-input-area">
+            <textarea
+              ref={inputRef}
+              className="ast-input-box"
+              placeholder={t(lang, "popup.placeholder")}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          {/* Actions + keyboard hint inline */}
+          <div className="ast-actions">
+            <button
+              className="ast-btn ast-btn-primary"
+              onClick={handleTranslate}
+              disabled={loading || !inputText.trim()}
+            >
+              {loading ? t(lang, "popup.translating") : t(lang, "popup.translate")}
+            </button>
+            <button className="ast-btn ast-btn-secondary" onClick={handleClear}>
+              {t(lang, "popup.clear")}
+            </button>
+            <button
+              className="ast-btn ast-btn-secondary"
+              onClick={handleCopy}
+              disabled={!result}
+            >
+              {t(lang, "popup.copy")}
+            </button>
+            <span className="ast-keyboard-hint">{t(lang, "popup.kbHint")}</span>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="ast-error-msg">
+              <span>⚠</span>
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Result */}
+          {(result || loading) && (
+            <div className="ast-result-area">
+              {loading ? (
+                <div className="ast-loading-inline">
+                  <div className="ast-spinner-sm" />
+                  <span>{t(lang, "popup.translating")}</span>
+                </div>
+              ) : (
+                <>
+                  {resolvedLang && (
+                    <div className="ast-result-lang-label">
+                      {t(lang, "bubble.translatedTo", { lang: resolvedLang })}
+                    </div>
+                  )}
+                  <div className="ast-result-box">{result}</div>
+                  {result.trim() === inputText.trim() && result.trim().length > 0 && (
+                    <div className="ast-result-hint">
+                      {t(lang, "bubble.mayBeIdentifier")}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Page translation */}
+          <div className="ast-page-section">
+            <div className="ast-page-header">
+              <div className="ast-page-title">{t(lang, "popup.pageTranslation")}</div>
+              <select
+                className="ast-lang-select"
+                value={pageTargetLang}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setPageTargetLang(v);
+                  savePageTargetLang(v);
+                }}
               >
-                {turn.webSearch && (
-                  <div className="ast-chat-bubble-search">🌐 {t(lang, "chat.webSearchUsed")}</div>
-                )}
-                {(turn.attachment || turn.pageContextUsed) && (
-                  <>
-                    {turn.attachment && (
-                      <div
-                        className="ast-chat-bubble-attach"
-                        title={turn.attachment.title || turn.attachment.url}
-                      >
-                        📎{" "}
-                        {turn.attachment.selected
-                          ? t(lang, "chat.attachSelection")
-                          : turn.attachment.title || t(lang, "chat.attachPage")}
-                      </div>
-                    )}
-                    {turn.pageContextUsed && (
-                      <div className="ast-chat-bubble-attach">
-                        ＋ {t(lang, "chat.pageContextUsed")}
-                      </div>
-                    )}
-                  </>
-                )}
-                {turn.role === "assistant" && !turn.error ? (
-                  <>
-                    <div className="ast-chat-bubble-tools">
-                      {i === lastAssistantIndex && !chatPending && (
-                        <button
-                          className="ast-chat-bubble-tool"
-                          title={t(lang, "chat.regenerate")}
-                          onClick={handleRegenerate}
+                {SUPPORTED_LANGUAGES.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+              <span className={`ast-lang-saved ${pageLangSaved ? "ast-lang-saved--show" : ""}`}>
+                ✓
+              </span>
+            </div>
+            <div className="ast-page-actions">
+              <button className="ast-btn ast-btn-primary" onClick={handlePageTranslate}>
+                {t(lang, "popup.translatePage")}
+              </button>
+              <button className="ast-btn ast-btn-secondary" onClick={handlePageRestore}>
+                {t(lang, "popup.restorePage")}
+              </button>
+            </div>
+            {pageStatus && <div className="ast-page-status">{pageStatus}</div>}
+          </div>
+        </div>
+      )}
+
+      {mode === "chat" && (
+        <div className="ast-chat-panel">
+          <div className="ast-chat">
+            <div className="ast-chat-list" ref={chatListRef}>
+              {chatTurns.length === 0 && !chatPending && !streamText && (
+                <div className="ast-chat-empty">{t(lang, "chat.empty")}</div>
+              )}
+              {chatTurns.map((turn, i) => (
+                <div
+                  key={`${turn.ts}-${i}`}
+                  className={
+                    turn.role === "user"
+                      ? "ast-chat-bubble ast-chat-bubble--user"
+                      : turn.error
+                        ? "ast-chat-bubble ast-chat-bubble--error"
+                        : "ast-chat-bubble ast-chat-bubble--assistant"
+                  }
+                >
+                  {turn.webSearch && (
+                    <div className="ast-chat-bubble-search">🌐 {t(lang, "chat.webSearchUsed")}</div>
+                  )}
+                  {(turn.attachment || turn.pageContextUsed) && (
+                    <>
+                      {turn.attachment && (
+                        <div
+                          className="ast-chat-bubble-attach"
+                          title={turn.attachment.title || turn.attachment.url}
                         >
-                          <svg
-                            viewBox="0 0 24 24"
-                            width="12"
-                            height="12"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M1 4v6h6" />
-                            <path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
-                          </svg>
-                        </button>
+                          📎{" "}
+                          {turn.attachment.selected
+                            ? t(lang, "chat.attachSelection")
+                            : turn.attachment.title || t(lang, "chat.attachPage")}
+                        </div>
                       )}
+                      {turn.pageContextUsed && (
+                        <div className="ast-chat-bubble-attach">
+                          ＋ {t(lang, "chat.pageContextUsed")}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <div className="ast-chat-bubble-text">
+                    <ChatRichText text={turn.content} />
+                  </div>
+                  {turn.role === "assistant" && !turn.error && (
+                    <div className="ast-chat-bubble-actions">
                       <button
-                        className="ast-chat-bubble-tool"
-                        title={t(lang, "popup.copy")}
+                        type="button"
+                        className="ast-chat-bubble-btn"
                         onClick={() => handleCopyTurn(turn.content)}
+                        title={t(lang, "popup.copy")}
                       >
                         <svg
                           viewBox="0 0 24 24"
@@ -1393,326 +1563,162 @@ export default function Popup() {
                           strokeWidth="2"
                           strokeLinecap="round"
                           strokeLinejoin="round"
+                          aria-hidden="true"
                         >
-                          <rect x="9" y="9" width="13" height="13" rx="2" />
-                          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                         </svg>
                       </button>
                     </div>
-                    <ChatRichText text={turn.content} />
-                    {turn.ungroundedSearchFallback && (
-                      <div className="ast-chat-search-fallback" role="note">
-                        <span aria-hidden="true">ⓘ</span>
-                        <span>{t(lang, "chat.searchNoResultsFallback")}</span>
-                      </div>
-                    )}
-                    {turn.sources && turn.sources.length > 0 && (
-                      <div className="ast-chat-sources">
-                        <div className="ast-chat-sources-label">{t(lang, "chat.sources")}</div>
-                        <div className="ast-chat-sources-list">
-                          {turn.sources.map((source, sourceIndex) => (
-                            <a
-                              key={`${source.url}-${sourceIndex}`}
-                              className="ast-chat-source-link"
-                              href={source.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              title={source.snippet || source.url}
-                            >
-                              <span>{sourceIndex + 1}</span>
-                              <span>{source.title}</span>
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  turn.content
-                )}
-              </div>
-            ))}
-            {streamText ? (
-              <div className="ast-chat-bubble ast-chat-bubble--assistant">
-                <ChatRichText text={streamText} />
-                <span className="ast-chat-cursor" />
-              </div>
-            ) : (
-              chatPending && (
-                <div className="ast-chat-bubble ast-chat-bubble--assistant ast-chat-bubble--thinking">
-                  <div className="ast-spinner-sm" />
-                  <span>{chatPhase === "searching" ? t(lang, "chat.searching") : t(lang, "chat.thinking")}</span>
+                  )}
                 </div>
-              )
-            )}
-          </div>
-
-          {chatError && (
-            <div className="ast-error-msg">
-              <span>⚠</span>
-              <span>{chatError}</span>
-            </div>
-          )}
-
-          {chatAttach && (
-            <div
-              className="ast-chat-attach-chip"
-              title={chatAttach.title || chatAttach.url}
-            >
-              <span>📎</span>
-              <span className="ast-chat-attach-label">
-                {t(lang, "chat.attachChip", {
-                  label: chatAttach.selected
-                    ? t(lang, "chat.attachSelection")
-                    : chatAttach.title || t(lang, "chat.attachPage"),
-                  n: chatAttach.text.length,
-                })}
-              </span>
-              <button
-                className="ast-chat-attach-remove"
-                onClick={() => setChatAttach(null)}
-                title={t(lang, "chat.clear")}
-              >
-                ✕
-              </button>
-            </div>
-          )}
-
-          <textarea
-            ref={chatInputRef}
-            className="ast-input-box ast-chat-input"
-            placeholder={t(lang, "chat.placeholder")}
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={handleChatKeyDown}
-            rows={1}
-            maxLength={8000}
-          />
-          <div className="ast-chat-actions">
-            <ChatModelMenu
-              settings={settings}
-              lang={lang}
-              onSwitch={handleModelSwitch}
-              onOpenSettings={openOptions}
-            />
-            <ChatEffortMenu
-              value={chatEffort}
-              providerId={settings?.providerId}
-              lang={lang}
-              onChange={handleEffortChange}
-            />
-            <button
-              className={[
-                "ast-chat-pill",
-                webSearchEnabled ? "ast-chat-pill--on" : "",
-                settings?.chatWebSearchEnabled ? "" : "ast-chat-pill--locked",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              onClick={toggleWebSearch}
-              aria-pressed={webSearchEnabled}
-              title={t(
-                lang,
-                webSearchEnabled
-                  ? "chat.webSearchOn"
-                  : settings?.chatWebSearchEnabled
-                    ? "chat.webSearchOff"
-                    : "chat.webSearchNeedSetup"
+              ))}
+              {streamText && (
+                <div className="ast-chat-bubble ast-chat-bubble--assistant ast-chat-bubble--streaming">
+                  <div className="ast-chat-bubble-text">
+                    <ChatRichText text={streamText} />
+                    <span className="ast-chat-cursor" />
+                  </div>
+                </div>
               )}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="13"
-                height="13"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ flexShrink: 0 }}
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 2a14.5 14.5 0 0 1 0 20M2 12h20" />
-                <path d="M12 2a14.5 14.5 0 0 0 0 20" />
-              </svg>
-              <span>{t(lang, "chat.webSearch")}</span>
-            </button>
+              {chatPending && !streamText && (
+                <div className="ast-chat-bubble ast-chat-bubble--assistant ast-chat-bubble--pending">
+                  <div className="ast-chat-pending-row">
+                    <div className="ast-spinner-sm" />
+                    <span>{chatPhase === "searching" ? t(lang, "chat.searching") : t(lang, "chat.thinking")}</span>
+                  </div>
+                </div>
+              )}
+            </div>
 
-            <div className="ast-chat-actions-end">
-              {!chatAttach && (
+            {chatError && (
+              <div className="ast-error-msg">
+                <span>⚠</span>
+                <span>{chatError}</span>
+              </div>
+            )}
+
+            {chatAttach && (
+              <div className="ast-chat-chip-bar">
+                <span className="ast-chat-chip">
+                  📎{" "}
+                  {t(lang, "chat.attachChip", {
+                    label: chatAttach.selected
+                      ? t(lang, "chat.attachSelection")
+                      : chatAttach.title || t(lang, "chat.attachPage"),
+                    n: chatAttach.text.length,
+                  })}
+                  <button
+                    className="ast-chat-chip-x"
+                    onClick={() => setChatAttach(null)}
+                    title={t(lang, "chat.clear")}
+                  >
+                    ×
+                  </button>
+                </span>
+              </div>
+            )}
+
+            <div className="ast-chat-input-row">
+              <textarea
+                ref={chatInputRef}
+                className="ast-chat-input"
+                placeholder={t(lang, "chat.placeholder")}
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={handleChatKeyDown}
+                rows={1}
+                disabled={chatPending}
+              />
+            </div>
+
+            <div className="ast-chat-toolbar">
+              <ChatModelMenu
+                settings={settings}
+                lang={lang}
+                onSwitch={handleModelSwitch}
+                onOpenSettings={openOptions}
+              />
+              <ChatEffortMenu
+                value={chatEffort}
+                providerId={settings?.providerId}
+                lang={lang}
+                onChange={handleEffortChange}
+              />
+              <button
+                className={[
+                  "ast-chat-pill",
+                  webSearchEnabled ? "ast-chat-pill--on" : "",
+                  settings?.chatWebSearchEnabled ? "" : "ast-chat-pill--locked",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                onClick={toggleWebSearch}
+                aria-pressed={webSearchEnabled}
+                title={t(
+                  lang,
+                  webSearchEnabled
+                    ? "chat.webSearchOn"
+                    : settings?.chatWebSearchEnabled
+                      ? "chat.webSearchOff"
+                      : "chat.webSearchNeedSetup"
+                )}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="13"
+                  height="13"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ flexShrink: 0 }}
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 2a14.5 14.5 0 0 1 0 20M2 12h20" />
+                  <path d="M12 2a14.5 14.5 0 0 0 0 20" />
+                </svg>
+                <span>{t(lang, "chat.webSearch")}</span>
+              </button>
+
+              <div className="ast-chat-actions-end">
+                {!chatAttach && (
+                  <button
+                    className="ast-chat-icon"
+                    onClick={handleAttachPage}
+                    title={t(lang, "chat.attach")}
+                  >
+                    📎
+                  </button>
+                )}
                 <button
                   className="ast-chat-icon"
-                  onClick={handleAttachPage}
-                  title={t(lang, "chat.attach")}
+                  onClick={handleOpenInPage}
+                  title={t(lang, "chat.openInPage")}
                 >
-                  📎
+                  ⤢
                 </button>
-              )}
-              <button
-                className="ast-chat-icon"
-                onClick={handleOpenInPage}
-                title={t(lang, "chat.openInPage")}
-              >
-                ⤢
-              </button>
-              <button
-                className="ast-btn ast-btn-primary ast-chat-send"
-                onClick={handleChatSend}
-                disabled={chatPending || !chatInput.trim()}
-              >
-                {chatPending ? t(lang, "chat.thinking") : t(lang, "chat.send")}
-              </button>
+                <button
+                  className="ast-btn ast-btn-primary ast-chat-send"
+                  onClick={handleChatSend}
+                  disabled={chatPending || !chatInput.trim()}
+                >
+                  {chatPending ? t(lang, "chat.thinking") : t(lang, "chat.send")}
+                </button>
+              </div>
             </div>
+            <div className="ast-chat-hint">{t(lang, "chat.kbHint")}</div>
           </div>
-          <div className="ast-chat-hint">{t(lang, "chat.kbHint")}</div>
         </div>
-      ) : (
-        <>
-      {/* Language bar */}
-      <div className="ast-lang-bar">
-        <select
-          className="ast-lang-select"
-          value={sourceLang}
-          onChange={(e) => setSourceLang(e.target.value)}
-        >
-          {allLangs.map((l) => (
-            <option key={l} value={l}>
-              {l === "Auto" ? t(lang, "popup.auto") : l}
-            </option>
-          ))}
-        </select>
-        <button className="ast-lang-swap" onClick={swapLangs} title="⇄">
-          ⇄
-        </button>
-        <select
-          className="ast-lang-select"
-          value={targetLang}
-          onChange={(e) => {
-            const v = e.target.value;
-            setTargetLang(v);
-            saveTargetLang(v);
-          }}
-        >
-          {SUPPORTED_LANGUAGES.map((l) => (
-            <option key={l} value={l}>
-              {l}
-            </option>
-          ))}
-        </select>
-        <span className={`ast-lang-saved ${langSaved ? "ast-lang-saved--show" : ""}`}>
-          ✓
-        </span>
-      </div>
-
-      {/* Input */}
-      <div className="ast-input-area">
-        <textarea
-          ref={inputRef}
-          className="ast-input-box"
-          placeholder={t(lang, "popup.placeholder")}
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          rows={3}
-        />
-      </div>
-
-      {/* Actions + keyboard hint inline */}
-      <div className="ast-actions">
-        <button
-          className="ast-btn ast-btn-primary"
-          onClick={handleTranslate}
-          disabled={loading || !inputText.trim()}
-        >
-          {loading ? t(lang, "popup.translating") : t(lang, "popup.translate")}
-        </button>
-        <button className="ast-btn ast-btn-secondary" onClick={handleClear}>
-          {t(lang, "popup.clear")}
-        </button>
-        <button
-          className="ast-btn ast-btn-secondary"
-          onClick={handleCopy}
-          disabled={!result}
-        >
-          {t(lang, "popup.copy")}
-        </button>
-        <span className="ast-keyboard-hint">{t(lang, "popup.kbHint")}</span>
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="ast-error-msg">
-          <span>⚠</span>
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* Result */}
-      {(result || loading) && (
-        <div className="ast-result-area">
-          {loading ? (
-            <div className="ast-loading-inline">
-              <div className="ast-spinner-sm" />
-              <span>{t(lang, "popup.translating")}</span>
-            </div>
-          ) : (
-            <>
-              {resolvedLang && (
-                <div className="ast-result-lang-label">
-                  {t(lang, "bubble.translatedTo", { lang: resolvedLang })}
-                </div>
-              )}
-              <div className="ast-result-box">{result}</div>
-              {result.trim() === inputText.trim() && result.trim().length > 0 && (
-                <div className="ast-result-hint">
-                  {t(lang, "bubble.mayBeIdentifier")}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Page translation */}
-      <div className="ast-page-section">
-        <div className="ast-page-header">
-          <div className="ast-page-title">{t(lang, "popup.pageTranslation")}</div>
-          <select
-            className="ast-lang-select"
-            value={pageTargetLang}
-            onChange={(e) => {
-              const v = e.target.value;
-              setPageTargetLang(v);
-              savePageTargetLang(v);
-            }}
-          >
-            {SUPPORTED_LANGUAGES.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </select>
-          <span className={`ast-lang-saved ${pageLangSaved ? "ast-lang-saved--show" : ""}`}>
-            ✓
-          </span>
-        </div>
-        <div className="ast-page-actions">
-          <button className="ast-btn ast-btn-primary" onClick={handlePageTranslate}>
-            {t(lang, "popup.translatePage")}
-          </button>
-          <button className="ast-btn ast-btn-secondary" onClick={handlePageRestore}>
-            {t(lang, "popup.restorePage")}
-          </button>
-        </div>
-        {pageStatus && <div className="ast-page-status">{pageStatus}</div>}
-      </div>
-        </>
       )}
 
       {mode === "live" && (
         <div className="ast-live-panel">
-          <div className="ast-live-card">
-            <div className="ast-live-card-top">
+          {/* Hero Control Card */}
+          <div className="ast-live-hero-card">
+            <div className="ast-live-hero-header">
               <div className="ast-live-status-badge">
                 <span className={`ast-live-dot ast-live-dot--${liveState.status}`} />
                 <span className="ast-live-status-text">
@@ -1729,10 +1735,10 @@ export default function Popup() {
               </div>
             </div>
 
-            <div className="ast-live-controls">
+            <div className="ast-live-hero-body">
               <button
                 type="button"
-                className={`ast-btn ${liveState.running ? "ast-btn-danger" : "ast-btn-primary"} ast-live-toggle-btn`}
+                className={`ast-btn ${liveState.running ? "ast-btn-danger" : "ast-btn-primary"} ast-live-main-btn`}
                 onClick={handleToggleLive}
                 disabled={liveLoading}
               >
@@ -1741,41 +1747,91 @@ export default function Popup() {
             </div>
           </div>
 
-          <div className="ast-live-history-header">
-            <span className="ast-live-history-title">{t(lang, "live.title")}</span>
-            <div className="ast-live-history-actions">
+          {/* Quick Settings Matrix Card */}
+          <div className="ast-live-settings-card">
+            <div className="ast-live-setting-row">
+              <span className="ast-live-setting-label">{t(lang, "live.targetLang")}</span>
+              <select
+                className="ast-lang-select ast-live-lang-select"
+                value={settings?.liveTranslateTargetLang || settings?.defaultTargetLang || "Simplified Chinese"}
+                onChange={handleLiveTargetLangChange}
+              >
+                {SUPPORTED_LANGUAGES.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="ast-live-setting-grid">
               <button
                 type="button"
-                className="ast-btn ast-btn-sm"
-                onClick={handleExportLiveSrt}
-                disabled={liveHistory.length === 0}
-                title={t(lang, "live.exportSrt")}
+                className={`ast-live-pill-btn ${settings?.liveTranslateShowOriginal !== false ? "ast-live-pill-btn--active" : ""}`}
+                onClick={handleToggleLiveShowOriginal}
+                title="切换悬浮字幕双语/单语"
               >
-                📥 SRT
+                <span>🌐</span>
+                <span>{settings?.liveTranslateShowOriginal !== false ? "双语字幕" : "仅译文"}</span>
               </button>
+
               <button
                 type="button"
-                className="ast-btn ast-btn-sm"
-                onClick={handleClearLiveHistory}
-                disabled={liveHistory.length === 0}
-                title={t(lang, "live.clearHistory")}
+                className="ast-live-pill-btn"
+                onClick={handleCycleLiveOpacity}
+                title="切换悬浮字幕背景透明度"
               >
-                🗑
+                <span>🌗</span>
+                <span>透明度 {settings?.liveTranslateBgOpacity ?? 80}%</span>
               </button>
             </div>
           </div>
 
-          <div className="ast-live-history-list">
-            {liveHistory.length === 0 ? (
-              <div className="ast-live-empty">{t(lang, "live.noHistory")}</div>
-            ) : (
-              liveHistory.slice().reverse().map((item) => (
-                <div key={item.id} className="ast-live-item">
-                  {item.original && <div className="ast-live-item-orig">{item.original}</div>}
-                  <div className="ast-live-item-trans">{item.translation}</div>
+          {/* Subtitle Stream Feed Card */}
+          <div className="ast-live-feed-card">
+            <div className="ast-live-feed-header">
+              <div className="ast-live-feed-title">
+                <span>实时同传流</span>
+                {liveHistory.length > 0 && <span className="ast-live-feed-count">{liveHistory.length}</span>}
+              </div>
+              <div className="ast-live-feed-actions">
+                <button
+                  type="button"
+                  className="ast-btn ast-btn-sm ast-btn-secondary"
+                  onClick={handleExportLiveSrt}
+                  disabled={liveHistory.length === 0}
+                  title={t(lang, "live.exportSrt")}
+                >
+                  📥 SRT
+                </button>
+                <button
+                  type="button"
+                  className="ast-btn ast-btn-sm ast-btn-secondary"
+                  onClick={handleClearLiveHistory}
+                  disabled={liveHistory.length === 0}
+                  title={t(lang, "live.clearHistory")}
+                >
+                  🗑
+                </button>
+              </div>
+            </div>
+
+            <div className="ast-live-feed-list">
+              {liveHistory.length === 0 ? (
+                <div className="ast-live-feed-empty">
+                  <div className="ast-live-empty-icon">🎙️</div>
+                  <div>{t(lang, "live.noHistory")}</div>
+                  <div className="ast-live-empty-sub">开启同传并在网页播放音视频即可实时捕捉双语字幕</div>
                 </div>
-              ))
-            )}
+              ) : (
+                liveHistory.slice().reverse().map((item) => (
+                  <div key={item.id} className="ast-live-feed-item">
+                    {item.original && <div className="ast-live-feed-orig">{item.original}</div>}
+                    <div className="ast-live-feed-trans">{item.translation}</div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
