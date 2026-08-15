@@ -1361,7 +1361,7 @@ export default function Popup() {
       </div>
 
       {mode === "translate" && (
-        <div className="ast-translate-panel">
+        <>
           {/* Language bar */}
           <div className="ast-lang-bar">
             <select
@@ -1499,60 +1499,77 @@ export default function Popup() {
             </div>
             {pageStatus && <div className="ast-page-status">{pageStatus}</div>}
           </div>
-        </div>
+        </>
       )}
 
       {mode === "chat" && (
-        <div className="ast-chat-panel">
-          <div className="ast-chat">
-            <div className="ast-chat-list" ref={chatListRef}>
-              {chatTurns.length === 0 && !chatPending && !streamText && (
-                <div className="ast-chat-empty">{t(lang, "chat.empty")}</div>
-              )}
-              {chatTurns.map((turn, i) => (
-                <div
-                  key={`${turn.ts}-${i}`}
-                  className={
-                    turn.role === "user"
-                      ? "ast-chat-bubble ast-chat-bubble--user"
-                      : turn.error
-                        ? "ast-chat-bubble ast-chat-bubble--error"
-                        : "ast-chat-bubble ast-chat-bubble--assistant"
-                  }
-                >
-                  {turn.webSearch && (
-                    <div className="ast-chat-bubble-search">🌐 {t(lang, "chat.webSearchUsed")}</div>
-                  )}
-                  {(turn.attachment || turn.pageContextUsed) && (
-                    <>
-                      {turn.attachment && (
-                        <div
-                          className="ast-chat-bubble-attach"
-                          title={turn.attachment.title || turn.attachment.url}
+        <div className="ast-chat">
+          <div className="ast-chat-list" ref={chatListRef}>
+            {chatTurns.length === 0 && !chatPending && !streamText && (
+              <div className="ast-chat-empty">{t(lang, "chat.empty")}</div>
+            )}
+            {chatTurns.map((turn, i) => (
+              <div
+                key={`${turn.ts}-${i}`}
+                className={
+                  turn.role === "user"
+                    ? "ast-chat-bubble ast-chat-bubble--user"
+                    : turn.error
+                      ? "ast-chat-bubble ast-chat-bubble--error"
+                      : "ast-chat-bubble ast-chat-bubble--assistant"
+                }
+              >
+                {turn.webSearch && (
+                  <div className="ast-chat-bubble-search">🌐 {t(lang, "chat.webSearchUsed")}</div>
+                )}
+                {(turn.attachment || turn.pageContextUsed) && (
+                  <>
+                    {turn.attachment && (
+                      <div
+                        className="ast-chat-bubble-attach"
+                        title={turn.attachment.title || turn.attachment.url}
+                      >
+                        📎{" "}
+                        {turn.attachment.selected
+                          ? t(lang, "chat.attachSelection")
+                          : turn.attachment.title || t(lang, "chat.attachPage")}
+                      </div>
+                    )}
+                    {turn.pageContextUsed && (
+                      <div className="ast-chat-bubble-attach">
+                        ＋ {t(lang, "chat.pageContextUsed")}
+                      </div>
+                    )}
+                  </>
+                )}
+                {turn.role === "assistant" && !turn.error ? (
+                  <>
+                    <div className="ast-chat-bubble-tools">
+                      {i === lastAssistantIndex && !chatPending && (
+                        <button
+                          className="ast-chat-bubble-tool"
+                          title={t(lang, "chat.regenerate")}
+                          onClick={handleRegenerate}
                         >
-                          📎{" "}
-                          {turn.attachment.selected
-                            ? t(lang, "chat.attachSelection")
-                            : turn.attachment.title || t(lang, "chat.attachPage")}
-                        </div>
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="12"
+                            height="12"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M1 4v6h6" />
+                            <path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
+                          </svg>
+                        </button>
                       )}
-                      {turn.pageContextUsed && (
-                        <div className="ast-chat-bubble-attach">
-                          ＋ {t(lang, "chat.pageContextUsed")}
-                        </div>
-                      )}
-                    </>
-                  )}
-                  <div className="ast-chat-bubble-text">
-                    <ChatRichText text={turn.content} />
-                  </div>
-                  {turn.role === "assistant" && !turn.error && (
-                    <div className="ast-chat-bubble-actions">
                       <button
-                        type="button"
-                        className="ast-chat-bubble-btn"
-                        onClick={() => handleCopyTurn(turn.content)}
+                        className="ast-chat-bubble-tool"
                         title={t(lang, "popup.copy")}
+                        onClick={() => handleCopyTurn(turn.content)}
                       >
                         <svg
                           viewBox="0 0 24 24"
@@ -1563,154 +1580,179 @@ export default function Popup() {
                           strokeWidth="2"
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          aria-hidden="true"
                         >
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          <rect x="9" y="9" width="13" height="13" rx="2" />
+                          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
                         </svg>
                       </button>
                     </div>
-                  )}
-                </div>
-              ))}
-              {streamText && (
-                <div className="ast-chat-bubble ast-chat-bubble--assistant ast-chat-bubble--streaming">
-                  <div className="ast-chat-bubble-text">
-                    <ChatRichText text={streamText} />
-                    <span className="ast-chat-cursor" />
-                  </div>
-                </div>
-              )}
-              {chatPending && !streamText && (
-                <div className="ast-chat-bubble ast-chat-bubble--assistant ast-chat-bubble--pending">
-                  <div className="ast-chat-pending-row">
-                    <div className="ast-spinner-sm" />
-                    <span>{chatPhase === "searching" ? t(lang, "chat.searching") : t(lang, "chat.thinking")}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {chatError && (
-              <div className="ast-error-msg">
-                <span>⚠</span>
-                <span>{chatError}</span>
+                    <ChatRichText text={turn.content} />
+                    {turn.ungroundedSearchFallback && (
+                      <div className="ast-chat-search-fallback" role="note">
+                        <span aria-hidden="true">ⓘ</span>
+                        <span>{t(lang, "chat.searchNoResultsFallback")}</span>
+                      </div>
+                    )}
+                    {turn.sources && turn.sources.length > 0 && (
+                      <div className="ast-chat-sources">
+                        <div className="ast-chat-sources-label">{t(lang, "chat.sources")}</div>
+                        <div className="ast-chat-sources-list">
+                          {turn.sources.map((source, sourceIndex) => (
+                            <a
+                              key={`${source.url}-${sourceIndex}`}
+                              className="ast-chat-source-link"
+                              href={source.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={source.snippet || source.url}
+                            >
+                              <span>{sourceIndex + 1}</span>
+                              <span>{source.title}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  turn.content
+                )}
               </div>
-            )}
-
-            {chatAttach && (
-              <div className="ast-chat-chip-bar">
-                <span className="ast-chat-chip">
-                  📎{" "}
-                  {t(lang, "chat.attachChip", {
-                    label: chatAttach.selected
-                      ? t(lang, "chat.attachSelection")
-                      : chatAttach.title || t(lang, "chat.attachPage"),
-                    n: chatAttach.text.length,
-                  })}
-                  <button
-                    className="ast-chat-chip-x"
-                    onClick={() => setChatAttach(null)}
-                    title={t(lang, "chat.clear")}
-                  >
-                    ×
-                  </button>
-                </span>
+            ))}
+            {streamText ? (
+              <div className="ast-chat-bubble ast-chat-bubble--assistant">
+                <ChatRichText text={streamText} />
+                <span className="ast-chat-cursor" />
               </div>
+            ) : (
+              chatPending && (
+                <div className="ast-chat-bubble ast-chat-bubble--assistant ast-chat-bubble--thinking">
+                  <div className="ast-spinner-sm" />
+                  <span>{chatPhase === "searching" ? t(lang, "chat.searching") : t(lang, "chat.thinking")}</span>
+                </div>
+              )
             )}
+          </div>
 
-            <div className="ast-chat-input-row">
-              <textarea
-                ref={chatInputRef}
-                className="ast-chat-input"
-                placeholder={t(lang, "chat.placeholder")}
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={handleChatKeyDown}
-                rows={1}
-                disabled={chatPending}
-              />
+          {chatError && (
+            <div className="ast-error-msg">
+              <span>⚠</span>
+              <span>{chatError}</span>
             </div>
+          )}
 
-            <div className="ast-chat-toolbar">
-              <ChatModelMenu
-                settings={settings}
-                lang={lang}
-                onSwitch={handleModelSwitch}
-                onOpenSettings={openOptions}
-              />
-              <ChatEffortMenu
-                value={chatEffort}
-                providerId={settings?.providerId}
-                lang={lang}
-                onChange={handleEffortChange}
-              />
+          {chatAttach && (
+            <div
+              className="ast-chat-attach-chip"
+              title={chatAttach.title || chatAttach.url}
+            >
+              <span>📎</span>
+              <span className="ast-chat-attach-label">
+                {t(lang, "chat.attachChip", {
+                  label: chatAttach.selected
+                    ? t(lang, "chat.attachSelection")
+                    : chatAttach.title || t(lang, "chat.attachPage"),
+                  n: chatAttach.text.length,
+                })}
+              </span>
               <button
-                className={[
-                  "ast-chat-pill",
-                  webSearchEnabled ? "ast-chat-pill--on" : "",
-                  settings?.chatWebSearchEnabled ? "" : "ast-chat-pill--locked",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                onClick={toggleWebSearch}
-                aria-pressed={webSearchEnabled}
-                title={t(
-                  lang,
-                  webSearchEnabled
-                    ? "chat.webSearchOn"
-                    : settings?.chatWebSearchEnabled
-                      ? "chat.webSearchOff"
-                      : "chat.webSearchNeedSetup"
-                )}
+                className="ast-chat-attach-remove"
+                onClick={() => setChatAttach(null)}
+                title={t(lang, "chat.clear")}
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="13"
-                  height="13"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ flexShrink: 0 }}
-                  aria-hidden="true"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 2a14.5 14.5 0 0 1 0 20M2 12h20" />
-                  <path d="M12 2a14.5 14.5 0 0 0 0 20" />
-                </svg>
-                <span>{t(lang, "chat.webSearch")}</span>
+                ✕
               </button>
+            </div>
+          )}
 
-              <div className="ast-chat-actions-end">
-                {!chatAttach && (
-                  <button
-                    className="ast-chat-icon"
-                    onClick={handleAttachPage}
-                    title={t(lang, "chat.attach")}
-                  >
-                    📎
-                  </button>
-                )}
+          <textarea
+            ref={chatInputRef}
+            className="ast-input-box ast-chat-input"
+            placeholder={t(lang, "chat.placeholder")}
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={handleChatKeyDown}
+            rows={1}
+            maxLength={8000}
+          />
+          <div className="ast-chat-actions">
+            <ChatModelMenu
+              settings={settings}
+              lang={lang}
+              onSwitch={handleModelSwitch}
+              onOpenSettings={openOptions}
+            />
+            <ChatEffortMenu
+              value={chatEffort}
+              providerId={settings?.providerId}
+              lang={lang}
+              onChange={handleEffortChange}
+            />
+            <button
+              className={[
+                "ast-chat-pill",
+                webSearchEnabled ? "ast-chat-pill--on" : "",
+                settings?.chatWebSearchEnabled ? "" : "ast-chat-pill--locked",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={toggleWebSearch}
+              aria-pressed={webSearchEnabled}
+              title={t(
+                lang,
+                webSearchEnabled
+                  ? "chat.webSearchOn"
+                  : settings?.chatWebSearchEnabled
+                    ? "chat.webSearchOff"
+                    : "chat.webSearchNeedSetup"
+              )}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="13"
+                height="13"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ flexShrink: 0 }}
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 2a14.5 14.5 0 0 1 0 20M2 12h20" />
+                <path d="M12 2a14.5 14.5 0 0 0 0 20" />
+              </svg>
+              <span>{t(lang, "chat.webSearch")}</span>
+            </button>
+
+            <div className="ast-chat-actions-end">
+              {!chatAttach && (
                 <button
                   className="ast-chat-icon"
-                  onClick={handleOpenInPage}
-                  title={t(lang, "chat.openInPage")}
+                  onClick={handleAttachPage}
+                  title={t(lang, "chat.attach")}
                 >
-                  ⤢
+                  📎
                 </button>
-                <button
-                  className="ast-btn ast-btn-primary ast-chat-send"
-                  onClick={handleChatSend}
-                  disabled={chatPending || !chatInput.trim()}
-                >
-                  {chatPending ? t(lang, "chat.thinking") : t(lang, "chat.send")}
-                </button>
-              </div>
+              )}
+              <button
+                className="ast-chat-icon"
+                onClick={handleOpenInPage}
+                title={t(lang, "chat.openInPage")}
+              >
+                ⤢
+              </button>
+              <button
+                className="ast-btn ast-btn-primary ast-chat-send"
+                onClick={handleChatSend}
+                disabled={chatPending || !chatInput.trim()}
+              >
+                {chatPending ? t(lang, "chat.thinking") : t(lang, "chat.send")}
+              </button>
             </div>
-            <div className="ast-chat-hint">{t(lang, "chat.kbHint")}</div>
           </div>
+          <div className="ast-chat-hint">{t(lang, "chat.kbHint")}</div>
         </div>
       )}
 

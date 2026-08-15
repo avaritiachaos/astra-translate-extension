@@ -18,9 +18,9 @@ html {
 
 body {
   position: relative;
-  width: 480px;
-  min-height: 520px;
-  max-height: 540px;
+  width: 460px;
+  min-height: 200px;
+  max-height: 600px;
   overflow-y: auto;
   overflow-x: hidden;
   background: var(--ast-bg);
@@ -1291,27 +1291,6 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 /* ============================================================
-   Unified Panel Layouts (Translate | Chat | Live)
-   ============================================================ */
-
-.ast-translate-panel {
-  display: flex;
-  flex-direction: column;
-  height: calc(520px - 53px);
-  padding: 12px 14px;
-  box-sizing: border-box;
-  overflow-y: auto;
-}
-
-.ast-chat-panel {
-  display: flex;
-  flex-direction: column;
-  height: calc(520px - 53px);
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-/* ============================================================
    Live Studio Panel Styles
    ============================================================ */
 
@@ -1319,10 +1298,8 @@ body::-webkit-scrollbar-thumb:hover {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  height: calc(520px - 53px);
   padding: 12px 14px;
   box-sizing: border-box;
-  overflow-y: auto;
 }
 
 .ast-live-hero-card {
