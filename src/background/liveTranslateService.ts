@@ -268,6 +268,15 @@ export function handleOffscreenSubtitle(payload: {
   const deltaText = payload.text || "";
   const deltaOrig = payload.original || "";
 
+  // If previous sentence already ended with punctuation, roll to a new sentence on new speech
+  if (currentSentence && currentSentence.translation) {
+    const trimmed = currentSentence.translation.trim();
+    const endsWithPunct = /[。！？!?\n]$/.test(trimmed);
+    if ((endsWithPunct && deltaText.trim()) || trimmed.length > 50) {
+      flushCurrentSentence();
+    }
+  }
+
   if (!currentSentence) {
     currentSentence = {
       id: "sub_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),

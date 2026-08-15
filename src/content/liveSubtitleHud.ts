@@ -104,20 +104,50 @@ export class LiveSubtitleHud {
     this.isVisible = false;
   }
 
+  private formatRollingText(text: string, isCjk = true): string {
+    if (!text) return "";
+    const clean = text.trim();
+    const maxLen = isCjk ? 42 : 80;
+    if (clean.length <= maxLen) return clean;
+
+    // Split into sentences / clauses by punctuation: 。！？!?\n
+    const clauses = clean.split(/(?<=[。！？!?\n])/g).filter((s) => s.trim().length > 0);
+    if (clauses.length > 1) {
+      const last = clauses[clauses.length - 1].trim();
+      const prev = clauses[clauses.length - 2].trim();
+      if ((prev + last).length <= maxLen + 10) {
+        return prev + last;
+      }
+      return last;
+    }
+
+    // Split by comma / semicolon
+    const subClauses = clean.split(/(?<=[，,；;])/g).filter((s) => s.trim().length > 0);
+    if (subClauses.length > 2) {
+      const lastTwo = subClauses.slice(-2).join("").trim();
+      if (lastTwo.length <= maxLen + 10) return lastTwo;
+      return subClauses.slice(-1).join("").trim();
+    }
+
+    return clean.slice(-maxLen);
+  }
+
   public updateSubtitle(deltaText?: string, deltaOrig?: string, fullTrans?: string, fullOrig?: string, isFinal?: boolean): void {
     if (!this.isVisible) this.show();
 
     if (fullTrans !== undefined && this.translationEl) {
-      this.translationEl.textContent = fullTrans || (this.currentStatus === "connected" ? "……" : "");
+      this.translationEl.textContent = this.formatRollingText(fullTrans, true) || (this.currentStatus === "connected" ? "……" : "");
     } else if (deltaText && this.translationEl) {
-      this.translationEl.textContent = (this.translationEl.textContent || "") + deltaText;
+      const curr = (this.translationEl.textContent === "……" || this.translationEl.textContent === "等待音频输入…") ? "" : (this.translationEl.textContent || "");
+      this.translationEl.textContent = this.formatRollingText(curr + deltaText, true);
     }
 
     if (this.showOriginal && this.originalEl) {
       if (fullOrig !== undefined) {
-        this.originalEl.textContent = fullOrig;
+        this.originalEl.textContent = this.formatRollingText(fullOrig, false);
       } else if (deltaOrig) {
-        this.originalEl.textContent = (this.originalEl.textContent || "") + deltaOrig;
+        const curr = this.originalEl.textContent || "";
+        this.originalEl.textContent = this.formatRollingText(curr + deltaOrig, false);
       }
     }
 
@@ -150,8 +180,8 @@ export class LiveSubtitleHud {
       }
     }
 
-    if (this.statusText && message) {
-      this.statusText.textContent = message;
+    if (this.statusText) {
+      this.statusText.textContent = status === "connected" ? "同传中" : status === "connecting" ? "连接中" : "实时同传";
     }
 
     if (this.levelBar && level !== undefined) {
@@ -264,25 +294,25 @@ export class LiveSubtitleHud {
       pointer-events: none;
       overflow: hidden;
       user-select: none;
-      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       gap: 6px;
       white-space: nowrap;
     `;
 
-    // Left status info
+    // Left status info (Concise badge so it never squashes buttons)
     const leftInfo = document.createElement("div");
-    leftInfo.style.cssText = "display: flex; align-items: center; gap: 6px; font-size: 11px; color: rgba(255,255,255,0.75); pointer-events: none; flex-shrink: 0;";
+    leftInfo.style.cssText = "display: flex; align-items: center; gap: 5px; font-size: 11px; color: rgba(255,255,255,0.75); pointer-events: none; flex-shrink: 0;";
 
     const dot = document.createElement("span");
     dot.style.cssText = "width: 7px; height: 7px; border-radius: 50%; background: #F59E0B; transition: all 0.3s ease;";
     this.statusDot = dot;
 
     const statusText = document.createElement("span");
-    statusText.textContent = "Astra 实时同传";
+    statusText.textContent = "实时同传";
     this.statusText = statusText;
 
     const levelTrack = document.createElement("div");
-    levelTrack.style.cssText = "width: 32px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.2); overflow: hidden;";
+    levelTrack.style.cssText = "width: 28px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.2); overflow: hidden;";
     const levelBar = document.createElement("div");
     levelBar.style.cssText = "width: 0%; height: 100%; background: #10B981; transition: width 0.1s ease;";
     levelTrack.appendChild(levelBar);
@@ -292,9 +322,9 @@ export class LiveSubtitleHud {
     leftInfo.appendChild(statusText);
     leftInfo.appendChild(levelTrack);
 
-    // Right action buttons
+    // Right action buttons (Auto flex-shrink protected)
     const rightActions = document.createElement("div");
-    rightActions.style.cssText = "display: flex; align-items: center; gap: 4px; flex-shrink: 0;";
+    rightActions.style.cssText = "display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto;";
 
     const makeBtn = (label: string, title: string, onClick: () => void) => {
       const btn = document.createElement("button");
