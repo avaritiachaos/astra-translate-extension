@@ -1758,7 +1758,7 @@ export default function Popup() {
 
       {mode === "live" && (
         <div className="ast-live-panel">
-          {/* Main Control & Settings Card */}
+          {/* Top Sound Studio & Settings Card */}
           <div className="ast-live-hero-card">
             <div className="ast-live-hero-header">
               <div className="ast-live-status-badge">
@@ -1769,16 +1769,31 @@ export default function Popup() {
                     : t(lang, "live.idle")}
                 </span>
               </div>
-              <div className="ast-live-level-track" title="音量电平">
-                <div
-                  className="ast-live-level-bar"
-                  style={{ width: `${liveState.level || 0}%` }}
+              <div className="ast-live-eq" title={liveState.running ? "正在监听网页音频" : "等待开启"}>
+                <span
+                  className={`ast-live-eq-bar ${liveState.running ? "ast-live-eq-bar--live" : ""}`}
+                  style={{ height: liveState.running ? `${Math.max(25, Math.min(100, (liveState.level || 0) * 1.1))}%` : "25%" }}
+                />
+                <span
+                  className={`ast-live-eq-bar ${liveState.running ? "ast-live-eq-bar--live" : ""}`}
+                  style={{ height: liveState.running ? `${Math.max(40, Math.min(100, (liveState.level || 0) * 1.5))}%` : "40%" }}
+                />
+                <span
+                  className={`ast-live-eq-bar ${liveState.running ? "ast-live-eq-bar--live" : ""}`}
+                  style={{ height: liveState.running ? `${Math.max(60, Math.min(100, (liveState.level || 0) * 1.8))}%` : "60%" }}
+                />
+                <span
+                  className={`ast-live-eq-bar ${liveState.running ? "ast-live-eq-bar--live" : ""}`}
+                  style={{ height: liveState.running ? `${Math.max(30, Math.min(100, (liveState.level || 0) * 1.2))}%` : "30%" }}
                 />
               </div>
             </div>
 
             <div className="ast-live-setting-row">
-              <span className="ast-live-setting-label">{t(lang, "live.targetLang")}</span>
+              <div className="ast-live-setting-label">
+                <span>🌐</span>
+                <span>{t(lang, "live.targetLang")}</span>
+              </div>
               <select
                 className="ast-lang-select ast-live-lang-select"
                 value={settings?.liveTranslateTargetLang || settings?.defaultTargetLang || "Simplified Chinese"}
@@ -1795,21 +1810,21 @@ export default function Popup() {
             <div className="ast-live-setting-grid">
               <button
                 type="button"
-                className={`ast-live-pill-btn ${settings?.liveTranslateShowOriginal !== false ? "ast-live-pill-btn--active" : ""}`}
+                className={`ast-live-chip-btn ${settings?.liveTranslateShowOriginal !== false ? "ast-live-chip-btn--active" : ""}`}
                 onClick={handleToggleLiveShowOriginal}
                 title="切换悬浮字幕双语/单语"
               >
-                <span>🌐</span>
+                <span className="ast-live-chip-icon">🔤</span>
                 <span>{settings?.liveTranslateShowOriginal !== false ? "双语字幕" : "仅译文"}</span>
               </button>
 
               <button
                 type="button"
-                className="ast-live-pill-btn"
+                className="ast-live-chip-btn"
                 onClick={handleCycleLiveOpacity}
-                title="切换悬浮字幕背景透明度"
+                title="点击循环切换悬浮字幕背景透明度"
               >
-                <span>🌗</span>
+                <span className="ast-live-chip-icon">🌗</span>
                 <span>透明度 {settings?.liveTranslateBgOpacity ?? 80}%</span>
               </button>
             </div>
@@ -1825,7 +1840,7 @@ export default function Popup() {
               <div className="ast-live-feed-actions">
                 <button
                   type="button"
-                  className="ast-btn ast-btn-sm ast-btn-secondary"
+                  className="ast-btn ast-btn-sm ast-live-tool-btn"
                   onClick={handleExportLiveSrt}
                   disabled={liveHistory.length === 0}
                   title={t(lang, "live.exportSrt")}
@@ -1834,7 +1849,7 @@ export default function Popup() {
                 </button>
                 <button
                   type="button"
-                  className="ast-btn ast-btn-sm ast-btn-secondary"
+                  className="ast-btn ast-btn-sm ast-live-tool-btn"
                   onClick={handleClearLiveHistory}
                   disabled={liveHistory.length === 0}
                   title={t(lang, "live.clearHistory")}
@@ -1847,9 +1862,15 @@ export default function Popup() {
             <div className="ast-live-feed-list">
               {liveHistory.length === 0 ? (
                 <div className="ast-live-feed-empty">
-                  <div className="ast-live-empty-icon">🎙️</div>
-                  <div>{t(lang, "live.noHistory")}</div>
-                  <div className="ast-live-empty-sub">开启同传并在网页播放音视频即可实时捕捉双语字幕</div>
+                  <div className="ast-live-empty-waves">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <div className="ast-live-empty-title">
+                    {liveState.running ? "正在监听网页音频…" : "等待开启同传"}
+                  </div>
+                  <div className="ast-live-empty-sub">在 YouTube、Bilibili、播客等页面播放，双语字幕将实时浮现</div>
                 </div>
               ) : (
                 liveHistory.slice().reverse().map((item) => (
@@ -1866,11 +1887,14 @@ export default function Popup() {
           <div className="ast-live-bottom-bar">
             <button
               type="button"
-              className={`ast-btn ${liveState.running ? "ast-btn-danger" : "ast-btn-primary"} ast-live-main-btn`}
+              className={`ast-btn ${liveState.running ? "ast-live-btn--running" : "ast-live-btn--idle"} ast-live-cta-btn`}
               onClick={handleToggleLive}
               disabled={liveLoading}
             >
-              {liveLoading ? "…" : liveState.running ? t(lang, "live.stop") : t(lang, "live.start")}
+              <span className="ast-live-btn-icon">{liveLoading ? "⏳" : liveState.running ? "⏹" : "🎙️"}</span>
+              <span className="ast-live-btn-text">
+                {liveLoading ? "正在切换…" : liveState.running ? t(lang, "live.stop") : t(lang, "live.start")}
+              </span>
             </button>
           </div>
         </div>
