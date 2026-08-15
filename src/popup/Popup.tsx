@@ -1758,7 +1758,7 @@ export default function Popup() {
 
       {mode === "live" && (
         <div className="ast-live-panel">
-          {/* Hero Control Card */}
+          {/* Main Control & Settings Card */}
           <div className="ast-live-hero-card">
             <div className="ast-live-hero-header">
               <div className="ast-live-status-badge">
@@ -1777,20 +1777,6 @@ export default function Popup() {
               </div>
             </div>
 
-            <div className="ast-live-hero-body">
-              <button
-                type="button"
-                className={`ast-btn ${liveState.running ? "ast-btn-danger" : "ast-btn-primary"} ast-live-main-btn`}
-                onClick={handleToggleLive}
-                disabled={liveLoading}
-              >
-                {liveLoading ? "…" : liveState.running ? t(lang, "live.stop") : t(lang, "live.start")}
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Settings Matrix Card */}
-          <div className="ast-live-settings-card">
             <div className="ast-live-setting-row">
               <span className="ast-live-setting-label">{t(lang, "live.targetLang")}</span>
               <select
@@ -1825,6 +1811,17 @@ export default function Popup() {
               >
                 <span>🌗</span>
                 <span>透明度 {settings?.liveTranslateBgOpacity ?? 80}%</span>
+              </button>
+            </div>
+
+            <div className="ast-live-hero-body">
+              <button
+                type="button"
+                className={`ast-btn ${liveState.running ? "ast-btn-danger" : "ast-btn-primary"} ast-live-main-btn`}
+                onClick={handleToggleLive}
+                disabled={liveLoading}
+              >
+                {liveLoading ? "…" : liveState.running ? t(lang, "live.stop") : t(lang, "live.start")}
               </button>
             </div>
           </div>
