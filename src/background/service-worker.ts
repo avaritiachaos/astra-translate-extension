@@ -98,7 +98,7 @@ chrome.runtime.onMessage.addListener(
     handleMessage(msg, sender)
       .then((result) => sendResponse(result))
       .catch((err) => {
-        console.error("[Astra] Message handler error:", err);
+        console.debug("[Astra] Message handler caught error:", err);
         sendResponse({
           success: false,
           error: err instanceof Error ? err.message : String(err),

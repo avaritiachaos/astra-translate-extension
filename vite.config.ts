@@ -43,6 +43,20 @@ function fixHtmlPlugin() {
         writeFileSync(optionsDst, html);
       }
 
+      // Fix offscreen.html
+      const offscreenSrc = resolve(distDir, "src/offscreen/offscreen.html");
+      const offscreenDst = resolve(distDir, "offscreen.html");
+      if (existsSync(offscreenSrc)) {
+        let html = readFileSync(offscreenSrc, "utf-8");
+        if (!html.includes("offscreen-entry")) {
+          html = html.replace(
+            "</body>",
+            '  <script type="module" src="/offscreen-entry.js"></script>\n</body>'
+          );
+        }
+        writeFileSync(offscreenDst, html);
+      }
+
       // Clean up dist/src
       const srcDir = resolve(distDir, "src");
       if (existsSync(srcDir)) {
@@ -61,8 +75,10 @@ export default defineConfig({
       input: {
         popup: resolve(__dirname, "src/popup/popup.html"),
         options: resolve(__dirname, "src/options/options.html"),
+        offscreen: resolve(__dirname, "src/offscreen/offscreen.html"),
         "popup-entry": resolve(__dirname, "src/popup/Popup.tsx"),
         "options-entry": resolve(__dirname, "src/options/Options.tsx"),
+        "offscreen-entry": resolve(__dirname, "src/offscreen/offscreen.ts"),
         "service-worker": resolve(
           __dirname,
           "src/background/service-worker.ts"
@@ -73,6 +89,7 @@ export default defineConfig({
           if (chunk.name === "service-worker") return "service-worker.js";
           if (chunk.name === "popup-entry") return "popup-entry.js";
           if (chunk.name === "options-entry") return "options-entry.js";
+          if (chunk.name === "offscreen-entry") return "offscreen-entry.js";
           return "assets/[name]-[hash].js";
         },
         chunkFileNames: "assets/[name]-[hash].js",

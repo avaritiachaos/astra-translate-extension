@@ -9,6 +9,7 @@ import {
   DEFAULT_PAGE_PROMPT,
   DEFAULT_DICTIONARY_PROMPT,
   DEFAULT_CHAT_PROMPT,
+  DEFAULT_LIVE_TRANSLATE_PROMPT,
   LEGACY_DICTIONARY_PROMPTS,
 } from "./prompts";
 
@@ -56,6 +57,16 @@ export function getDefaultSettings(): AstraSettings {
     chatAutoAttachPage: true,
     enableTranslationCache: true,
     translationCacheMaxEntries: 5000,
+    customGlossary: "",
+    liveTranslateModel: "models/gemini-3.5-live-translate-preview",
+    liveTranslateTargetLang: DEFAULT_TARGET_LANG,
+    liveTranslateShowOriginal: true,
+    liveTranslateVadEnabled: true,
+    liveTranslateVadThreshold: 200,
+    liveTranslateFontSize: 20,
+    liveTranslateBgOpacity: 80,
+    liveTranslatePrompt: DEFAULT_LIVE_TRANSLATE_PROMPT,
+
     providerConfigs: {
       deepseek: {
         apiKey: "",

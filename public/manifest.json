@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Astra Translate",
   "description": "A lightweight, elegant, provider-neutral browser translator.",
-  "version": "4.9.1",
+  "version": "5.0.0",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -33,7 +33,9 @@
     "storage",
     "activeTab",
     "scripting",
-    "contextMenus"
+    "contextMenus",
+    "tabCapture",
+    "offscreen"
   ],
   "host_permissions": [
     "https://api.deepseek.com/*",

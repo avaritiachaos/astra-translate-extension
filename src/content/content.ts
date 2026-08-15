@@ -18,16 +18,43 @@ import {
 import { PageTranslator } from "./pageTranslator";
 import { openChatPanel } from "./chatPanel";
 import { ensureFloatingBallMounted, initFloatingBall, updateFloatingBall } from "./floatingBall";
+import { LiveSubtitleHud } from "./liveSubtitleHud";
 import type { UiLanguage } from "../shared/i18n";
+
+let liveHud: LiveSubtitleHud | null = null;
+
+function getOrCreateLiveHud(): LiveSubtitleHud {
+  if (!liveHud) {
+    liveHud = new LiveSubtitleHud();
+  }
+  return liveHud;
+}
 
 let pageTranslator: PageTranslator | null = null;
 let pageTranslatorPageKey = currentPageKey();
+let monitorTimer: number | null = null;
+
+function isExtensionContextAlive(): boolean {
+  try {
+    return Boolean(typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id);
+  } catch {
+    return false;
+  }
+}
 
 function currentPageKey(): string {
   return `${window.location.origin}${window.location.pathname}${window.location.search}`;
 }
 
 function monitorPageState(): void {
+  if (!isExtensionContextAlive()) {
+    if (monitorTimer !== null) {
+      clearInterval(monitorTimer);
+      monitorTimer = null;
+    }
+    return;
+  }
+
   ensureFloatingBallMounted();
 
   const pageKey = currentPageKey();
@@ -164,7 +191,47 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sendResponse({ success: true });
       break;
     }
+
+    case "LIVE_SUBTITLE_START_HUD": {
+      const hud = getOrCreateLiveHud();
+      hud.show(msg.payload);
+      sendResponse({ success: true });
+      break;
+    }
+
+    case "LIVE_SUBTITLE_STOP_HUD": {
+      if (liveHud) {
+        liveHud.hide();
+      }
+      sendResponse({ success: true });
+      break;
+    }
+
+    case "LIVE_SUBTITLE_DATA": {
+      const hud = getOrCreateLiveHud();
+      hud.updateSubtitle(
+        msg.payload?.text,
+        msg.payload?.original,
+        msg.payload?.fullTranslation,
+        msg.payload?.fullOriginal,
+        msg.payload?.isFinal
+      );
+      sendResponse({ success: true });
+      break;
+    }
+
+    case "LIVE_TRANSLATE_STATUS": {
+      const hud = getOrCreateLiveHud();
+      hud.updateStatus(
+        msg.payload?.status,
+        msg.payload?.message,
+        msg.payload?.level
+      );
+      sendResponse({ success: true });
+      break;
+    }
   }
+
   return true;
 });
 
@@ -234,18 +301,24 @@ async function startPageTranslation(): Promise<void> {
 
 prefetchLang();
 initBubbleClose();
-window.setInterval(monitorPageState, 500);
+monitorTimer = window.setInterval(monitorPageState, 500);
 
 // Initialize floating ball
-chrome.runtime.sendMessage({ type: "GET_SETTINGS" }).then((settings) => {
-  if (settings) {
-    initFloatingBall({
-      enabled: settings.enableFloatingBall ?? true,
-      opacity: settings.floatingBallOpacity ?? 0.8,
-      size: settings.floatingBallSize ?? 48,
-      lang: settings.uiLanguage || "zh-CN",
-      onTranslatePage: () => startPageTranslation(),
-    });
-    setPopupScale(settings.popupScale ?? 1.0);
-  }
-});
+if (isExtensionContextAlive()) {
+  chrome.runtime
+    .sendMessage({ type: "GET_SETTINGS" })
+    .then((settings) => {
+      if (settings && isExtensionContextAlive()) {
+        initFloatingBall({
+          enabled: settings.enableFloatingBall ?? true,
+          opacity: settings.floatingBallOpacity ?? 0.8,
+          size: settings.floatingBallSize ?? 48,
+          lang: settings.uiLanguage || "zh-CN",
+          onTranslatePage: () => startPageTranslation(),
+        });
+        setPopupScale(settings.popupScale ?? 1.0);
+      }
+    })
+    .catch(() => {});
+}
+

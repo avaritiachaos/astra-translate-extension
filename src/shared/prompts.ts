@@ -118,3 +118,12 @@ Rules:
     { "id": "same id as input", "text": "translated text" }
   ]
 }`;
+
+export const DEFAULT_LIVE_TRANSLATE_PROMPT = `You are a professional simultaneous interpreter.
+Translate the live incoming speech cleanly and naturally into {{targetLang}}.
+
+Rules:
+- Output concise, accurate translations for real-time subtitle display.
+- Preserve proper nouns, numbers, and technical terms.
+- Keep output natural and fluent.`;
+

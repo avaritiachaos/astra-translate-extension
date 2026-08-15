@@ -445,39 +445,41 @@ export class PageTranslator {
       clearTimeout(this.siteLearnFlushTimer);
       this.siteLearnFlushTimer = null;
     }
-    if (!this.enableSiteLexicon) {
+    if (!this.enableSiteLexicon || !chrome.runtime?.id) {
       this.pendingSiteLearn.clear();
       this.pendingSiteTouch.clear();
       return;
     }
-    if (this.pendingSiteLearn.size > 0) {
-      const pairs = Array.from(this.pendingSiteLearn.values());
-      this.pendingSiteLearn.clear();
-      chrome.runtime
-        .sendMessage({
-          type: "LEARN_SITE_LEXICON",
-          payload: {
-            host: location.hostname,
-            targetLang: this.targetLang,
-            pairs,
-          },
-        })
-        .catch(() => {});
-    }
-    if (this.pendingSiteTouch.size > 0) {
-      const sources = Array.from(this.pendingSiteTouch);
-      this.pendingSiteTouch.clear();
-      chrome.runtime
-        .sendMessage({
-          type: "TOUCH_SITE_LEXICON",
-          payload: {
-            host: location.hostname,
-            targetLang: this.targetLang,
-            sources,
-          },
-        })
-        .catch(() => {});
-    }
+    try {
+      if (this.pendingSiteLearn.size > 0) {
+        const pairs = Array.from(this.pendingSiteLearn.values());
+        this.pendingSiteLearn.clear();
+        chrome.runtime
+          .sendMessage({
+            type: "LEARN_SITE_LEXICON",
+            payload: {
+              host: location.hostname,
+              targetLang: this.targetLang,
+              pairs,
+            },
+          })
+          .catch(() => {});
+      }
+      if (this.pendingSiteTouch.size > 0) {
+        const sources = Array.from(this.pendingSiteTouch);
+        this.pendingSiteTouch.clear();
+        chrome.runtime
+          .sendMessage({
+            type: "TOUCH_SITE_LEXICON",
+            payload: {
+              host: location.hostname,
+              targetLang: this.targetLang,
+              sources,
+            },
+          })
+          .catch(() => {});
+      }
+    } catch {}
   }
 
   /**

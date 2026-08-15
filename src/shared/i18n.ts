@@ -10,7 +10,7 @@ const zhCN: MessageDict = {
   // ---- 通用 ----
   "app.name": "Astra Translate",
   "app.desc": "轻量、优雅、模型服务商中立的浏览器翻译插件。",
-  "app.version": "Astra Translate v4.9.1 · 模型服务商中立的浏览器翻译插件",
+  "app.version": "Astra Translate v5.0.0 · 模型服务商中立的浏览器翻译插件",
 
   // ---- Options 页面 ----
   "opt.provider": "服务商设置",
@@ -260,13 +260,45 @@ const zhCN: MessageDict = {
   "ball.opacity": "透明度",
   "ball.size": "大小",
   "ball.close": "关闭悬浮球",
+
+  // ---- 实时音视频字幕 (Live Subtitles) & 术语表 ----
+  "live.title": "实时同传字幕",
+  "live.start": "开启同传",
+  "live.stop": "停止同传",
+  "live.connecting": "连接中…",
+  "live.connected": "已连接 · 监听音频中",
+  "live.idle": "未开启",
+  "live.error": "连接异常",
+  "live.model": "同传模型",
+  "live.targetLang": "同传目标语言",
+  "live.showOriginal": "显示原文转写",
+  "live.vad": "静音门控 (VAD)",
+  "live.vadThreshold": "静音阈值",
+  "live.fontSize": "字幕字号",
+  "live.bgOpacity": "背景透明度",
+  "live.exportSrt": "导出 SRT 字幕",
+  "live.exportTxt": "导出 TXT",
+  "live.clearHistory": "清空记录",
+  "live.noHistory": "暂无同传字幕记录",
+  "live.tabCaptureError": "无法捕获当前页面音频，请刷新页面后重试",
+  "opt.glossary": "自定义术语表 (Glossary)",
+  "opt.glossaryDescription": "每行一条「原文=译文」（如 Gemini=双子星），强制统一人名、动漫名与专有名词译法，同时应用于划词、整页、同传与对话。",
+  "opt.glossaryPlaceholder": "Gemini=双子星\nDeepSeek=深度求索\n# 支持以 # 开头的注释行",
+  "opt.glossaryImport": "导入",
+  "opt.glossaryExport": "导出",
+  "opt.glossaryExportDone": "已导出术语表",
+  "opt.glossaryImportDone": "已导入 {count} 条术语",
+  "opt.liveSettings": "实时音视频同传字幕",
+  "opt.liveSettingsDescription": "基于 Google Gemini Live API，直接捕获标签页音频并实时生成双语悬浮字幕。",
+  "opt.livePrompt": "同传提示词 (Prompt)",
 };
+
 
 const enUS: MessageDict = {
   // ---- General ----
   "app.name": "Astra Translate",
   "app.desc": "A lightweight, elegant, provider-neutral browser translator.",
-  "app.version": "Astra Translate v4.9.1 · Provider-neutral browser translator",
+  "app.version": "Astra Translate v5.0.0 · Provider-neutral browser translator",
 
   // ---- Options ----
   "opt.provider": "Provider Settings",
@@ -516,13 +548,45 @@ const enUS: MessageDict = {
   "ball.opacity": "Opacity",
   "ball.size": "Size",
   "ball.close": "Hide Floating Ball",
+
+  // ---- Live Subtitles & Glossary ----
+  "live.title": "Live Subtitles",
+  "live.start": "Start Subtitles",
+  "live.stop": "Stop Subtitles",
+  "live.connecting": "Connecting…",
+  "live.connected": "Connected · Listening to tab audio",
+  "live.idle": "Idle",
+  "live.error": "Connection Error",
+  "live.model": "Live Model",
+  "live.targetLang": "Target Language",
+  "live.showOriginal": "Show Original Transcript",
+  "live.vad": "Silence Gating (VAD)",
+  "live.vadThreshold": "VAD Threshold",
+  "live.fontSize": "Font Size",
+  "live.bgOpacity": "Background Opacity",
+  "live.exportSrt": "Export SRT",
+  "live.exportTxt": "Export TXT",
+  "live.clearHistory": "Clear History",
+  "live.noHistory": "No subtitle history yet",
+  "live.tabCaptureError": "Unable to capture tab audio. Please refresh and try again.",
+  "opt.glossary": "Custom Glossary / Terminology",
+  "opt.glossaryDescription": "One rule per line (e.g. Gemini=Gemini). Standardizes proper nouns and terminology across selection, page, live subtitles, and chat.",
+  "opt.glossaryPlaceholder": "Gemini=Gemini\nClaude=Claude\n# Comments start with #",
+  "opt.glossaryImport": "Import",
+  "opt.glossaryExport": "Export",
+  "opt.glossaryExportDone": "Glossary exported",
+  "opt.glossaryImportDone": "Imported {count} terminology rules",
+  "opt.liveSettings": "Live Video / Audio Subtitles",
+  "opt.liveSettingsDescription": "Real-time speech-to-text and subtitle translation powered by Google Gemini Live API.",
+  "opt.livePrompt": "Live Subtitles Prompt",
 };
+
 
 const jaJP: MessageDict = {
   // ---- 一般 ----
   "app.name": "Astra Translate",
   "app.desc": "軽量・エレガント・プロバイダー非依存のブラウザ翻訳拡張機能。",
-  "app.version": "Astra Translate v4.9.1 · プロバイダー非依存のブラウザ翻訳拡張機能",
+  "app.version": "Astra Translate v5.0.0 · プロバイダー非依存のブラウザ翻訳拡張機能",
 
   // ---- Options ページ ----
   "opt.provider": "プロバイダー設定",
@@ -772,7 +836,39 @@ const jaJP: MessageDict = {
   "ball.opacity": "透明度",
   "ball.size": "サイズ",
   "ball.close": "フローティングボールを非表示",
+
+  // ---- リアルタイム字幕 & 用語集 ----
+  "live.title": "リアルタイム同時通訳字幕",
+  "live.start": "同時通訳を開始",
+  "live.stop": "通訳を停止",
+  "live.connecting": "接続中…",
+  "live.connected": "接続完了 · 音声を認識中",
+  "live.idle": "待機中",
+  "live.error": "接続エラー",
+  "live.model": "通訳モデル",
+  "live.targetLang": "翻訳先言語",
+  "live.showOriginal": "原文の書き起こしを表示",
+  "live.vad": "無音ゲート (VAD)",
+  "live.vadThreshold": "VAD 閾値",
+  "live.fontSize": "フォントサイズ",
+  "live.bgOpacity": "背景の不透明度",
+  "live.exportSrt": "SRT 字幕を出力",
+  "live.exportTxt": "TXT を出力",
+  "live.clearHistory": "履歴を消去",
+  "live.noHistory": "字幕履歴はありません",
+  "live.tabCaptureError": "タブ音声をキャプチャできませんでした。ページを再読み込みしてください。",
+  "opt.glossary": "カスタム用語集 (Glossary)",
+  "opt.glossaryDescription": "1行に1ルール「原文=訳文」を入力（例: Gemini=双子星）。選択翻訳、ページ翻訳、音声通訳、AIチャット全体で用語を統一します。",
+  "opt.glossaryPlaceholder": "Gemini=双子星\nClaude=クロード\n# #で始まる行はコメント",
+  "opt.glossaryImport": "インポート",
+  "opt.glossaryExport": "エクスポート",
+  "opt.glossaryExportDone": "用語集を出力しました",
+  "opt.glossaryImportDone": "{count} 件の用語をインポートしました",
+  "opt.liveSettings": "リアルタイム音声通訳字幕設定",
+  "opt.liveSettingsDescription": "Google Gemini Live API を利用し、タブ音声をリアルタイムで字幕翻訳します。",
+  "opt.livePrompt": "通訳プロンプト (Prompt)",
 };
+
 
 const messages: Record<UiLanguage, MessageDict> = {
   "zh-CN": zhCN,

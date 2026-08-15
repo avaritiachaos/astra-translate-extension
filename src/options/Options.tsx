@@ -6,9 +6,16 @@ import {
   DEFAULT_PROVIDER_PRESETS,
   SUPPORTED_LANGUAGES,
 } from "../shared/constants";
-import { DEFAULT_SELECTION_PROMPT, DEFAULT_PAGE_PROMPT, DEFAULT_CHAT_PROMPT } from "../shared/prompts";
+import {
+  DEFAULT_SELECTION_PROMPT,
+  DEFAULT_PAGE_PROMPT,
+  DEFAULT_CHAT_PROMPT,
+  DEFAULT_LIVE_TRANSLATE_PROMPT,
+} from "../shared/prompts";
+import { parseGlossary, serializeGlossary } from "../shared/glossary";
 import { getDefaultSettings, switchProviderSettings } from "../shared/storage";
 import "./options.css";
+
 
 export default function Options() {
   const [settings, setSettings] = useState<AstraSettings>(getDefaultSettings());
@@ -140,6 +147,8 @@ export default function Options() {
     scheduleSave();
   }, [scheduleSave]);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Reset prompts
   const handleResetPrompts = useCallback(() => {
     setSettings((prev) => {
@@ -148,12 +157,43 @@ export default function Options() {
         selectionPrompt: DEFAULT_SELECTION_PROMPT,
         pagePrompt: DEFAULT_PAGE_PROMPT,
         chatPrompt: DEFAULT_CHAT_PROMPT,
+        liveTranslatePrompt: DEFAULT_LIVE_TRANSLATE_PROMPT,
       };
       settingsRef.current = next;
       return next;
     });
     scheduleSave();
   }, [scheduleSave]);
+
+  const handleExportGlossary = useCallback(() => {
+    const blob = new Blob([settings.customGlossary || ""], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Astra_Glossary_${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(t(lang, "opt.glossaryExportDone"));
+  }, [settings.customGlossary, lang, showToast]);
+
+  const handleImportGlossary = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = String(event.target?.result || "");
+        const parsed = parseGlossary(content);
+        const formatted = serializeGlossary(parsed);
+        update("customGlossary", formatted);
+        showToast(t(lang, "opt.glossaryImportDone", { count: parsed.length }));
+      };
+      reader.readAsText(file);
+      e.target.value = "";
+    },
+    [update, lang, showToast]
+  );
+
 
   const handleClearAllSiteLexicon = useCallback(async () => {
     const ok = window.confirm(t(lang, "opt.clearSiteLexiconConfirm"));
@@ -247,11 +287,14 @@ export default function Options() {
     { id: "sec-provider", labelKey: "opt.provider" },
     { id: "sec-uilang", labelKey: "opt.uiLang" },
     { id: "sec-translation", labelKey: "opt.translation" },
+    { id: "sec-glossary", labelKey: "opt.glossary" },
+    { id: "sec-live-translate", labelKey: "opt.liveSettings" },
     { id: "sec-floatingball", labelKey: "opt.floatingBall" },
     { id: "sec-chat-context", labelKey: "opt.chatContext" },
     { id: "sec-web-search", labelKey: "opt.webSearch" },
     { id: "sec-prompt", labelKey: "opt.prompt" },
   ];
+
 
   return (
     <div className="ast-options-container">
@@ -808,8 +851,168 @@ export default function Options() {
         </div>
       </div>
 
+      {/* Custom Glossary Card */}
+      <div className="ast-card" id="sec-glossary">
+        <div className="ast-card-title">{t(lang, "opt.glossary")}</div>
+        <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 10 }}>
+          {t(lang, "opt.glossaryDescription")}
+        </div>
+
+        <div className="ast-form-group">
+          <textarea
+            className="ast-form-textarea"
+            rows={8}
+            placeholder={t(lang, "opt.glossaryPlaceholder")}
+            value={settings.customGlossary || ""}
+            onChange={(e) => update("customGlossary", e.target.value)}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <input
+            type="file"
+            accept=".txt,.json"
+            ref={fileInputRef}
+            style={{ display: "none" }}
+            onChange={handleImportGlossary}
+          />
+          <button
+            type="button"
+            className="ast-btn ast-btn-secondary"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {t(lang, "opt.glossaryImport")}
+          </button>
+          <button
+            type="button"
+            className="ast-btn ast-btn-secondary"
+            onClick={handleExportGlossary}
+            disabled={!settings.customGlossary}
+          >
+            {t(lang, "opt.glossaryExport")}
+          </button>
+          <button
+            type="button"
+            className="ast-btn ast-btn-ghost"
+            onClick={() => update("customGlossary", "")}
+            disabled={!settings.customGlossary}
+          >
+            {t(lang, "opt.reset")}
+          </button>
+        </div>
+      </div>
+
+      {/* Live Video / Tab Audio Subtitles Card */}
+      <div className="ast-card" id="sec-live-translate">
+        <div className="ast-card-title">{t(lang, "opt.liveSettings")}</div>
+        <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 12 }}>
+          {t(lang, "opt.liveSettingsDescription")}
+        </div>
+
+        <div className="ast-form-row">
+          <div className="ast-form-group">
+            <label className="ast-form-label">{t(lang, "live.model")}</label>
+            <input
+              className="ast-form-input"
+              type="text"
+              list="live-models-list"
+              value={settings.liveTranslateModel || "models/gemini-3.5-live-translate-preview"}
+              onChange={(e) => update("liveTranslateModel", e.target.value)}
+              placeholder="models/gemini-3.5-live-translate-preview"
+            />
+            <datalist id="live-models-list">
+              <option value="models/gemini-3.5-live-translate-preview">models/gemini-3.5-live-translate-preview（实时同传专用模型，推荐）</option>
+              <option value="models/gemini-2.5-flash">models/gemini-2.5-flash</option>
+              <option value="models/gemini-2.0-flash">models/gemini-2.0-flash</option>
+            </datalist>
+          </div>
+          <div className="ast-form-group">
+            <label className="ast-form-label">{t(lang, "live.targetLang")}</label>
+            <select
+              className="ast-form-select"
+              value={settings.liveTranslateTargetLang || "Simplified Chinese"}
+              onChange={(e) => update("liveTranslateTargetLang", e.target.value)}
+            >
+              {SUPPORTED_LANGUAGES.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="ast-toggle-row">
+          <span className="ast-toggle-label">{t(lang, "live.showOriginal")}</span>
+          <input
+            type="checkbox"
+            className="ast-toggle"
+            checked={settings.liveTranslateShowOriginal}
+            onChange={(e) => update("liveTranslateShowOriginal", e.target.checked)}
+          />
+        </div>
+
+        <div className="ast-toggle-row" style={{ marginTop: 8 }}>
+          <span className="ast-toggle-label">{t(lang, "live.vad")}</span>
+          <input
+            type="checkbox"
+            className="ast-toggle"
+            checked={settings.liveTranslateVadEnabled}
+            onChange={(e) => update("liveTranslateVadEnabled", e.target.checked)}
+          />
+        </div>
+
+        <div className="ast-form-row" style={{ marginTop: 10 }}>
+          <div className="ast-form-group">
+            <label className="ast-form-label">{t(lang, "live.fontSize")}</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <input
+                type="range"
+                min="14"
+                max="36"
+                step="1"
+                value={settings.liveTranslateFontSize || 20}
+                onChange={(e) => update("liveTranslateFontSize", parseInt(e.target.value) || 20)}
+                style={{ flex: 1 }}
+              />
+              <span style={{ minWidth: 40, textAlign: "right", fontSize: 13, color: "#6b7280" }}>
+                {settings.liveTranslateFontSize || 20}px
+              </span>
+            </div>
+          </div>
+          <div className="ast-form-group">
+            <label className="ast-form-label">{t(lang, "live.bgOpacity")}</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={settings.liveTranslateBgOpacity ?? 80}
+                onChange={(e) => update("liveTranslateBgOpacity", parseInt(e.target.value) ?? 80)}
+                style={{ flex: 1 }}
+              />
+              <span style={{ minWidth: 40, textAlign: "right", fontSize: 13, color: "#6b7280" }}>
+                {settings.liveTranslateBgOpacity ?? 80}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="ast-form-group" style={{ marginTop: 10 }}>
+          <label className="ast-form-label">{t(lang, "opt.livePrompt")}</label>
+          <textarea
+            className="ast-form-textarea"
+            rows={4}
+            value={settings.liveTranslatePrompt}
+            onChange={(e) => update("liveTranslatePrompt", e.target.value)}
+          />
+        </div>
+      </div>
+
       {/* Floating Ball Card */}
       <div className="ast-card" id="sec-floatingball">
+
         <div className="ast-card-title">{t(lang, "opt.floatingBall")}</div>
 
         <div className="ast-toggle-row">

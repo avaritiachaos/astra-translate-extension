@@ -21,6 +21,17 @@ import { translateViaProvider, translateViaProviderStream } from "./providerClie
 import { ProviderRequestError, AstraError } from "./errors";
 import { extractJson } from "../shared/utils";
 import { PAGE_SEGMENT_SEPARATOR } from "../shared/constants";
+import { injectGlossaryIntoPrompt } from "../shared/glossary";
+import {
+  startLiveTranslation,
+  stopLiveTranslation,
+  getLiveTranslateState,
+  getLiveSubtitleHistory,
+  clearLiveSubtitleHistory,
+  handleOffscreenStatus,
+  handleOffscreenSubtitle,
+} from "./liveTranslateService";
+
 import {
   resolveTargetLanguageForText,
   classifySelectedText,
@@ -354,10 +365,46 @@ export async function handleMessage(
       return { success: true };
     }
 
+    case "LIVE_TRANSLATE_START": {
+      const payload = msg.payload as { tabId?: number } | undefined;
+      return startLiveTranslation(payload?.tabId);
+    }
+
+    case "LIVE_TRANSLATE_STOP":
+      return stopLiveTranslation();
+
+    case "LIVE_TRANSLATE_GET_STATE":
+      return { success: true, state: getLiveTranslateState() };
+
+    case "GET_LIVE_SUBTITLE_HISTORY":
+      return { success: true, items: getLiveSubtitleHistory() };
+
+    case "CLEAR_LIVE_SUBTITLE_HISTORY":
+      clearLiveSubtitleHistory();
+      return { success: true };
+
+    case "LIVE_TRANSLATE_STATUS": {
+      handleOffscreenStatus(msg.payload as any);
+      return { success: true };
+    }
+
+    case "LIVE_SUBTITLE_DATA": {
+      handleOffscreenSubtitle(msg.payload as any);
+      return { success: true };
+    }
+
+    case "SAVE_GLOSSARY": {
+      const settings = await getSettings();
+      settings.customGlossary = (msg.payload as any)?.glossary ?? "";
+      await saveSettings(settings);
+      return { success: true };
+    }
+
     default:
       return { success: false, error: `Unknown message type: ${(msg as any).type}` };
   }
 }
+
 
 function getLang(settings: AstraSettings): UiLanguage {
   return settings.uiLanguage || "zh-CN";
@@ -510,11 +557,13 @@ async function handleTranslateText(
   // "soft-identifier" and "translate" both use plain translation; the prompt
   // preserves names / code / identifiers unchanged.
 
-  const systemPrompt = (prompt || settings.selectionPrompt).replace(
+  const rawPrompt = (prompt || settings.selectionPrompt).replace(
     /\{\{targetLang\}\}/g,
     finalTargetLang
   );
+  const systemPrompt = injectGlossaryIntoPrompt(rawPrompt, settings.customGlossary);
   const cacheKey = await createTranslationCacheKey({
+
     mode: effectiveMode === "selection" ? "selection" : "manual",
     text,
     targetLang: finalTargetLang,
@@ -713,8 +762,9 @@ function buildPageSystemPrompt(
       `Translate the text between separators together as one coherent passage, but return each ` +
       `fragment's translation in its own segment. Never add, remove, merge, reorder, or output an empty segment.`;
   }
-  return systemPrompt;
+  return injectGlossaryIntoPrompt(systemPrompt, settings.customGlossary);
 }
+
 
 /** Keep only well-formed {id, text} items — one malformed element must not
  * turn the whole batch into an opaque TypeError for the page. */

@@ -105,6 +105,35 @@ export interface AstraSettings extends UserProviderSettings {
   // Translation Cache
   enableTranslationCache: boolean;
   translationCacheMaxEntries: number;
+  // Glossary / Terminology
+  customGlossary: string;
+  // Live Subtitles / Real-time Audio Translation
+  liveTranslateModel: string;
+  liveTranslateTargetLang: string;
+  liveTranslateShowOriginal: boolean;
+  liveTranslateVadEnabled: boolean;
+  liveTranslateVadThreshold: number;
+  liveTranslateFontSize: number;
+  liveTranslateBgOpacity: number;
+  liveTranslatePrompt: string;
+}
+
+export interface LiveSubtitleHistoryItem {
+  id: string;
+  startTime: number;
+  endTime?: number;
+  original: string;
+  translation: string;
+}
+
+export type LiveTranslateStatusKind = "idle" | "connecting" | "connected" | "error" | "info";
+
+export interface LiveTranslateState {
+  running: boolean;
+  status: LiveTranslateStatusKind;
+  message?: string;
+  tabId?: number;
+  level?: number;
 }
 
 // ---------- Messages ----------
@@ -133,7 +162,17 @@ export type MessageType =
   | "SAVE_FLOATING_BALL_OPACITY"
   | "SAVE_FLOATING_BALL_ENABLED"
   | "SAVE_FLOATING_BALL_SIZE"
-  | "SAVE_POPUP_SCALE";
+  | "SAVE_POPUP_SCALE"
+  | "LIVE_TRANSLATE_START"
+  | "LIVE_TRANSLATE_STOP"
+  | "LIVE_TRANSLATE_GET_STATE"
+  | "LIVE_TRANSLATE_STATUS"
+  | "LIVE_SUBTITLE_DATA"
+  | "LIVE_SUBTITLE_CLEAR"
+  | "GET_LIVE_SUBTITLE_HISTORY"
+  | "CLEAR_LIVE_SUBTITLE_HISTORY"
+  | "SAVE_GLOSSARY";
+
 
 /** Port name for streaming page-batch translation (content ↔ service worker). */
 export const TRANSLATE_BATCH_STREAM_PORT = "astra-translate-batch-stream";

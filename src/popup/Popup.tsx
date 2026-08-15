@@ -11,7 +11,10 @@ import type {
   ChatStreamPhase,
   ChatTurn,
   TranslationHistoryEntry,
+  LiveSubtitleHistoryItem,
+  LiveTranslateState,
 } from "../shared/types";
+
 import {
   CHAT_EFFORT_SESSION_KEY,
   CHAT_STORAGE_KEY,
@@ -366,7 +369,7 @@ function ChatModelMenu({
   );
 }
 
-type PopupMode = "translate" | "chat";
+type PopupMode = "translate" | "chat" | "live";
 
 export default function Popup() {
   const [settings, setSettings] = useState<AstraSettings | null>(null);
@@ -388,6 +391,15 @@ export default function Popup() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // ---- Live Subtitle mode state ----
+  const [liveState, setLiveState] = useState<LiveTranslateState>({
+    running: false,
+    status: "idle",
+    message: "",
+  });
+  const [liveHistory, setLiveHistory] = useState<LiveSubtitleHistoryItem[]>([]);
+  const [liveLoading, setLiveLoading] = useState(false);
+
   // ---- Chat mode state ----
   const [mode, setMode] = useState<PopupMode>("translate");
   const [chatTurns, setChatTurns] = useState<ChatTurn[]>([]);
@@ -407,6 +419,7 @@ export default function Popup() {
   const chatListRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const streamReqRef = useRef(0);
+
 
   const lang: UiLanguage = settings?.uiLanguage || "zh-CN";
 
@@ -716,6 +729,79 @@ export default function Popup() {
     chrome.runtime.sendMessage({ type: "OPEN_OPTIONS_PAGE" });
   }, []);
 
+  const refreshLiveState = useCallback(async () => {
+    try {
+      const res = await chrome.runtime.sendMessage({ type: "LIVE_TRANSLATE_GET_STATE" });
+      if (res?.state) setLiveState(res.state);
+      const hist = await chrome.runtime.sendMessage({ type: "GET_LIVE_SUBTITLE_HISTORY" });
+      if (hist?.items) setLiveHistory(hist.items);
+    } catch {}
+  }, []);
+
+  const handleToggleLive = useCallback(async () => {
+    setLiveLoading(true);
+    setError("");
+    try {
+      if (liveState.running) {
+        await chrome.runtime.sendMessage({ type: "LIVE_TRANSLATE_STOP" });
+        setLiveState({ running: false, status: "idle", message: "已停止" });
+      } else {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const res = await chrome.runtime.sendMessage({
+          type: "LIVE_TRANSLATE_START",
+          payload: { tabId: tab?.id },
+        });
+        if (!res?.success) {
+          setError(res?.error || t(lang, "live.tabCaptureError"));
+        } else {
+          setLiveState({ running: true, status: "connecting", message: "连接中…" });
+        }
+      }
+      setTimeout(refreshLiveState, 500);
+    } catch (err: any) {
+      setError(err?.message || "操作失败");
+    } finally {
+      setLiveLoading(false);
+    }
+  }, [liveState.running, lang, refreshLiveState]);
+
+  const handleExportLiveSrt = useCallback(() => {
+    if (liveHistory.length === 0) return;
+    let srtContent = "";
+    let idx = 1;
+    const baseTime = liveHistory[0].startTime;
+    const formatTime = (ms: number) => {
+      const totalSec = Math.floor(Math.max(0, ms) / 1000);
+      const hours = String(Math.floor(totalSec / 3600)).padStart(2, "0");
+      const minutes = String(Math.floor((totalSec % 3600) / 60)).padStart(2, "0");
+      const seconds = String(totalSec % 60).padStart(2, "0");
+      const millis = String(Math.max(0, ms) % 1000).padStart(3, "0");
+      return `${hours}:${minutes}:${seconds},${millis}`;
+    };
+    for (const item of liveHistory) {
+      const startMs = item.startTime - baseTime;
+      const endMs = item.endTime ? item.endTime - baseTime : startMs + 3000;
+      srtContent += `${idx}\n${formatTime(startMs)} --> ${formatTime(endMs)}\n`;
+      if (item.original) srtContent += `${item.original}\n`;
+      srtContent += `${item.translation}\n\n`;
+      idx++;
+    }
+    const blob = new Blob([srtContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Astra_LiveSubtitle_${Date.now()}.srt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(t(lang, "opt.glossaryExportDone"));
+  }, [liveHistory, lang, showToast]);
+
+  const handleClearLiveHistory = useCallback(async () => {
+    await chrome.runtime.sendMessage({ type: "CLEAR_LIVE_SUBTITLE_HISTORY" });
+    setLiveHistory([]);
+    showToast(t(lang, "live.clearHistory"));
+  }, [lang, showToast]);
+
   // ---- Chat mode actions ----
 
   const switchMode = useCallback((next: PopupMode) => {
@@ -723,7 +809,11 @@ export default function Popup() {
     chrome.storage.session
       ?.set({ [POPUP_MODE_STORAGE_KEY]: next })
       .catch(() => {});
-  }, []);
+    if (next === "live") {
+      void refreshLiveState();
+    }
+  }, [refreshLiveState]);
+
 
   /** Pre-flight rejection: nothing entered the conversation — surface the
    * error inline and give the text (and attachment) back for a retry. */
@@ -1104,7 +1194,16 @@ export default function Popup() {
             >
               {t(lang, "popup.modeChat")}
             </button>
+            <button
+              role="tab"
+              aria-selected={mode === "live"}
+              className={`ast-seg-btn ${mode === "live" ? "ast-seg-btn--active" : ""}`}
+              onClick={() => switchMode("live")}
+            >
+              {t(lang, "live.title")}
+            </button>
           </div>
+
           <div className="ast-popup-header-actions">
             {mode === "chat" && (
               <button
@@ -1610,7 +1709,79 @@ export default function Popup() {
         </>
       )}
 
+      {mode === "live" && (
+        <div className="ast-live-panel">
+          <div className="ast-live-card">
+            <div className="ast-live-card-top">
+              <div className="ast-live-status-badge">
+                <span className={`ast-live-dot ast-live-dot--${liveState.status}`} />
+                <span className="ast-live-status-text">
+                  {liveState.running
+                    ? (liveState.message || t(lang, "live.connected"))
+                    : t(lang, "live.idle")}
+                </span>
+              </div>
+              <div className="ast-live-level-track" title="音量电平">
+                <div
+                  className="ast-live-level-bar"
+                  style={{ width: `${liveState.level || 0}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="ast-live-controls">
+              <button
+                type="button"
+                className={`ast-btn ${liveState.running ? "ast-btn-danger" : "ast-btn-primary"} ast-live-toggle-btn`}
+                onClick={handleToggleLive}
+                disabled={liveLoading}
+              >
+                {liveLoading ? "…" : liveState.running ? t(lang, "live.stop") : t(lang, "live.start")}
+              </button>
+            </div>
+          </div>
+
+          <div className="ast-live-history-header">
+            <span className="ast-live-history-title">{t(lang, "live.title")}</span>
+            <div className="ast-live-history-actions">
+              <button
+                type="button"
+                className="ast-btn ast-btn-sm"
+                onClick={handleExportLiveSrt}
+                disabled={liveHistory.length === 0}
+                title={t(lang, "live.exportSrt")}
+              >
+                📥 SRT
+              </button>
+              <button
+                type="button"
+                className="ast-btn ast-btn-sm"
+                onClick={handleClearLiveHistory}
+                disabled={liveHistory.length === 0}
+                title={t(lang, "live.clearHistory")}
+              >
+                🗑
+              </button>
+            </div>
+          </div>
+
+          <div className="ast-live-history-list">
+            {liveHistory.length === 0 ? (
+              <div className="ast-live-empty">{t(lang, "live.noHistory")}</div>
+            ) : (
+              liveHistory.slice().reverse().map((item) => (
+                <div key={item.id} className="ast-live-item">
+                  {item.original && <div className="ast-live-item-orig">{item.original}</div>}
+                  <div className="ast-live-item-trans">{item.translation}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
+
       {toast && (
         <div className="ast-toast" role="status" aria-live="polite">
           <span className="ast-toast-icon">✓</span>
