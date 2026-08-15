@@ -2,8 +2,8 @@
 // Astra Translate – Error Handling
 // ============================================================
 
-import { t, type UiLanguage } from "../shared/i18n";
-import { isRetryableHttpStatus } from "../shared/retry";
+import { t, type UiLanguage } from "../shared/i18n.ts";
+import { isRetryableHttpStatus } from "../shared/retry.ts";
 
 export class AstraError extends Error {
   code: string;

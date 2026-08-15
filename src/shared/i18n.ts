@@ -10,7 +10,7 @@ const zhCN: MessageDict = {
   // ---- 通用 ----
   "app.name": "Astra Translate",
   "app.desc": "轻量、优雅、模型服务商中立的浏览器翻译插件。",
-  "app.version": "Astra Translate v4.9.0 · 模型服务商中立的浏览器翻译插件",
+  "app.version": "Astra Translate v4.9.1 · 模型服务商中立的浏览器翻译插件",
 
   // ---- Options 页面 ----
   "opt.provider": "服务商设置",
@@ -266,7 +266,7 @@ const enUS: MessageDict = {
   // ---- General ----
   "app.name": "Astra Translate",
   "app.desc": "A lightweight, elegant, provider-neutral browser translator.",
-  "app.version": "Astra Translate v4.9.0 · Provider-neutral browser translator",
+  "app.version": "Astra Translate v4.9.1 · Provider-neutral browser translator",
 
   // ---- Options ----
   "opt.provider": "Provider Settings",
@@ -522,7 +522,7 @@ const jaJP: MessageDict = {
   // ---- 一般 ----
   "app.name": "Astra Translate",
   "app.desc": "軽量・エレガント・プロバイダー非依存のブラウザ翻訳拡張機能。",
-  "app.version": "Astra Translate v4.9.0 · プロバイダー非依存のブラウザ翻訳拡張機能",
+  "app.version": "Astra Translate v4.9.1 · プロバイダー非依存のブラウザ翻訳拡張機能",
 
   // ---- Options ページ ----
   "opt.provider": "プロバイダー設定",

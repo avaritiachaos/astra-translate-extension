@@ -2,20 +2,20 @@
 // Astra Translate – OpenAI-compatible Client
 // ============================================================
 
-import type { UserProviderSettings } from "../shared/types";
-import { t, type UiLanguage } from "../shared/i18n";
+import type { UserProviderSettings } from "../shared/types.ts";
+import { t, type UiLanguage } from "../shared/i18n.ts";
 import {
   mapHttpError,
   isTimeoutError,
   isNetworkError,
   ProviderRequestError,
-} from "./errors";
+} from "./errors.ts";
 import {
   computeBackoffMs,
   isRetryableHttpStatus,
   parseRetryAfterMs,
   sleep,
-} from "../shared/retry";
+} from "../shared/retry.ts";
 
 interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -53,7 +53,7 @@ export interface ExtraRequestOptions {
   optionalBody?: Record<string, unknown>;
 }
 
-function buildRequestParts(
+export function buildRequestParts(
   settings: UserProviderSettings,
   messages: ChatMessage[],
   stream: boolean,
@@ -84,9 +84,13 @@ function buildRequestParts(
   // already accounts for the thinking switch, so the two never stack.
   const optional: Record<string, unknown> = extra?.optionalBody
     ? { ...extra.optionalBody }
-    : providerId === "deepseek" && disableThinking
-      ? { thinking: { type: "disabled" } }
-      : {};
+    : providerId === "google-gemini"
+      ? { reasoning_effort: "none" }
+      : providerId === "deepseek"
+        ? { thinking: { type: "disabled" } }
+        : disableThinking
+          ? { reasoning_effort: "none" }
+          : {};
 
   const optionalKeys = Object.keys(optional);
   for (const key of optionalKeys) body[key] = optional[key];
