@@ -26,11 +26,11 @@ Most translation extensions push you to sign in, buy a membership, or limit
 your usage — or they bury you in ads. Astra does the opposite: **it doesn't
 hold you hostage; it just translates well.**
 
-- 🔑 **Bring your own API** — connect DeepSeek and other LLMs, pay per use
+- 🔑 **Bring your own API** — connect Google Gemini (AI Studio), DeepSeek, and other LLMs; pay per use or utilize free tiers
 - 🚫 **No login / no subscription / no ads** — install, paste a key, go
 - 💸 **Permanent cache** — repeated text returns instantly, with no second charge
 - 🎨 **Adjustable translation style** — make the model translate in the tone you like
-- 🔒 **Privacy-first** — your API key stays in local storage; no data collection
+- 🔒 **Privacy-first** — your API key stays in local storage; isolated per-provider storage
 
 ---
 
@@ -56,12 +56,13 @@ of speech, common meanings, context-specific explanation, examples, and
 pronunciation** — and it recognizes names / IDs and leaves them unchanged.
 Great for looking up words and reading foreign articles.
 
-### In-page AI chat
+### In-page AI chat & instant model switching
 Select text and click 💬, or right-click the floating ball and pick "Ask AI about this page" — the chat panel opens **inside the web page**, so you never get pulled away from what you were reading. Drag it, resize it, `Esc` to close.
 
+- **Instant foreground model switcher** — click the model capsule in the chat action bar to switch active provider and model (Gemini 3.7 Flash, DeepSeek V4, etc.) without leaving your conversation
+- **Native reasoning effort** — supports provider-specific thinking levels (Gemini: `off / low / medium / high`, DeepSeek: `off / high / max`)
 - **Reads the page for you** — opening chat extracts the article automatically (scored by content density, skipping nav / header / footer / sidebar) and shows it as a removable context chip. Click ✕ to drop it, or turn the whole behaviour off in Settings
 - **Regenerate** — didn't like the answer? Hit ↻ instead of retyping the question
-- **Reasoning modes** — `off / low / high / xhigh / max`, using DeepSeek's official English values directly
 - **Web supplement** — optional: search first, answer from the results, cite the sources
 - **Shared conversation** — the in-page panel and the toolbar popup are the same chat; switch freely without losing context
 - **Leaves no trace** — chats live in this browser session only and clear when you quit
@@ -71,12 +72,11 @@ Select text and click 💬, or right-click the floating ball and pick "Ask AI ab
 - **Custom prompts (style)** — both selection and page prompts are editable for any tone: formal, idiomatic, playful, academic
 - **Tune the UI** — floating ball size / opacity, popup scale, concurrency, batch size, timeout, and temperature
 
-### Provider-neutral
-Works with any **OpenAI-compatible** API (DeepSeek, OpenAI, Groq, local models,
-etc.). Freely set the base URL and model name. Gemini / Anthropic adapters are
-planned.
+### Provider-neutral with isolated storage
+Built-in official presets for **Google Gemini (AI Studio)** (with `gemini-3.7-flash` free tier support) and **DeepSeek**, as well as any **OpenAI-compatible** API (OpenAI, Groq, local models, etc.). Configuration and API keys are **completely isolated per provider**.
 
 ### Experience details
+- **iOS 18 Liquid Glass design** — frosted glassmorphism with high-saturation refraction (`backdrop-filter: blur(28px)`), specular highlight reflections, iOS segmented tab controls, and Dynamic Island top floating notification capsules
 - **Trilingual UI** — 简体中文 / English / 日本語
 - **Automatic dark mode** — follows the system theme
 - **Auto-save settings** — changes persist immediately; a successful connection test saves automatically
@@ -119,10 +119,12 @@ The build output is in `dist/`. Load the `dist` folder following steps 2–4 abo
 
 ### Configuration
 
-1. Click the extension icon → **Open Settings**
-2. Choose the DeepSeek **provider preset** (or a custom OpenAI-compatible endpoint)
-3. Enter your **API Key** (create one at <https://platform.deepseek.com> after signing up and topping up)
-4. Click **Test Connection** — it saves automatically on success
+1. Click the extension icon → **Open Settings** ⚙️
+2. Choose **Google Gemini (AI Studio)**, **DeepSeek**, or a custom OpenAI-compatible endpoint
+3. Enter your **API Key**:
+   - Google Gemini: Get one for free at <https://aistudio.google.com/apikey>
+   - DeepSeek: Create one at <https://platform.deepseek.com>
+4. Click **Test Connection** — saves automatically on success with isolated storage per provider
 
 ---
 
@@ -134,6 +136,7 @@ The build output is in `dist/`. Load the `dist` folder following steps 2–4 abo
 | Right-click selection | "Translate selection with Astra" |
 | `Alt+T` | Translate the current selection |
 | Extension icon | Open the popup to type / paste and translate |
+| Switch model | Click the model pill in popup/in-page chat bar anytime |
 | Full-page translation | Popup → "Translate Current Page"; "Restore" brings back the original |
 | Look up a word | Select a word; the popup shows part of speech / meanings / examples / pronunciation |
 
@@ -143,7 +146,7 @@ The build output is in `dist/`. Load the `dist` folder following steps 2–4 abo
 
 | Group | Setting | Default | Notes |
 |-------|---------|---------|-------|
-| Provider | Preset / Base URL / Endpoint / Model / API Key | DeepSeek · `deepseek-v4-flash` | OpenAI-compatible |
+| Provider | Preset / Base URL / Endpoint / Model / API Key | DeepSeek · `deepseek-v4-flash` / Gemini · `gemini-3.7-flash` | Isolated per preset |
 | Provider | Disable thinking | On | Speeds up / saves cost on thinking-capable models |
 | Translation | Default / Page / Selection target language | Simplified Chinese | Three independent settings |
 | Translation | Temperature | 0.2 | Lower is more stable |
@@ -195,9 +198,11 @@ src/
 
 ## 🗺 Roadmap
 
-- [ ] Native Gemini / Anthropic adapters
+- [x] Google Gemini (AI Studio) preset & native reasoning efforts
+- [x] Translation history & recovery
+- [x] iOS 18 Liquid Glass design language
 - [ ] More provider presets
-- [ ] Translation history & favorites
+- [ ] Translation favorites
 
 ---
 
