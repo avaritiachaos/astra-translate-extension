@@ -25,6 +25,7 @@ export function getDefaultSettings(): AstraSettings {
     temperature: 0.2,
     timeoutMs: 30000,
     disableThinking: true,
+    customHeaders: {},
     uiLanguage: "zh-CN",
     defaultTargetLang: DEFAULT_TARGET_LANG,
     pageTargetLang: DEFAULT_TARGET_LANG,

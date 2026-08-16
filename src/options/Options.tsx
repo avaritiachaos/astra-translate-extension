@@ -37,6 +37,15 @@ export default function Options() {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
+  // Custom headers (JSON text, e.g. {"X-Proxy-Token":"abc"})
+  const [customHeadersText, setCustomHeadersText] = useState(() => {
+    try {
+      return JSON.stringify(settings.customHeaders || {}, null, 0);
+    } catch {
+      return "{}";
+    }
+  });
+
   const lang: UiLanguage = settings.uiLanguage || "zh-CN";
 
   const refreshSiteStats = useCallback(() => {
@@ -108,6 +117,7 @@ export default function Options() {
           "disableThinking",
           "temperature",
           "apiFormat",
+          "customHeaders",
         ];
         if (providerKeys.includes(key as string) && prev.providerId) {
           const configs = { ...(prev.providerConfigs || {}) };
@@ -123,6 +133,27 @@ export default function Options() {
       scheduleSave();
     },
     [scheduleSave]
+  );
+
+  // Parse JSON custom headers text into settings.customHeaders (valid JSON only)
+  const handleCustomHeadersChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const text = e.target.value;
+      setCustomHeadersText(text);
+      try {
+        const parsed = JSON.parse(text || "{}");
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          const clean: Record<string, string> = {};
+          for (const [k, v] of Object.entries(parsed)) {
+            if (typeof v === "string") clean[k] = v;
+          }
+          update("customHeaders", clean);
+        }
+      } catch {
+        // invalid JSON while typing: skip update (auto-save will keep last valid)
+      }
+    },
+    [update]
   );
 
   // Provider preset change: persist current provider's settings and restore target provider's settings
@@ -376,6 +407,19 @@ export default function Options() {
               value={settings.endpoint}
               onChange={(e) => update("endpoint", e.target.value)}
               placeholder={selectedPreset?.endpoint || "/chat/completions"}
+            />
+          </div>
+        </div>
+
+        <div className="ast-form-row">
+          <div className="ast-form-group">
+            <label className="ast-form-label">{t(lang, "opt.customHeaders")}</label>
+            <input
+              className="ast-form-input"
+              type="text"
+              value={customHeadersText}
+              onChange={handleCustomHeadersChange}
+              placeholder={'{"X-Proxy-Token":"your-token"}'}
             />
           </div>
         </div>

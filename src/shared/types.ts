@@ -29,6 +29,8 @@ export interface ProviderConfigItem {
   disableThinking?: boolean;
   temperature?: number;
   apiFormat?: ProviderApiFormat;
+  /** Extra HTTP headers applied to every provider request (e.g. X-Proxy-Token). */
+  customHeaders?: Record<string, string>;
 }
 
 export interface UserProviderSettings {
@@ -42,6 +44,8 @@ export interface UserProviderSettings {
   temperature: number;
   timeoutMs: number;
   disableThinking: boolean;
+  /** Extra HTTP headers applied to every request (e.g. {"X-Proxy-Token": "..."}). */
+  customHeaders?: Record<string, string>;
 }
 
 // ---------- Full settings ----------

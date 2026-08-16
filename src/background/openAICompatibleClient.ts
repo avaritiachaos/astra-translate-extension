@@ -100,6 +100,14 @@ export function buildRequestParts(
     Authorization: `Bearer ${apiKey}`,
   };
 
+  // Apply user-configured extra headers (e.g. X-Proxy-Token for a self-hosted
+  // reverse proxy). User headers win over defaults.
+  if (settings.customHeaders) {
+    for (const [k, v] of Object.entries(settings.customHeaders)) {
+      if (k && v) headers[k] = v;
+    }
+  }
+
   return { url, headers, body, optionalKeys };
 }
 
