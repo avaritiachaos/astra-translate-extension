@@ -89,7 +89,7 @@ export function buildRequestParts(
       : providerId === "deepseek"
         ? { thinking: { type: "disabled" } }
         : disableThinking
-          ? { reasoning_effort: "none" }
+          ? { thinking: false }   // 自定义 OpenAI 兼容网关（如本地反代）认 thinking:false，比 reasoning_effort 更通用
           : {};
 
   const optionalKeys = Object.keys(optional);
