@@ -1924,7 +1924,7 @@ function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
   (target || document.body).appendChild(el);
   panel = el;
 
-  attachDragAndResize(el, header, resize, !embedded);
+  attachDragAndResize(el, header, resize, true, embedded);
   return el;
 }
 
@@ -1984,7 +1984,8 @@ function attachDragAndResize(
   el: HTMLElement,
   header: HTMLElement,
   grip: HTMLElement,
-  interactive = true
+  interactive = true,
+  embedded = false
 ): void {
   let dragging = false;
   let dragDx = 0;
@@ -1995,8 +1996,30 @@ function attachDragAndResize(
   let startX = 0;
   let startY = 0;
 
+  const isEmbedded = !!embedded;
+  const targetHost = embeddedMount?.host;
+
   const onMouseMove = (e: MouseEvent) => {
     if (dragging) {
+      if (isEmbedded && targetHost) {
+        // Dragging an embedded panel moves the host container (e.g. selection bubble / draggable popup)
+        let nx = e.clientX - dragDx;
+        let ny = e.clientY - dragDy;
+        if (targetHost.style.position === "fixed") {
+          nx = Math.max(0, Math.min(nx, window.innerWidth - targetHost.offsetWidth));
+          ny = Math.max(0, Math.min(ny, window.innerHeight - 40));
+        } else {
+          // Absolute position: include scroll
+          nx += window.scrollX;
+          ny += window.scrollY;
+          nx = Math.max(window.scrollX, Math.min(nx, window.scrollX + window.innerWidth - targetHost.offsetWidth));
+          ny = Math.max(window.scrollY, Math.min(ny, window.scrollY + window.innerHeight - 40));
+        }
+        targetHost.style.left = `${nx}px`;
+        targetHost.style.top = `${ny}px`;
+        return;
+      }
+
       const x = Math.min(
         Math.max(0, e.clientX - dragDx),
         Math.max(0, window.innerWidth - el.offsetWidth)
@@ -2010,8 +2033,9 @@ function attachDragAndResize(
       return;
     }
     if (resizing) {
-      el.style.width = `${Math.max(300, startW + (e.clientX - startX))}px`;
-      el.style.height = `${Math.max(320, startH + (e.clientY - startY))}px`;
+      const resizeTarget = (isEmbedded && targetHost) ? targetHost : el;
+      resizeTarget.style.width = `${Math.max(300, startW + (e.clientX - startX))}px`;
+      resizeTarget.style.height = `${Math.max(320, startH + (e.clientY - startY))}px`;
     }
   };
 
@@ -2027,7 +2051,8 @@ function attachDragAndResize(
     if (!interactive) return;
     if ((e.target as HTMLElement).closest(`.${P}-cp-hbtn`)) return;
     dragging = true;
-    const rect = el.getBoundingClientRect();
+    const dragTarget = (isEmbedded && targetHost) ? targetHost : el;
+    const rect = dragTarget.getBoundingClientRect();
     dragDx = e.clientX - rect.left;
     dragDy = e.clientY - rect.top;
     document.body.style.userSelect = "none";
@@ -2037,7 +2062,8 @@ function attachDragAndResize(
   grip.addEventListener("mousedown", (e) => {
     if (!interactive) return;
     resizing = true;
-    const rect = el.getBoundingClientRect();
+    const resizeTarget = (isEmbedded && targetHost) ? targetHost : el;
+    const rect = resizeTarget.getBoundingClientRect();
     startW = rect.width;
     startH = rect.height;
     startX = e.clientX;
