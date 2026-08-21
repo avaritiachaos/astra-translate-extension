@@ -154,6 +154,18 @@ test("classifySelectedText: soft identifier → dictionary on selection, soft-id
   assert.equal(classifySelectedText("avaritiachaos", "page", SETTINGS), "soft-identifier");
 });
 
+test("classifySelectedText: Japanese Katakana, Hiragana, single Kanji, and short CJK words → dictionary on selection", () => {
+  assert.equal(classifySelectedText("ム", "selection", SETTINGS), "dictionary");
+  assert.equal(classifySelectedText("ま", "selection", SETTINGS), "dictionary");
+  assert.equal(classifySelectedText("日", "selection", SETTINGS), "dictionary");
+  assert.equal(classifySelectedText("システム", "selection", SETTINGS), "dictionary");
+  assert.equal(classifySelectedText("日企面试", "selection", SETTINGS), "dictionary");
+});
+
+test("classifySelectedText: long Japanese or CJK sentence → translate mode", () => {
+  assert.equal(classifySelectedText("日企工程师看英文技术文档和代码非常多，眼睛看英文单词毫无障碍！", "selection", SETTINGS), "translate");
+});
+
 test("classifySelectedText: a full sentence is translated", () => {
   assert.equal(classifySelectedText("This is a sentence worth translating.", "manual", SETTINGS), "translate");
 });

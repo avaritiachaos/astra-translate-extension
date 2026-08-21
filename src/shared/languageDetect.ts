@@ -442,12 +442,18 @@ export function classifySelectedText(
     return "soft-identifier";
   }
 
-  // 3. Short Latin word or 2-4 word phrase → dictionary (selection only).
+  // 3. Short word, single character, or 2-4 word phrase → dictionary (selection only).
   if (dictionaryAllowed && isShortSmartTargetCandidate(trimmed, settings)) {
     const dominant = detectDominantScript(trimmed);
     if (dominant === "latin") {
       const wordCount = countLatinWords(trimmed);
       if (wordCount >= 1 && wordCount <= 4) {
+        return "dictionary";
+      }
+    } else if (dominant === "ja" || dominant === "zh" || dominant === "ko" || countCjk(trimmed) > 0) {
+      const cjkCount = countCjk(trimmed);
+      const latinCount = countLatinWords(trimmed);
+      if (cjkCount >= 1 && cjkCount <= 6 && latinCount <= 2) {
         return "dictionary";
       }
     }

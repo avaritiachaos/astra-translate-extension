@@ -1020,11 +1020,11 @@ function forceRemoveBubble(): void {
 }
 
 /** Check if text is worth translating. */
-function isTranslatable(text: string): boolean {
+export function isTranslatable(text: string): boolean {
   const trimmed = text.trim();
-  if (trimmed.length < 2) return false;
+  if (trimmed.length < 1) return false;
   if (/^[\d\s.,:;!?%+\-*/=()[\]{}]+$/.test(trimmed)) return false;
-  if (/^[^\w\s]+$/.test(trimmed)) return false;
+  if (/^[\p{P}\p{S}\s]+$/u.test(trimmed)) return false;
   if (/^https?:\/\//i.test(trimmed)) return false;
   return true;
 }
@@ -1454,7 +1454,11 @@ function renderDictionaryCard(
   }
 
   // Main translation
-  html += `<div class="${P}-dict-main-translation">${escapeHtml(result.translation)}</div>`;
+  const displayTranslation = (result.translation && result.translation.trim() !== result.selectedText.trim())
+    ? result.translation
+    : (result.contextMeaning || (result.meanings && result.meanings[0]) || result.translation);
+
+  html += `<div class="${P}-dict-main-translation">${escapeHtml(displayTranslation)}</div>`;
 
   // Context section
   if (result.contextMeaning) {

@@ -11,6 +11,7 @@ import {
   showDraggablePopup,
   isDragPopupOpen,
   isSelectionBtnHovered,
+  isTranslatable,
   initBubbleClose,
   prefetchLang,
   setPopupScale,
@@ -84,7 +85,7 @@ document.addEventListener("mouseup", (e) => {
     const sel = window.getSelection();
     const text = sel?.toString().trim();
 
-    if (text && text.length > 1 && text !== lastSelectionText) {
+    if (text && text.length >= 1 && isTranslatable(text) && text !== lastSelectionText) {
       // Skip if inside input/textarea/password/contenteditable
       const anchor = sel?.anchorNode;
       if (anchor) {
@@ -120,7 +121,7 @@ document.addEventListener("selectionchange", () => {
     if (isSelectionBtnHovered()) return;
     const sel = window.getSelection();
     const text = sel?.toString().trim();
-    if (!text || text.length <= 1) {
+    if (!text || !isTranslatable(text)) {
       const btn = document.querySelector(".ast-selection-btn");
       if (btn) btn.remove();
       lastSelectionText = "";
