@@ -27,9 +27,33 @@ interface CompletionResponse {
   choices: CompletionChoice[];
 }
 
+function extractDeltaText(choice?: StreamDeltaChoice): string {
+  if (!choice) return "";
+  const d = choice.delta;
+  if (d) {
+    if (typeof d.content === "string") return d.content;
+    if (typeof (d as any).text === "string") return (d as any).text;
+    if (Array.isArray(d.content)) {
+      return d.content
+        .map((p) =>
+          typeof p === "string" ? p : p && typeof p === "object" && "text" in p ? (p as any).text : ""
+        )
+        .join("");
+    }
+  }
+  const m = choice.message;
+  if (m) {
+    if (typeof m.content === "string") return m.content;
+    if (typeof (m as any).text === "string") return (m as any).text;
+  }
+  if (typeof (choice as any).text === "string") return (choice as any).text;
+  return "";
+}
+
 interface StreamDeltaChoice {
-  delta?: { content?: string };
-  message?: { content?: string };
+  delta?: { content?: string | unknown[]; text?: string };
+  message?: { content?: string; text?: string };
+  text?: string;
 }
 
 interface StreamChunk {
@@ -357,10 +381,7 @@ export async function openAIChatStream(
         }
         try {
           const chunk = JSON.parse(data) as StreamChunk;
-          const delta =
-            chunk.choices?.[0]?.delta?.content ??
-            chunk.choices?.[0]?.message?.content ??
-            "";
+          const delta = extractDeltaText(chunk.choices?.[0]);
           if (delta) {
             full += delta;
             emittedAny = true;
