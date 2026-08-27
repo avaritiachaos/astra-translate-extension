@@ -71,7 +71,7 @@ describe("openAICompatibleClient buildRequestParts", () => {
       "zh-CN"
     );
 
-    assert.equal(parts.body.reasoning_effort, "none");
-    assert.deepEqual(parts.optionalKeys, ["reasoning_effort"]);
+    assert.equal(parts.body.thinking, false);
+    assert.deepEqual(parts.optionalKeys, ["thinking"]);
   });
 });

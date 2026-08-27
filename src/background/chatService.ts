@@ -16,6 +16,7 @@ import {
   CHAT_STORAGE_KEY,
   type AstraSettings,
   type ChatAttachment,
+  type ChatImageAttachment,
   type ChatPageContext,
   type ChatResponse,
   type ChatSearchSource,
@@ -25,7 +26,13 @@ import {
   type ChatStreamRequest,
   type ChatTurn,
 } from "../shared/types";
-import { buildChatContext, type ChatContextTurn } from "../shared/chatContext";
+import {
+  buildChatContext,
+  hasHistoricalImages,
+  getAntiHallucinationNotice,
+  type ChatContextTurn,
+} from "../shared/chatContext";
+import { isVisionCapable } from "../shared/modelCapability";
 import { buildChatSearchQuery } from "../shared/chatSearch";
 import {
   buildEffortBody,
@@ -74,6 +81,28 @@ function sanitizePageContext(raw: unknown): ChatPageContext | undefined {
     url: typeof page.url === "string" ? page.url.slice(0, 500) : "",
     text: page.text.slice(0, MAX_ATTACH_TEXT_CHARS),
   };
+}
+
+/** Accept and bound user-attached images (up to 4 images per turn). */
+function sanitizeImages(raw: unknown): ChatImageAttachment[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const cleaned: ChatImageAttachment[] = [];
+  for (const item of raw.slice(0, 4)) {
+    if (!item || typeof item !== "object") continue;
+    const { id, mimeType, dataUrl, name, width, height, description } =
+      item as Partial<ChatImageAttachment>;
+    if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) continue;
+    cleaned.push({
+      id: typeof id === "string" ? id : `img-${Date.now()}`,
+      mimeType: typeof mimeType === "string" ? mimeType : "image/jpeg",
+      dataUrl,
+      name: typeof name === "string" ? name.slice(0, 100) : undefined,
+      width: typeof width === "number" ? width : undefined,
+      height: typeof height === "number" ? height : undefined,
+      description: typeof description === "string" ? description.slice(0, 200) : undefined,
+    });
+  }
+  return cleaned.length > 0 ? cleaned : undefined;
 }
 
 function emptyChatState(): ChatState {
@@ -193,6 +222,7 @@ function searchQueryFor(text: string, attachment?: ChatAttachment): string {
 interface RunOpts {
   rawText: string;
   rawAttachment?: unknown;
+  rawImages?: unknown;
   rawPageContext?: unknown;
   webSearchRequested?: boolean;
   /** Re-answer the last question instead of appending a new one. */
@@ -207,6 +237,7 @@ interface ExchangeClaim {
   gen: number;
   turns: ChatTurn[];
   attachment?: ChatAttachment;
+  images?: ChatImageAttachment[];
   pageContext?: ChatPageContext;
   wantSearch: boolean;
 }
@@ -219,6 +250,7 @@ interface ExchangeClaim {
 async function claimForSend(
   text: string,
   attachment: ChatAttachment | undefined,
+  images: ChatImageAttachment[] | undefined,
   wantSearch: boolean,
   pageContextUsed: boolean
 ): Promise<ExchangeClaim | null> {
@@ -227,18 +259,19 @@ async function claimForSend(
     if (state.pending) return null;
     const userTurn: ChatTurn = { role: "user", content: text, ts: Date.now() };
     if (attachment) userTurn.attachment = attachment;
+    if (images && images.length > 0) userTurn.images = images;
     if (pageContextUsed) userTurn.pageContextUsed = true;
     if (wantSearch) userTurn.webSearch = true;
     pushTrimmed(state, userTurn);
     state.pending = true;
     await saveChatState(state);
-    return { gen: state.gen, turns: state.turns.slice(), attachment, wantSearch };
+    return { gen: state.gen, turns: state.turns.slice(), attachment, images, wantSearch };
   });
 }
 
 /**
  * Claim the pending slot for a REGENERATE: drop the stale assistant reply and
- * re-answer the question behind it with its original attachment and web-search
+ * re-answer the question behind it with its original attachment, images, and web-search
  * choice. Returns null when busy or when there is nothing to regenerate.
  */
 async function claimForRegenerate(): Promise<ExchangeClaim | null> {
@@ -257,6 +290,7 @@ async function claimForRegenerate(): Promise<ExchangeClaim | null> {
       gen: state.gen,
       turns: state.turns.slice(),
       attachment: slice.source.attachment,
+      images: slice.source.images,
       wantSearch: !!slice.source.webSearch,
     };
   });
@@ -312,6 +346,7 @@ async function runExchange(
         content: turn.content,
         error: turn.error,
         attachment: turn.attachment,
+        images: turn.images,
       };
       if (i === claim.turns.length - 1 && turn.role === "user" && claim.pageContext) {
         base.pageContext = claim.pageContext;
@@ -326,12 +361,22 @@ async function runExchange(
       return base;
     });
 
+    const isVision = isVisionCapable(settings.providerId, settings.model);
+    const hasImages = hasHistoricalImages(contextTurns);
+
+    let systemPrompt = systemPromptFor(settings, lang, wantSearch);
+    // Anti-hallucination anchoring: if the conversation contains images but the
+    // active model is text-only (e.g. DeepSeek-V3), inject strict visual boundary guidance.
+    if (hasImages && !isVision) {
+      systemPrompt += `\n\n${getAntiHallucinationNotice(lang)}`;
+    }
+
     const messages: ChatMessage[] = [
       {
         role: "system",
-        content: systemPromptFor(settings, lang, wantSearch),
+        content: systemPrompt,
       },
-      ...buildChatContext(contextTurns),
+      ...buildChatContext(contextTurns, { isVisionModel: isVision }),
     ];
     const extra = { optionalBody: buildEffortBody(effort, settings.providerId) };
     const content = opts.onDelta
@@ -393,10 +438,11 @@ async function runChatExchange(opts: RunOpts): Promise<ChatResponse> {
 
   const text = opts.rawText.trim().slice(0, MAX_INPUT_CHARS);
   const attachment = sanitizeAttachment(opts.rawAttachment);
+  const images = sanitizeImages(opts.rawImages);
   const pageContext = sanitizePageContext(opts.rawPageContext);
   const wantSearch = !!opts.webSearchRequested;
 
-  if (!isRegenerate && !text) {
+  if (!isRegenerate && !text && (!images || images.length === 0)) {
     return { success: false, error: t(lang, "chat.failed"), appended: false };
   }
   if (!settings.apiKey) {
@@ -423,7 +469,7 @@ async function runChatExchange(opts: RunOpts): Promise<ChatResponse> {
 
   const claim = isRegenerate
     ? await claimForRegenerate()
-    : await claimForSend(text, attachment, wantSearch, !!pageContext);
+    : await claimForSend(text, attachment, images, wantSearch, !!pageContext);
 
   if (claim && pageContext && !isRegenerate) {
     claim.pageContext = pageContext;
@@ -452,11 +498,13 @@ export async function sendChatMessage(
   rawAttachment?: unknown,
   webSearchRequested?: boolean,
   effort?: unknown,
-  rawPageContext?: unknown
+  rawPageContext?: unknown,
+  rawImages?: unknown
 ): Promise<ChatResponse> {
   return runChatExchange({
     rawText,
     rawAttachment,
+    rawImages,
     rawPageContext,
     webSearchRequested: !!webSearchRequested,
     effort,
@@ -489,6 +537,7 @@ export async function handleChatStream(
   const result = await runChatExchange({
     rawText: typeof msg.payload?.text === "string" ? msg.payload.text : "",
     rawAttachment: msg.payload?.attachment,
+    rawImages: msg.payload?.images,
     rawPageContext: msg.payload?.pageContext,
     webSearchRequested: !!msg.payload?.webSearch,
     regenerate: !!msg.payload?.regenerate,

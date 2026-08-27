@@ -175,7 +175,8 @@ export type MessageType =
   | "LIVE_SUBTITLE_CLEAR"
   | "GET_LIVE_SUBTITLE_HISTORY"
   | "CLEAR_LIVE_SUBTITLE_HISTORY"
-  | "SAVE_GLOSSARY";
+  | "SAVE_GLOSSARY"
+  | "CAPTURE_VISIBLE_TAB";
 
 
 /** Port name for streaming page-batch translation (content ↔ service worker). */
@@ -357,6 +358,30 @@ export interface ChatSearchSource {
   snippet: string;
 }
 
+/** Image attachment uploaded, pasted, or captured in chat. */
+export interface ChatImageAttachment {
+  id: string;
+  mimeType: string;
+  /** Base64 data URL (e.g. data:image/jpeg;base64,...) */
+  dataUrl: string;
+  name?: string;
+  width?: number;
+  height?: number;
+  /** Optional lightweight description / placeholder */
+  description?: string;
+}
+
+/** Standard multi-modal content parts (OpenAI compatible). */
+export type ChatContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } };
+
+/** Unified message structure sent to LLM providers. */
+export interface UnifiedChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string | ChatContentPart[];
+}
+
 export interface ChatTurn {
   role: "user" | "assistant";
   content: string;
@@ -367,6 +392,8 @@ export interface ChatTurn {
   /** Page context the user attached to this question — travels to the model
    * wrapped around the content, renders as a small chip in the bubble. */
   attachment?: ChatAttachment;
+  /** Images attached to this question. */
+  images?: ChatImageAttachment[];
   /** The question used a one-shot page supplement that is not persisted. */
   pageContextUsed?: boolean;
   /** Web sources used to ground this assistant reply (citation chips). */
@@ -405,6 +432,8 @@ export interface ChatStreamRequest {
     text: string;
     /** Optional page context to ground this question. */
     attachment?: ChatAttachment;
+    /** Optional images attached to this question. */
+    images?: ChatImageAttachment[];
     /** One-shot readable page background; never persisted in the turn. */
     pageContext?: ChatPageContext;
     /** When true, run built-in web search first and ground the reply on the

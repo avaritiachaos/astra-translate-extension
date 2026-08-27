@@ -2,7 +2,7 @@
 // Astra Translate – Unified Provider Client
 // ============================================================
 
-import type { UserProviderSettings } from "../shared/types";
+import type { UserProviderSettings, UnifiedChatMessage as ChatMessage } from "../shared/types";
 import { t, type UiLanguage } from "../shared/i18n";
 import {
   openAIChat,
@@ -10,12 +10,7 @@ import {
   type ExtraRequestOptions,
 } from "./openAICompatibleClient";
 
-export interface ChatMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
-
-export type { ExtraRequestOptions };
+export type { ChatMessage, ExtraRequestOptions };
 
 function messagesOf(systemPrompt: string, userContent: string): ChatMessage[] {
   return [

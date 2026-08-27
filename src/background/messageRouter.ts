@@ -280,6 +280,7 @@ export async function handleMessage(
         | {
             text?: unknown;
             attachment?: unknown;
+            images?: unknown;
             pageContext?: unknown;
             webSearch?: unknown;
             effort?: unknown;
@@ -290,7 +291,8 @@ export async function handleMessage(
         payload?.attachment,
         !!payload?.webSearch,
         payload?.effort,
-        payload?.pageContext
+        payload?.pageContext,
+        payload?.images
       );
     }
 
@@ -398,6 +400,22 @@ export async function handleMessage(
       settings.customGlossary = (msg.payload as any)?.glossary ?? "";
       await saveSettings(settings);
       return { success: true };
+    }
+
+    case "CAPTURE_VISIBLE_TAB": {
+      if (!isChatSenderAllowed(sender)) {
+        return { success: false, error: "Sender not allowed" };
+      }
+      try {
+        const windowId = sender?.tab?.windowId;
+        const dataUrl =
+          windowId !== undefined
+            ? await chrome.tabs.captureVisibleTab(windowId, { format: "png" })
+            : await chrome.tabs.captureVisibleTab({ format: "png" });
+        return { success: true, dataUrl };
+      } catch (err: any) {
+        return { success: false, error: err?.message || "Failed to capture tab" };
+      }
     }
 
     default:

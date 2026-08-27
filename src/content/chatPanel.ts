@@ -21,6 +21,7 @@ import {
   CHAT_STREAM_PORT,
   CHAT_WEB_SEARCH_SESSION_KEY,
   type ChatAttachment,
+  type ChatImageAttachment,
   type ChatState,
   type ChatStreamEvent,
   type ChatStreamPhase,
@@ -35,6 +36,12 @@ import {
   type ChatEffort,
 } from "../shared/chatEffort";
 import { extractPageContext, type ExtractedPageContext } from "../shared/pageExtract";
+import {
+  processImageFile,
+  extractImagesFromDataTransfer,
+  MAX_IMAGES_PER_TURN,
+} from "../shared/imageUtils";
+import { isVisionCapable } from "../shared/modelCapability";
 import { t, type UiLanguage } from "../shared/i18n";
 
 const P = "ast";
@@ -47,6 +54,9 @@ const ICON_SETTINGS = `<svg viewBox="0 0 24 24" width="14" height="14" fill="non
 const ICON_COPY = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
 const ICON_REGEN = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>`;
 const ICON_GLOBE = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 1 0 20M2 12h20"/><path d="M12 2a14.5 14.5 0 0 0 0 20"/></svg>`;
+const ICON_IMAGE = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>`;
+const ICON_CAMERA = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`;
+const ICON_SEND = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
 
 // ---- Panel state (one panel per page) ----
 
@@ -62,6 +72,7 @@ let streamText = "";
 let phase: ChatStreamPhase | null = null;
 let errorText = "";
 let attachment: ChatAttachment | null = null;
+let stagedImages: ChatImageAttachment[] = [];
 /** One-shot page supplement for a selected-text question; never persisted. */
 let supplementPage = false;
 let effort: ChatEffort = "high";
@@ -75,6 +86,7 @@ let refreshModelMenu: (() => void) | null = null;
 interface ChatRetryDraft {
   text: string;
   attachment: ChatAttachment | null;
+  images: ChatImageAttachment[];
   /** Re-enable the one-shot page supplement when the user retries. */
   pageSupplement: boolean;
 }
@@ -243,6 +255,154 @@ function injectStyles(): void {
       background: #6366f1;
       color: #fff;
       border-bottom-right-radius: 4px;
+    }
+    .${P}-cp-img-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .${P}-cp-turn-img {
+      max-width: 120px;
+      max-height: 90px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      object-fit: cover;
+      cursor: pointer;
+      transition: transform 120ms, opacity 120ms;
+      display: block;
+    }
+    .${P}-cp-turn-img:hover {
+      transform: scale(1.03);
+      opacity: 0.92;
+    }
+    .${P}-cp-img-tray {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .${P}-cp-img-item {
+      position: relative;
+      display: inline-block;
+    }
+    .${P}-cp-img-thumb {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+      object-fit: cover;
+      cursor: pointer;
+      display: block;
+    }
+    .${P}-cp-img-del {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #ef4444;
+      color: #ffffff;
+      border: 1px solid #ffffff;
+      font-size: 11px;
+      line-height: 13px;
+      text-align: center;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .${P}-cp-lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483647;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      animation: ${P}-effort-menu-in 120ms ease-out;
+    }
+    .${P}-cp-lightbox-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: rgba(0, 0, 0, 0.4);
+      flex-shrink: 0;
+    }
+    .${P}-cp-lightbox-tool {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 120ms, transform 120ms;
+    }
+    .${P}-cp-lightbox-tool:hover {
+      background: rgba(255, 255, 255, 0.28);
+      transform: translateY(-1px);
+    }
+    .${P}-cp-lightbox-close {
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      border-radius: 50%;
+      font-size: 14px;
+      justify-content: center;
+    }
+    .${P}-cp-lightbox-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: auto;
+      padding: 12px;
+      cursor: zoom-out;
+    }
+    .${P}-cp-lightbox-img {
+      max-width: 96vw;
+      max-height: 90vh;
+      border-radius: 8px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+      object-fit: contain;
+      cursor: default;
+    }
+    .${P}-cp-vision-notice {
+      margin-bottom: 6px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      background: rgba(99, 102, 241, 0.08);
+      color: #4f46e5;
+      font-size: 10px;
+      line-height: 1.4;
+      border: 1px dashed rgba(99, 102, 241, 0.3);
+    }
+    @media (prefers-color-scheme: dark) {
+      .${P}-cp-vision-notice { background: rgba(129, 140, 248, 0.12); color: #c7d2fe; border-color: rgba(129, 140, 248, 0.35); }
+      .${P}-cp-img-thumb { border-color: #2d2d44; }
+    }
+    .${P}-cp-model-cap-badge {
+      font-size: 8px;
+      padding: 1px 4px;
+      border-radius: 4px;
+      margin-left: 4px;
+      font-weight: 600;
+    }
+    .${P}-cp-model-cap-badge--vision {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+    }
+    .${P}-cp-model-cap-badge--text {
+      background: rgba(107, 114, 128, 0.12);
+      color: #6b7280;
     }
     .${P}-cp-bubble--assistant {
       align-self: flex-start;
@@ -441,22 +601,22 @@ function injectStyles(): void {
       margin-top: 7px;
     }
     .${P}-cp-send {
-      height: 28px;
-      padding: 0 16px;
+      width: 26px;
+      height: 26px;
+      padding: 0;
       border: none;
-      border-radius: 8px;
+      border-radius: 50%;
       background: #6366f1;
       color: #fff;
-      font-family: inherit;
-      font-size: 12px;
-      font-weight: 500;
-      line-height: 1;
-      white-space: nowrap;
       cursor: pointer;
-      transition: background 120ms;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 120ms, transform 120ms;
     }
-    .${P}-cp-send:hover { background: #4f46e5; }
-    .${P}-cp-send:disabled { opacity: 0.5; cursor: not-allowed; }
+    .${P}-cp-send:hover { background: #4f46e5; transform: scale(1.05); }
+    .${P}-cp-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     /* Pills and icon buttons share one 28px height so the row reads as a
        single band rather than a pile of differently-shaped controls. */
     .${P}-cp-toggle {
@@ -492,13 +652,16 @@ function injectStyles(): void {
     }
     .${P}-cp-model-wrap { position: relative; flex-shrink: 0; }
     .${P}-cp-model {
-      max-width: 155px;
-      padding: 0 9px 0 10px;
-      gap: 5px;
+      max-width: 140px;
+      padding: 0 8px 0 9px;
+      gap: 4px;
       background: rgba(99, 102, 241, 0.08);
       border-color: rgba(99, 102, 241, 0.28);
       color: #4338ca;
       font-weight: 600;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
     }
     @media (prefers-color-scheme: dark) {
       .${P}-cp-model {
@@ -508,12 +671,17 @@ function injectStyles(): void {
       }
     }
     .${P}-cp-model-label {
+      flex: 1;
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      line-height: 1;
+      display: flex;
+      align-items: center;
     }
     .${P}-cp-model--open .${P}-cp-effort-chevron {
-      transform: translateY(1px) rotate(180deg);
+      transform: rotate(180deg);
     }
     .${P}-cp-model-menu {
       position: absolute;
@@ -637,12 +805,11 @@ function injectStyles(): void {
       height: 8px;
       margin-left: 7px;
       color: currentColor;
-      transform: translateY(1px);
       transform-origin: center;
       transition: transform 120ms;
     }
     .${P}-cp-effort--open .${P}-cp-effort-chevron {
-      transform: translateY(1px) rotate(180deg);
+      transform: rotate(180deg);
     }
     .${P}-cp-effort-menu {
       position: absolute;
@@ -792,6 +959,51 @@ function renderMarkdown(text: string): DocumentFragment {
   return frag;
 }
 
+/** Show zoomed image lightbox modal with full-screen tab support. */
+function showLightbox(dataUrl: string, name?: string): void {
+  const mask = document.createElement("div");
+  mask.className = `${P}-cp-lightbox`;
+
+  const toolbar = document.createElement("div");
+  toolbar.className = `${P}-cp-lightbox-toolbar`;
+  toolbar.addEventListener("click", (e) => e.stopPropagation());
+
+  const openBtn = document.createElement("button");
+  openBtn.type = "button";
+  openBtn.className = `${P}-cp-lightbox-tool`;
+  openBtn.innerHTML = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg><span>在新标签页查看大图</span>`;
+  openBtn.addEventListener("click", () => {
+    fetch(dataUrl)
+      .then((r) => r.blob())
+      .then((blob) => {
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, "_blank");
+      })
+      .catch(() => window.open(dataUrl, "_blank"));
+  });
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = `${P}-cp-lightbox-tool ${P}-cp-lightbox-close`;
+  closeBtn.innerHTML = "✕";
+  closeBtn.addEventListener("click", () => mask.remove());
+
+  toolbar.append(openBtn, closeBtn);
+
+  const body = document.createElement("div");
+  body.className = `${P}-cp-lightbox-body`;
+  const img = document.createElement("img");
+  img.className = `${P}-cp-lightbox-img`;
+  img.src = dataUrl;
+  img.alt = name || "Preview";
+  img.addEventListener("click", (e) => e.stopPropagation());
+  body.appendChild(img);
+
+  mask.append(toolbar, body);
+  mask.addEventListener("click", () => mask.remove());
+  document.body.appendChild(mask);
+}
+
 function button(
   cls: string,
   label: string,
@@ -811,16 +1023,29 @@ function button(
 }
 
 function getModelDisplayLabel(providerId?: string, model?: string): string {
+  const norm = (model || "").toLowerCase();
   if (providerId === "google-gemini") {
-    if (!model || model.includes("3.7")) return "Gemini 3.7 Flash";
-    if (model.includes("2.5")) return "Gemini 2.5";
-    if (model.includes("2.0")) return "Gemini 2.0";
+    if (!model || norm.includes("3.7")) return "Gemini 3.7";
+    if (norm.includes("3.5")) return "Gemini 3.5";
+    if (norm.includes("2.5")) return "Gemini 2.5";
+    if (norm.includes("2.0")) return "Gemini 2.0";
+    if (norm.includes("1.5")) return "Gemini 1.5";
+    if (norm.includes("gemini")) return "Gemini";
     return model;
   }
   if (providerId === "deepseek") {
-    if (!model || model.includes("v4") || model.includes("flash")) return "DeepSeek V4";
-    if (model.includes("chat") || model.includes("v3")) return "DeepSeek V3";
+    if (!model || norm.includes("v4") || norm.includes("flash")) return "DeepSeek V4";
+    if (norm.includes("chat") || norm.includes("v3")) return "DeepSeek V3";
+    if (norm.includes("reasoner") || norm.includes("r1")) return "DeepSeek R1";
     return "DeepSeek";
+  }
+  if (model) {
+    if (norm.includes("gpt-4o-mini")) return "GPT-4o mini";
+    if (norm.includes("gpt-4o")) return "GPT-4o";
+    if (norm.includes("claude-3-5-sonnet") || norm.includes("claude-sonnet-3-5")) return "Sonnet 3.5";
+    if (norm.includes("claude-3-7-sonnet") || norm.includes("claude-sonnet-3-7")) return "Sonnet 3.7";
+    if (norm.includes("claude")) return "Claude";
+    if (norm.includes("qwen")) return "Qwen";
   }
   return model || "Custom";
 }
@@ -897,6 +1122,13 @@ function createModelMenu(): HTMLElement {
       const nameRow = document.createElement("div");
       nameRow.className = `${P}-cp-model-name`;
       nameRow.textContent = preset.name;
+
+      const isVision = isVisionCapable(preset.id, modelName);
+      const capBadge = document.createElement("span");
+      capBadge.className = `${P}-cp-model-cap-badge ${P}-cp-model-cap-badge--${isVision ? "vision" : "text"}`;
+      capBadge.textContent = t(lang, isVision ? "chat.badgeVision" : "chat.badgeText");
+      nameRow.appendChild(capBadge);
+
       if (!hasKey) {
         const badge = document.createElement("span");
         badge.className = `${P}-cp-model-badge`;
@@ -1143,6 +1375,24 @@ function renderList(): void {
       }
     }
 
+    if (turn.images && turn.images.length > 0) {
+      const grid = document.createElement("div");
+      grid.className = `${P}-cp-img-grid`;
+      turn.images.forEach((img) => {
+        const imgEl = document.createElement("img");
+        imgEl.className = `${P}-cp-turn-img`;
+        imgEl.src = img.dataUrl;
+        imgEl.alt = img.name || "image";
+        imgEl.title = `${img.name || "image"}${img.width && img.height ? ` (${img.width}x${img.height})` : ""}`;
+        imgEl.addEventListener("click", (e) => {
+          e.stopPropagation();
+          showLightbox(img.dataUrl, img.name);
+        });
+        grid.appendChild(imgEl);
+      });
+      bubble.appendChild(grid);
+    }
+
     if (turn.role === "assistant" && !turn.error) {
       bubble.appendChild(renderMarkdown(turn.content));
 
@@ -1257,6 +1507,54 @@ function renderFooter(): void {
     }
   }
 
+  const imgTray = panel.querySelector(`.${P}-cp-img-tray`) as HTMLElement | null;
+  if (imgTray) {
+    imgTray.innerHTML = "";
+    if (stagedImages.length > 0) {
+      imgTray.style.display = "flex";
+      stagedImages.forEach((img, idx) => {
+        const item = document.createElement("div");
+        item.className = `${P}-cp-img-item`;
+        const thumb = document.createElement("img");
+        thumb.className = `${P}-cp-img-thumb`;
+        thumb.src = img.dataUrl;
+        thumb.alt = img.name || "image";
+        thumb.title = `${img.name || "image"}${img.width && img.height ? ` (${img.width}x${img.height})` : ""}`;
+        thumb.addEventListener("click", (e) => {
+          e.stopPropagation();
+          showLightbox(img.dataUrl, img.name);
+        });
+
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = `${P}-cp-img-del`;
+        del.innerHTML = "×";
+        del.title = t(lang, "chat.attachRemove");
+        del.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          stagedImages.splice(idx, 1);
+          renderFooter();
+        });
+        item.append(thumb, del);
+        imgTray.appendChild(item);
+      });
+    } else {
+      imgTray.style.display = "none";
+    }
+  }
+
+  const notice = panel.querySelector(`.${P}-cp-vision-notice`) as HTMLElement | null;
+  if (notice) {
+    const isVision = isVisionCapable(providerId, cachedSettings?.model);
+    if (stagedImages.length > 0 && !isVision) {
+      notice.style.display = "block";
+      notice.textContent = `ℹ️ ${t(lang, "chat.textOnlyNotice")}`;
+    } else {
+      notice.style.display = "none";
+    }
+  }
+
   const attachBtn = panel.querySelector(`.${P}-cp-rowend`) as HTMLElement | null;
   if (attachBtn) attachBtn.style.display = attachment ? "none" : "flex";
 
@@ -1283,8 +1581,9 @@ function renderFooter(): void {
   const input = panel.querySelector(`.${P}-cp-input`) as HTMLTextAreaElement | null;
   const send = panel.querySelector(`.${P}-cp-send`) as HTMLButtonElement | null;
   if (send) {
-    send.disabled = pending || !(input?.value.trim());
-    send.textContent = pending ? t(lang, "chat.thinking") : t(lang, "chat.send");
+    const hasContent = !!input?.value.trim() || stagedImages.length > 0;
+    send.disabled = pending || !hasContent;
+    send.title = pending ? t(lang, "chat.thinking") : t(lang, "chat.send");
   }
 
   const web = panel.querySelector(`.${P}-cp-web-toggle`) as HTMLElement | null;
@@ -1338,10 +1637,54 @@ function restoreRetryDraft(draft: ChatRetryDraft, message: string): void {
     autoGrow(input);
   }
   attachment = draft.attachment;
+  stagedImages = draft.images ? [...draft.images] : [];
   supplementPage = draft.pageSupplement && !!draft.attachment?.selected;
   errorText = message;
   render();
   input?.focus();
+}
+
+async function handleAddImages(files: File[]): Promise<void> {
+  if (stagedImages.length + files.length > MAX_IMAGES_PER_TURN) {
+    errorText = t(lang, "chat.imageLimitExceeded", { max: MAX_IMAGES_PER_TURN });
+    renderFooter();
+    return;
+  }
+  errorText = "";
+  for (const file of files) {
+    try {
+      const img = await processImageFile(file);
+      stagedImages.push(img);
+    } catch {
+      // ignore
+    }
+  }
+  renderFooter();
+  focusInput();
+}
+
+async function handleCaptureScreenshot(): Promise<void> {
+  if (stagedImages.length >= MAX_IMAGES_PER_TURN) {
+    errorText = t(lang, "chat.imageLimitExceeded", { max: MAX_IMAGES_PER_TURN });
+    renderFooter();
+    return;
+  }
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "CAPTURE_VISIBLE_TAB" });
+    if (res?.success && res.dataUrl) {
+      const resBlob = await fetch(res.dataUrl).then((r) => r.blob());
+      const img = await processImageFile(resBlob, "tab-screenshot.jpg");
+      stagedImages.push(img);
+      errorText = "";
+      renderFooter();
+    } else {
+      errorText = t(lang, "chat.screenshotFailed");
+      renderFooter();
+    }
+  } catch {
+    errorText = t(lang, "chat.screenshotFailed");
+    renderFooter();
+  }
 }
 
 function sendViaStream(
@@ -1432,9 +1775,12 @@ function sendViaStream(
 async function send(): Promise<void> {
   const input = panel?.querySelector(`.${P}-cp-input`) as HTMLTextAreaElement | null;
   const text = input?.value.trim() || "";
-  if (!text || pending) return;
+  if ((!text && stagedImages.length === 0) || pending) return;
 
   const attach = attachment;
+  const imagesToSend = stagedImages.slice();
+  stagedImages = [];
+
   let pageContext: ExtractedPageContext | null = null;
   if (supplementPage && attachment?.selected) {
     try {
@@ -1466,6 +1812,7 @@ async function send(): Promise<void> {
   // Optimistic user bubble: storage confirms it a moment later.
   const optimistic: ChatTurn = { role: "user", content: text, ts: Date.now() };
   if (attach) optimistic.attachment = attach;
+  if (imagesToSend.length > 0) optimistic.images = imagesToSend;
   if (pageContext) optimistic.pageContextUsed = true;
   if (webSearchOn) optimistic.webSearch = true;
   turns = [...turns, optimistic];
@@ -1477,11 +1824,13 @@ async function send(): Promise<void> {
     effort,
   };
   if (attach) payload.attachment = attach;
+  if (imagesToSend.length > 0) payload.images = imagesToSend;
   if (pageContext) payload.pageContext = pageContext;
 
   const retry: ChatRetryDraft = {
     text,
     attachment: attach,
+    images: imagesToSend,
     pageSupplement: !!pageContext,
   };
 
@@ -1542,6 +1891,7 @@ function clearChat(): void {
   streamText = "";
   phase = null;
   attachment = null;
+  stagedImages = [];
   supplementPage = false;
   chrome.runtime
     .sendMessage({ type: "CLEAR_CHAT" })
@@ -1814,6 +2164,16 @@ function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
   chip.append(chipLabel, chipX);
   foot.appendChild(chip);
 
+  const imgTray = document.createElement("div");
+  imgTray.className = `${P}-cp-img-tray`;
+  imgTray.style.display = "none";
+  foot.appendChild(imgTray);
+
+  const noticeBox = document.createElement("div");
+  noticeBox.className = `${P}-cp-vision-notice`;
+  noticeBox.style.display = "none";
+  foot.appendChild(noticeBox);
+
   const input = document.createElement("textarea");
   input.className = `${P}-cp-input`;
   input.rows = 1;
@@ -1822,6 +2182,16 @@ function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
   input.addEventListener("input", () => {
     autoGrow(input);
     renderFooter();
+  });
+  input.addEventListener("paste", async (e) => {
+    const items = e.clipboardData?.items;
+    if (items) {
+      const files = extractImagesFromDataTransfer(items);
+      if (files.length > 0) {
+        e.preventDefault();
+        await handleAddImages(files);
+      }
+    }
   });
   input.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -1878,6 +2248,20 @@ function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
   row.appendChild(createModelMenu());
   row.appendChild(createEffortMenu());
 
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = "image/*";
+  fileInput.multiple = true;
+  fileInput.style.display = "none";
+  fileInput.addEventListener("change", async () => {
+    if (fileInput.files && fileInput.files.length > 0) {
+      const files = Array.from(fileInput.files);
+      fileInput.value = "";
+      await handleAddImages(files);
+    }
+  });
+  foot.appendChild(fileInput);
+
   const attachBtn = button(
     `${P}-cp-iconbtn`,
     "📎",
@@ -1896,18 +2280,47 @@ function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
     }
   );
 
-  const sendBtn = button(`${P}-cp-send`, t(lang, "chat.send"), t(lang, "chat.send"), () =>
+  const imgBtn = button(
+    `${P}-cp-iconbtn`,
+    ICON_IMAGE,
+    t(lang, "chat.uploadImage"),
+    () => fileInput.click()
+  );
+
+  const screenshotBtn = button(
+    `${P}-cp-iconbtn`,
+    ICON_CAMERA,
+    t(lang, "chat.screenshot"),
+    () => void handleCaptureScreenshot()
+  );
+
+  const sendBtn = button(`${P}-cp-send`, ICON_SEND, t(lang, "chat.send"), () =>
     void send()
   );
 
   const end = document.createElement("div");
   end.className = `${P}-cp-rowend`;
   end.appendChild(attachBtn);
+  end.appendChild(imgBtn);
+  end.appendChild(screenshotBtn);
   end.appendChild(sendBtn);
   row.appendChild(end);
 
   foot.appendChild(row);
   el.appendChild(foot);
+
+  el.addEventListener("dragover", (e) => {
+    e.preventDefault();
+  });
+  el.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    if (e.dataTransfer?.files) {
+      const files = extractImagesFromDataTransfer(e.dataTransfer.files);
+      if (files.length > 0) {
+        await handleAddImages(files);
+      }
+    }
+  });
 
   const resize = document.createElement("div");
   resize.className = `${P}-cp-resize`;

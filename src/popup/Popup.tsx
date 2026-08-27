@@ -6,6 +6,7 @@ import { t, type UiLanguage } from "../shared/i18n";
 import type {
   AstraSettings,
   ChatAttachment,
+  ChatImageAttachment,
   ChatState,
   ChatStreamEvent,
   ChatStreamPhase,
@@ -30,6 +31,12 @@ import {
   type ChatEffort,
 } from "../shared/chatEffort";
 import { extractPageContext } from "../shared/pageExtract";
+import {
+  processImageFile,
+  extractImagesFromDataTransfer,
+  MAX_IMAGES_PER_TURN,
+} from "../shared/imageUtils";
+import { isVisionCapable } from "../shared/modelCapability";
 import "./popup.css";
 
 /** Whitelist markdown for assistant replies: fenced code, inline code, bold.
@@ -197,16 +204,29 @@ function ChatEffortMenu({
 }
 
 export function getModelDisplayLabel(providerId?: string, model?: string): string {
+  const norm = (model || "").toLowerCase();
   if (providerId === "google-gemini") {
-    if (!model || model.includes("3.7")) return "Gemini 3.7 Flash";
-    if (model.includes("2.5")) return "Gemini 2.5";
-    if (model.includes("2.0")) return "Gemini 2.0";
+    if (!model || norm.includes("3.7")) return "Gemini 3.7";
+    if (norm.includes("3.5")) return "Gemini 3.5";
+    if (norm.includes("2.5")) return "Gemini 2.5";
+    if (norm.includes("2.0")) return "Gemini 2.0";
+    if (norm.includes("1.5")) return "Gemini 1.5";
+    if (norm.includes("gemini")) return "Gemini";
     return model;
   }
   if (providerId === "deepseek") {
-    if (!model || model.includes("v4") || model.includes("flash")) return "DeepSeek V4";
-    if (model.includes("chat") || model.includes("v3")) return "DeepSeek V3";
+    if (!model || norm.includes("v4") || norm.includes("flash")) return "DeepSeek V4";
+    if (norm.includes("chat") || norm.includes("v3")) return "DeepSeek V3";
+    if (norm.includes("reasoner") || norm.includes("r1")) return "DeepSeek R1";
     return "DeepSeek";
+  }
+  if (model) {
+    if (norm.includes("gpt-4o-mini")) return "GPT-4o mini";
+    if (norm.includes("gpt-4o")) return "GPT-4o";
+    if (norm.includes("claude-3-5-sonnet") || norm.includes("claude-sonnet-3-5")) return "Sonnet 3.5";
+    if (norm.includes("claude-3-7-sonnet") || norm.includes("claude-sonnet-3-7")) return "Sonnet 3.7";
+    if (norm.includes("claude")) return "Claude";
+    if (norm.includes("qwen")) return "Qwen";
   }
   return model || "Custom";
 }
@@ -318,6 +338,8 @@ function ChatModelMenu({
             const hasKey = isSelected ? !!settings?.apiKey : !!savedConfig?.apiKey;
             const displaySub = getModelDisplayLabel(preset.id, activeModel);
 
+            const isVision = isVisionCapable(preset.id, activeModel);
+
             return (
               <button
                 key={preset.id}
@@ -335,6 +357,13 @@ function ChatModelMenu({
                 <div className="ast-chat-model-info">
                   <div className="ast-chat-model-name">
                     {preset.name}
+                    <span
+                      className={`ast-chat-model-cap-badge ast-chat-model-cap-badge--${
+                        isVision ? "vision" : "text"
+                      }`}
+                    >
+                      {t(lang, isVision ? "chat.badgeVision" : "chat.badgeText")}
+                    </span>
                     {!hasKey && (
                       <span
                         className="ast-chat-model-badge"
@@ -416,8 +445,13 @@ export default function Popup() {
   const [chatEffort, setChatEffort] = useState<ChatEffort>(DEFAULT_CHAT_EFFORT);
   /** Page context staged for the next question (chip above the input). */
   const [chatAttach, setChatAttach] = useState<ChatAttachment | null>(null);
+  /** Image attachments staged for the next question. */
+  const [chatImages, setChatImages] = useState<ChatImageAttachment[]>([]);
+  /** Lightbox zoom preview modal. */
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; name?: string } | null>(null);
   const chatListRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const streamReqRef = useRef(0);
 
 
@@ -857,14 +891,57 @@ export default function Popup() {
   }, [refreshLiveState]);
 
 
+  const handleAddImages = useCallback(
+    async (files: File[]) => {
+      if (chatImages.length + files.length > MAX_IMAGES_PER_TURN) {
+        setChatError(t(lang, "chat.imageLimitExceeded", { max: MAX_IMAGES_PER_TURN }));
+        return;
+      }
+      setChatError("");
+      const processed: ChatImageAttachment[] = [];
+      for (const file of files) {
+        try {
+          const img = await processImageFile(file);
+          processed.push(img);
+        } catch {
+          // ignore
+        }
+      }
+      setChatImages((prev) => [...prev, ...processed]);
+      chatInputRef.current?.focus();
+    },
+    [chatImages.length, lang]
+  );
+
+  const handleCaptureScreenshot = useCallback(async () => {
+    if (chatImages.length >= MAX_IMAGES_PER_TURN) {
+      setChatError(t(lang, "chat.imageLimitExceeded", { max: MAX_IMAGES_PER_TURN }));
+      return;
+    }
+    try {
+      const res = await chrome.runtime.sendMessage({ type: "CAPTURE_VISIBLE_TAB" });
+      if (res?.success && res?.dataUrl) {
+        const resBlob = await fetch(res.dataUrl).then((r) => r.blob());
+        const img = await processImageFile(resBlob, "tab-screenshot.jpg");
+        setChatImages((prev) => [...prev, img]);
+        setChatError("");
+      } else {
+        setChatError(t(lang, "chat.screenshotFailed"));
+      }
+    } catch {
+      setChatError(t(lang, "chat.screenshotFailed"));
+    }
+  }, [chatImages.length, lang]);
+
   /** Pre-flight rejection: nothing entered the conversation — surface the
    * error inline and give the text (and attachment) back for a retry. */
   const handleChatRejection = useCallback(
-    (text: string, attach: ChatAttachment | null, error?: string) => {
+    (text: string, attach: ChatAttachment | null, images?: ChatImageAttachment[], error?: string) => {
       if (!error) return; // deliberate cancel (clear) — nothing to surface
       setChatError(error);
       setChatInput(text);
       if (attach) setChatAttach(attach);
+      if (images && images.length > 0) setChatImages(images);
     },
     []
   );
@@ -875,7 +952,7 @@ export default function Popup() {
   const sendViaStream = useCallback(
     (
       payload: Record<string, unknown>,
-      retry?: { text: string; attach: ChatAttachment | null }
+      retry?: { text: string; attach: ChatAttachment | null; images?: ChatImageAttachment[] }
     ): boolean => {
       let port: chrome.runtime.Port;
       try {
@@ -909,7 +986,7 @@ export default function Popup() {
           setStreamText("");
           if (!event.success && !event.appended) {
             if (retry) {
-              handleChatRejection(retry.text, retry.attach, event.error);
+              handleChatRejection(retry.text, retry.attach, retry.images, event.error);
             } else if (event.error) {
               setChatError(event.error);
             }
@@ -955,11 +1032,13 @@ export default function Popup() {
 
   const handleChatSend = useCallback(async () => {
     const text = chatInput.trim();
-    if (!text || chatPending) return;
+    if ((!text && chatImages.length === 0) || chatPending) return;
     const attach = chatAttach;
+    const imagesToSend = chatImages.slice();
     setChatError("");
     setChatInput("");
     setChatAttach(null);
+    setChatImages([]);
     setStreamText("");
 
     const doWebSearch = webSearchEnabled;
@@ -971,9 +1050,10 @@ export default function Popup() {
       effort: chatEffort,
     };
     if (attach) payload.attachment = attach;
+    if (imagesToSend.length > 0) payload.images = imagesToSend;
 
     // Prefer streaming; fall back to the one-shot message on port failure.
-    if (sendViaStream(payload, { text, attach })) return;
+    if (sendViaStream(payload, { text, attach, images: imagesToSend })) return;
 
     try {
       const res = await chrome.runtime.sendMessage({
@@ -981,7 +1061,7 @@ export default function Popup() {
         payload,
       });
       if (res && !res.success && !res.appended) {
-        handleChatRejection(text, attach, res.error);
+        handleChatRejection(text, attach, imagesToSend, res.error);
       }
       // Storage events already track the conversation; this refresh only
       // matters for the no-session-storage fallback.
@@ -992,9 +1072,11 @@ export default function Popup() {
       setChatError(t(lang, "popup.connectFail"));
       setChatInput(text);
       if (attach) setChatAttach(attach);
+      if (imagesToSend.length > 0) setChatImages(imagesToSend);
     }
   }, [
     chatInput,
+    chatImages,
     chatPending,
     chatAttach,
     chatEffort,
@@ -1503,7 +1585,17 @@ export default function Popup() {
       )}
 
       {mode === "chat" && (
-        <div className="ast-chat">
+        <div
+          className="ast-chat"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (e.dataTransfer?.files) {
+              const files = extractImagesFromDataTransfer(e.dataTransfer.files);
+              if (files.length > 0) void handleAddImages(files);
+            }
+          }}
+        >
           <div className="ast-chat-list" ref={chatListRef}>
             {chatTurns.length === 0 && !chatPending && !streamText && (
               <div className="ast-chat-empty">{t(lang, "chat.empty")}</div>
@@ -1541,6 +1633,25 @@ export default function Popup() {
                       </div>
                     )}
                   </>
+                )}
+                {turn.images && turn.images.length > 0 && (
+                  <div className="ast-chat-img-grid">
+                    {turn.images.map((img) => (
+                      <img
+                        key={img.id}
+                        className="ast-chat-turn-img"
+                        src={img.dataUrl}
+                        alt={img.name || "image"}
+                        title={`${img.name || "image"}${
+                          img.width && img.height ? ` (${img.width}x${img.height})` : ""
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLightboxImage({ url: img.dataUrl, name: img.name });
+                        }}
+                      />
+                    ))}
+                  </div>
                 )}
                 {turn.role === "assistant" && !turn.error ? (
                   <>
@@ -1641,115 +1752,223 @@ export default function Popup() {
             </div>
           )}
 
-          {chatAttach && (
-            <div
-              className="ast-chat-attach-chip"
-              title={chatAttach.title || chatAttach.url}
-            >
-              <span>📎</span>
-              <span className="ast-chat-attach-label">
-                {t(lang, "chat.attachChip", {
-                  label: chatAttach.selected
-                    ? t(lang, "chat.attachSelection")
-                    : chatAttach.title || t(lang, "chat.attachPage"),
-                  n: chatAttach.text.length,
-                })}
-              </span>
-              <button
-                className="ast-chat-attach-remove"
-                onClick={() => setChatAttach(null)}
-                title={t(lang, "chat.clear")}
+          <div className="ast-chat-composer-card">
+            {chatAttach && (
+              <div
+                className="ast-chat-attach-chip"
+                title={chatAttach.title || chatAttach.url}
               >
-                ✕
-              </button>
-            </div>
-          )}
-
-          <textarea
-            ref={chatInputRef}
-            className="ast-input-box ast-chat-input"
-            placeholder={t(lang, "chat.placeholder")}
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={handleChatKeyDown}
-            rows={1}
-            maxLength={8000}
-          />
-          <div className="ast-chat-actions">
-            <ChatModelMenu
-              settings={settings}
-              lang={lang}
-              onSwitch={handleModelSwitch}
-              onOpenSettings={openOptions}
-            />
-            <ChatEffortMenu
-              value={chatEffort}
-              providerId={settings?.providerId}
-              lang={lang}
-              onChange={handleEffortChange}
-            />
-            <button
-              className={[
-                "ast-chat-pill",
-                webSearchEnabled ? "ast-chat-pill--on" : "",
-                settings?.chatWebSearchEnabled ? "" : "ast-chat-pill--locked",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              onClick={toggleWebSearch}
-              aria-pressed={webSearchEnabled}
-              title={t(
-                lang,
-                webSearchEnabled
-                  ? "chat.webSearchOn"
-                  : settings?.chatWebSearchEnabled
-                    ? "chat.webSearchOff"
-                    : "chat.webSearchNeedSetup"
-              )}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="13"
-                height="13"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ flexShrink: 0 }}
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 2a14.5 14.5 0 0 1 0 20M2 12h20" />
-                <path d="M12 2a14.5 14.5 0 0 0 0 20" />
-              </svg>
-              <span>{t(lang, "chat.webSearch")}</span>
-            </button>
-
-            <div className="ast-chat-actions-end">
-              {!chatAttach && (
+                <span>📎</span>
+                <span className="ast-chat-attach-label">
+                  {t(lang, "chat.attachChip", {
+                    label: chatAttach.selected
+                      ? t(lang, "chat.attachSelection")
+                      : chatAttach.title || t(lang, "chat.attachPage"),
+                    n: chatAttach.text.length,
+                  })}
+                </span>
                 <button
-                  className="ast-chat-icon"
-                  onClick={handleAttachPage}
-                  title={t(lang, "chat.attach")}
+                  type="button"
+                  className="ast-chat-attach-remove"
+                  onClick={() => setChatAttach(null)}
+                  title={t(lang, "chat.clear")}
                 >
-                  📎
+                  ✕
                 </button>
-              )}
-              <button
-                className="ast-chat-icon"
-                onClick={handleOpenInPage}
-                title={t(lang, "chat.openInPage")}
-              >
-                ⤢
-              </button>
-              <button
-                className="ast-btn ast-btn-primary ast-chat-send"
-                onClick={handleChatSend}
-                disabled={chatPending || !chatInput.trim()}
-              >
-                {chatPending ? t(lang, "chat.thinking") : t(lang, "chat.send")}
-              </button>
+              </div>
+            )}
+
+            {chatImages.length > 0 && (
+              <div className="ast-chat-img-tray">
+                {chatImages.map((img, idx) => (
+                  <div key={img.id} className="ast-chat-img-item">
+                    <img
+                      className="ast-chat-img-thumb"
+                      src={img.dataUrl}
+                      alt={img.name || "image"}
+                      title={`${img.name || "image"}${
+                        img.width && img.height ? ` (${img.width}x${img.height})` : ""
+                      }`}
+                      onClick={() => setLightboxImage({ url: img.dataUrl, name: img.name })}
+                    />
+                    <button
+                      type="button"
+                      className="ast-chat-img-del"
+                      title={t(lang, "chat.attachRemove")}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setChatImages((prev) => prev.filter((_, i) => i !== idx));
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {chatImages.length > 0 && !isVisionCapable(settings?.providerId, settings?.model) && (
+              <div className="ast-chat-vision-notice">
+                <span>ℹ️</span>
+                <span>{t(lang, "chat.textOnlyNotice")}</span>
+              </div>
+            )}
+
+            <textarea
+              ref={chatInputRef}
+              className="ast-chat-input"
+              placeholder={t(lang, "chat.placeholder")}
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={handleChatKeyDown}
+              onPaste={(e) => {
+                const items = e.clipboardData?.items;
+                if (items) {
+                  const files = extractImagesFromDataTransfer(items);
+                  if (files.length > 0) {
+                    e.preventDefault();
+                    void handleAddImages(files);
+                  }
+                }
+              }}
+              rows={1}
+              maxLength={8000}
+            />
+            <div className="ast-chat-actions">
+              <div className="ast-chat-actions-left">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      const files = Array.from(e.target.files);
+                      e.target.value = "";
+                      void handleAddImages(files);
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="ast-chat-tool-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  title={t(lang, "chat.uploadImage")}
+                >
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+                    <circle cx="9" cy="9" r="2"/>
+                    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="ast-chat-tool-btn"
+                  onClick={handleCaptureScreenshot}
+                  title={t(lang, "chat.screenshot")}
+                >
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+                    <circle cx="12" cy="13" r="3"/>
+                  </svg>
+                </button>
+                {!chatAttach && (
+                  <button
+                    type="button"
+                    className="ast-chat-tool-btn"
+                    onClick={handleAttachPage}
+                    title={t(lang, "chat.attach")}
+                  >
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                    </svg>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={[
+                    "ast-chat-pill",
+                    webSearchEnabled ? "ast-chat-pill--on" : "",
+                    settings?.chatWebSearchEnabled ? "" : "ast-chat-pill--locked",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onClick={toggleWebSearch}
+                  aria-pressed={webSearchEnabled}
+                  title={t(
+                    lang,
+                    webSearchEnabled
+                      ? "chat.webSearchOn"
+                      : settings?.chatWebSearchEnabled
+                        ? "chat.webSearchOff"
+                        : "chat.webSearchNeedSetup"
+                  )}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="12"
+                    height="12"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ flexShrink: 0 }}
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 2a14.5 14.5 0 0 1 0 20M2 12h20" />
+                    <path d="M12 2a14.5 14.5 0 0 0 0 20" />
+                  </svg>
+                  <span>{t(lang, "chat.webSearch")}</span>
+                </button>
+              </div>
+
+              <div className="ast-chat-actions-right">
+                <ChatModelMenu
+                  settings={settings}
+                  lang={lang}
+                  onSwitch={handleModelSwitch}
+                  onOpenSettings={openOptions}
+                />
+                <ChatEffortMenu
+                  value={chatEffort}
+                  providerId={settings?.providerId}
+                  lang={lang}
+                  onChange={handleEffortChange}
+                />
+                <button
+                  type="button"
+                  className="ast-chat-tool-btn"
+                  onClick={handleOpenInPage}
+                  title={t(lang, "chat.openInPage")}
+                >
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 3 21 3 21 9"/>
+                    <polyline points="9 21 3 21 3 15"/>
+                    <line x1="21" y1="3" x2="14" y2="10"/>
+                    <line x1="3" y1="21" x2="10" y2="14"/>
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="ast-chat-send-btn"
+                  onClick={handleChatSend}
+                  disabled={chatPending || (!chatInput.trim() && chatImages.length === 0)}
+                  title={chatPending ? t(lang, "chat.thinking") : t(lang, "chat.send")}
+                >
+                  {chatPending ? (
+                    <div className="ast-spinner-xs" />
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="19" x2="12" y2="5"/>
+                      <polyline points="5 12 12 5 19 12"/>
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
           <div className="ast-chat-hint">{t(lang, "chat.kbHint")}</div>
@@ -1896,6 +2115,61 @@ export default function Popup() {
                 {liveLoading ? "正在切换…" : liveState.running ? t(lang, "live.stop") : t(lang, "live.start")}
               </span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Modal */}
+      {lightboxImage && (
+        <div
+          className="ast-chat-lightbox"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div
+            className="ast-chat-lightbox-toolbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="ast-chat-lightbox-tool"
+              onClick={() => {
+                fetch(lightboxImage.url)
+                  .then((r) => r.blob())
+                  .then((blob) => {
+                    const blobUrl = URL.createObjectURL(blob);
+                    chrome.tabs.create({ url: blobUrl });
+                  })
+                  .catch(() => {
+                    chrome.tabs.create({ url: lightboxImage.url });
+                  });
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+              <span>新标签页查看高清原图</span>
+            </button>
+            <button
+              type="button"
+              className="ast-chat-lightbox-tool ast-chat-lightbox-close"
+              onClick={() => setLightboxImage(null)}
+              title="关闭"
+            >
+              ✕
+            </button>
+          </div>
+          <div
+            className="ast-chat-lightbox-body"
+            onClick={() => setLightboxImage(null)}
+          >
+            <img
+              className="ast-chat-lightbox-img"
+              src={lightboxImage.url}
+              alt={lightboxImage.name || "Preview"}
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
         </div>
       )}

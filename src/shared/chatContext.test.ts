@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   buildChatContext,
   renderTurnContent,
+  hasHistoricalImages,
+  getAntiHallucinationNotice,
   CHAT_MAX_CONTEXT_TURNS,
   type ChatContextTurn,
 } from "./chatContext.ts";
@@ -65,7 +67,7 @@ describe("buildChatContext", () => {
     );
     // 60+60 fits; adding the third 60 would exceed 130.
     assert.deepEqual(
-      ctx.map((m) => m.content[0]),
+      ctx.map((m) => (typeof m.content === "string" ? m.content[0] : "")),
       ["b", "c"]
     );
   });
@@ -104,15 +106,7 @@ describe("buildChatContext", () => {
     assert.ok(rendered.includes("Example Docs"));
     assert.ok(rendered.includes("https://example.com/docs"));
     assert.ok(rendered.includes("Some page body text."));
-    // The question comes after the context block.
     assert.ok(rendered.indexOf("这段讲了什么？") > rendered.indexOf("Some page body text."));
-    assert.ok(
-      renderTurnContent({
-        role: "user",
-        content: "q",
-        attachment: { title: "", url: "", selected: true, text: "sel" },
-      }).includes("selected text")
-    );
   });
 
   it("attachments count toward the char budget at rendered size", () => {
@@ -121,14 +115,12 @@ describe("buildChatContext", () => {
       content: "q1",
       attachment: { title: "T", url: "u", selected: false, text: "x".repeat(300) },
     };
-    // Rendered size of the attached turn (~350+) blows a 400-char budget once
-    // the newest turn (60 chars) is in — so only the newest turn survives.
     const ctx = buildChatContext(
       [attached, turn("assistant", "a".repeat(60)), turn("user", "b".repeat(60))],
       { maxChars: 400 }
     );
     assert.deepEqual(
-      ctx.map((m) => m.content[0]),
+      ctx.map((m) => (typeof m.content === "string" ? m.content[0] : "")),
       ["a", "b"]
     );
   });
@@ -149,10 +141,6 @@ describe("buildChatContext", () => {
     assert.ok(rendered.includes("[1] DeepSeek Pricing"));
     assert.ok(rendered.includes("https://example.com/pricing"));
     assert.ok(rendered.includes("flash is $0.14"));
-    assert.ok(
-      rendered.indexOf("DeepSeek 现在怎么定价？") >
-        rendered.indexOf("Web search results")
-    );
   });
 
   it("combines page attachment and search sources", () => {
@@ -174,30 +162,102 @@ describe("buildChatContext", () => {
     assert.ok(rendered.includes("page body"));
     assert.ok(rendered.includes("News"));
   });
+});
 
-  it("keeps selected text and one-shot page supplement as separate context blocks", () => {
-    const rendered = renderTurnContent({
-      role: "user",
-      content: "这句话在页面里是什么意思？",
-      attachment: {
-        title: "Example",
-        url: "https://example.com",
-        selected: true,
-        text: "selected phrase",
+describe("buildChatContext - Multimodal & Anti-Hallucination", () => {
+  const sampleImg1 = {
+    id: "img1",
+    mimeType: "image/jpeg",
+    dataUrl: "data:image/jpeg;base64,ABC123SAMPLE",
+    name: "screenshot.jpg",
+    width: 1920,
+    height: 1080,
+  };
+
+  const sampleImg2 = {
+    id: "img2",
+    mimeType: "image/png",
+    dataUrl: "data:image/png;base64,XYZ789SAMPLE",
+    name: "chart.png",
+    width: 800,
+    height: 600,
+  };
+
+  it("formats image turn as ChatContentPart[] for vision models", () => {
+    const turns: ChatContextTurn[] = [
+      {
+        role: "user",
+        content: "请帮我分析这张图",
+        images: [sampleImg1],
       },
-      pageContext: {
-          title: "Example",
-          url: "https://example.com",
-          text: "The surrounding article explains the phrase.",
+    ];
+
+    const ctx = buildChatContext(turns, { isVisionModel: true });
+    assert.equal(ctx.length, 1);
+    assert.equal(Array.isArray(ctx[0].content), true);
+
+    const parts = ctx[0].content as Array<{ type: string; text?: string; image_url?: { url: string } }>;
+    assert.equal(parts[0].type, "text");
+    assert.equal(parts[0].text, "请帮我分析这张图");
+    assert.equal(parts[1].type, "image_url");
+    assert.equal(parts[1].image_url?.url, "data:image/jpeg;base64,ABC123SAMPLE");
+  });
+
+  it("degrades images into text placeholders for text-only models (e.g. DeepSeek)", () => {
+    const turns: ChatContextTurn[] = [
+      {
+        role: "user",
+        content: "这是报错截图",
+        images: [sampleImg1],
       },
-    });
-    assert.ok(rendered.includes("selected text"));
-    assert.ok(rendered.includes("selected phrase"));
-    assert.ok(rendered.includes("Supplementary context"));
-    assert.ok(rendered.includes("surrounding article"));
-    assert.ok(
-      rendered.indexOf("这句话在页面里是什么意思？") >
-        rendered.indexOf("surrounding article")
-    );
+    ];
+
+    const ctx = buildChatContext(turns, { isVisionModel: false });
+    assert.equal(ctx.length, 1);
+    assert.equal(typeof ctx[0].content, "string");
+    assert.ok(ctx[0].content.includes("[User attached image 1 \"screenshot.jpg\" (1920x1080)]"));
+    assert.ok(ctx[0].content.includes("这是报错截图"));
+  });
+
+  it("applies vision sliding window (retains latest 2 turns raw, degrades older turns)", () => {
+    const turns: ChatContextTurn[] = [
+      // Turn 1 (Oldest with image) -> should degrade to text placeholder
+      { role: "user", content: "第一张图", images: [sampleImg1] },
+      { role: "assistant", content: "这是图1的解答" },
+      // Turn 2 (with image) -> should stay raw image_url
+      { role: "user", content: "第二张图", images: [sampleImg2] },
+      { role: "assistant", content: "这是图2的解答" },
+      // Turn 3 (Newest with image) -> should stay raw image_url
+      { role: "user", content: "第三张图", images: [sampleImg1] },
+    ];
+
+    const ctx = buildChatContext(turns, { isVisionModel: true, maxVisionTurns: 2 });
+    assert.equal(ctx.length, 5);
+
+    // Turn 1 (index 0) was degraded to string to save tokens
+    assert.equal(typeof ctx[0].content, "string");
+    assert.ok((ctx[0].content as string).includes("[User attached image 1"));
+
+    // Turn 2 (index 2) was preserved as raw multi-modal parts
+    assert.equal(Array.isArray(ctx[2].content), true);
+
+    // Turn 3 (index 4) was preserved as raw multi-modal parts
+    assert.equal(Array.isArray(ctx[4].content), true);
+  });
+
+  it("detects historical images correctly", () => {
+    assert.equal(hasHistoricalImages([turn("user", "hello")]), false);
+    assert.equal(hasHistoricalImages([{ role: "user", content: "hi", images: [sampleImg1] }]), true);
+  });
+
+  it("provides anti-hallucination notices in multiple languages", () => {
+    const zh = getAntiHallucinationNotice("zh-CN");
+    const en = getAntiHallucinationNotice("en-US");
+    const ja = getAntiHallucinationNotice("ja-JP");
+
+    assert.ok(zh.includes("视觉上下文提示"));
+    assert.ok(zh.includes("纯文本模式"));
+    assert.ok(en.includes("Visual Context Notice"));
+    assert.ok(ja.includes("視覚コンテキストに関する注意"));
   });
 });

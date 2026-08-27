@@ -2,7 +2,7 @@
 // Astra Translate – OpenAI-compatible Client
 // ============================================================
 
-import type { UserProviderSettings } from "../shared/types.ts";
+import type { UserProviderSettings, UnifiedChatMessage as ChatMessage } from "../shared/types.ts";
 import { t, type UiLanguage } from "../shared/i18n.ts";
 import {
   mapHttpError,
@@ -17,10 +17,7 @@ import {
   sleep,
 } from "../shared/retry.ts";
 
-interface ChatMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
+export type { ChatMessage };
 
 interface CompletionChoice {
   message: { content: string };
@@ -127,6 +124,29 @@ function dropOptionalFields(
 }
 
 /**
+ * Degrade multimodal content arrays to plain text strings if an unsupported
+ * gateway rejects the request with a 400. Returns true when messages were flattened.
+ */
+function flattenComplexMessages(body: Record<string, unknown>): boolean {
+  const msgs = body.messages as ChatMessage[] | undefined;
+  if (!Array.isArray(msgs)) return false;
+  let hasComplex = false;
+  const flattened: ChatMessage[] = msgs.map((m) => {
+    if (Array.isArray(m.content)) {
+      hasComplex = true;
+      const textParts = m.content
+        .map((p) => (p.type === "text" ? p.text : "[Image Attachment]"))
+        .join("\n\n");
+      return { role: m.role, content: textParts };
+    }
+    return m;
+  });
+  if (!hasComplex) return false;
+  body.messages = flattened;
+  return true;
+}
+
+/**
  * Send a single chat completion request to an OpenAI-compatible endpoint.
  * Automatically retries rate-limits and transient server/network errors with
  * exponential backoff (honours Retry-After when present).
@@ -166,7 +186,10 @@ export async function openAIChat(
       if (!res.ok) {
         // Drop the error body — we only act on the status / headers.
         void res.body?.cancel().catch(() => {});
-        if (res.status === 400 && dropOptionalFields(body, optionalKeys)) {
+        if (
+          res.status === 400 &&
+          (dropOptionalFields(body, optionalKeys) || flattenComplexMessages(body))
+        ) {
           clearTimeout(timeoutId);
           attempt -= 1;
           continue;
@@ -283,7 +306,10 @@ export async function openAIChatStream(
       if (!res.ok) {
         // Drop the error body — we only act on the status / headers.
         void res.body?.cancel().catch(() => {});
-        if (res.status === 400 && dropOptionalFields(body, optionalKeys)) {
+        if (
+          res.status === 400 &&
+          (dropOptionalFields(body, optionalKeys) || flattenComplexMessages(body))
+        ) {
           clearTimeout(timeoutId);
           signal?.removeEventListener("abort", onAbort);
           attempt -= 1;
