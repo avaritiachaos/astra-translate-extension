@@ -1,3 +1,5 @@
+import { fullChatImage } from "../shared/chatImageClient";
+import { openMangaPicker, translateCurrentMangaPage, MangaPageError } from "../shared/mangaTab";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { DEFAULT_PROVIDER_PRESETS, SUPPORTED_LANGUAGES } from "../shared/constants";
@@ -411,6 +413,7 @@ export default function Popup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [pageStatus, setPageStatus] = useState<string>("");
+  const [mangaPickPending, setMangaPickPending] = useState(false);
   const [toast, setToast] = useState("");
   const [langSaved, setLangSaved] = useState(false);
   const [pageLangSaved, setPageLangSaved] = useState(false);
@@ -519,11 +522,12 @@ export default function Popup() {
       if (res?.success) {
         setChatTurns(res.turns ?? []);
         setChatPending(!!res.pending);
+        if (res.storageWarning) setChatError(t(lang,"chat.storageWarning"));
       }
     } catch {
       // Service worker unavailable — keep whatever we have.
     }
-  }, []);
+  }, [lang]);
 
   // Chat mode: restore the last-active tab, load the session conversation,
   // and follow service-worker updates via storage events — the SW owns the
@@ -551,9 +555,7 @@ export default function Popup() {
       if (area !== "session") return;
       const chatChange = changes[CHAT_STORAGE_KEY];
       if (chatChange) {
-        const next = chatChange.newValue as ChatState | undefined;
-        setChatTurns(next?.turns ?? []);
-        setChatPending(!!next?.pending);
+        void refreshChatState();
       }
       const effortChange = changes[CHAT_EFFORT_SESSION_KEY];
       if (effortChange) {
@@ -744,7 +746,25 @@ export default function Popup() {
     }
   }, [lang]);
 
-  // Page restore
+  const handleMangaPick = async (action: "select" | "current" = "select") => {
+    if (mangaPickPending) return;
+    setMangaPickPending(true);
+    setPageStatus("");
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      await (action === "current" ? translateCurrentMangaPage(tab ?? {}) : openMangaPicker(tab ?? {}));
+      window.close();
+    } catch (error) {
+      const key = error instanceof MangaPageError && error.code === "unsupported"
+        ? "manga.pageUnavailable"
+        : error instanceof MangaPageError && error.code === "startFailed"
+          ? "manga.startFailed" : "manga.connectionFailed";
+      setPageStatus(t(lang, key));
+    } finally {
+      setMangaPickPending(false);
+    }
+  };
+
   const handlePageRestore = useCallback(async () => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -1551,7 +1571,7 @@ export default function Popup() {
           {/* Page translation */}
           <div className="ast-page-section">
             <div className="ast-page-header">
-              <div className="ast-page-title">{t(lang, "popup.pageTranslation")}</div>
+              <div className="ast-page-title">{t(lang, "popup.webTextTitle")}</div>
               <select
                 className="ast-lang-select"
                 value={pageTargetLang}
@@ -1573,14 +1593,25 @@ export default function Popup() {
             </div>
             <div className="ast-page-actions">
               <button className="ast-btn ast-btn-primary" onClick={handlePageTranslate}>
-                {t(lang, "popup.translatePage")}
+                {t(lang, "popup.webTextAction")}
               </button>
               <button className="ast-btn ast-btn-secondary" onClick={handlePageRestore}>
                 {t(lang, "popup.restorePage")}
               </button>
             </div>
-            {pageStatus && <div className="ast-page-status">{pageStatus}</div>}
           </div>
+          <section className="ast-image-section" aria-label={t(lang, "manga.imageTitle")}>
+            <div className="ast-image-heading">
+              <span className="ast-image-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1.5"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg></span>
+              <div><h2>{t(lang, "manga.imageTitle")}</h2><span>{t(lang, "manga.imageSubtitle")}</span></div>
+              <kbd>Alt+M</kbd>
+            </div>
+            <div className="ast-image-actions">
+              <button className="ast-btn ast-image-primary" disabled={mangaPickPending} aria-busy={mangaPickPending} onClick={()=>void handleMangaPick("current")}>{t(lang,"manga.translateCurrentImage")}</button>
+              <button className="ast-btn ast-image-secondary" disabled={mangaPickPending} onClick={()=>void handleMangaPick("select")}>{t(lang,"manga.selectImageShort")}</button>
+            </div>
+            {pageStatus && <div role="status" className="ast-page-status">{pageStatus}</div>}
+          </section>
         </>
       )}
 
@@ -1647,7 +1678,7 @@ export default function Popup() {
                         }`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setLightboxImage({ url: img.dataUrl, name: img.name });
+                          void fullChatImage(img).then((url) => setLightboxImage({ url, name: img.name })).catch((err) => setChatError(err.message));
                         }}
                       />
                     ))}

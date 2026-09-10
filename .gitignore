@@ -20,3 +20,7 @@ _vision_test/
 pnpm-lock.yaml
 pnpm-workspace.yaml
 
+
+# Local browser verification artifacts
+output/playwright/
+.playwright-cli/

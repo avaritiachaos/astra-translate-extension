@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && vite build --config vite.content.config.ts",
+    "build": "tsc && vite build && vite build --config vite.content.config.ts && vite build --config vite.content.config.ts --mode manga",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test src/**/*.test.ts"
+    "test": "node --experimental-strip-types --test --test-concurrency=2 src/**/*.test.ts"
   },
   "dependencies": {
     "react": "^18.2.0",

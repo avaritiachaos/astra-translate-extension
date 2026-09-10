@@ -1,3 +1,4 @@
+import { initMangaController } from "./manga/mangaController";
 // ============================================================
 // Astra Translate – Content Script Entry
 // ============================================================
@@ -323,3 +324,5 @@ if (isExtensionContextAlive()) {
     .catch(() => {});
 }
 
+
+initMangaController();

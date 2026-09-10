@@ -1,3 +1,4 @@
+import { MangaSettingsCard } from "./MangaSettings";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import type { AstraSettings, ProviderApiFormat } from "../shared/types";
@@ -46,6 +47,14 @@ export default function Options() {
     }
   });
 
+  useEffect(() => {
+    setCustomHeadersText((draft) => {
+      const next = JSON.stringify(settings.customHeaders ?? {});
+      try { if (JSON.stringify(JSON.parse(draft || "{}")) === next) return draft; } catch {}
+      return next;
+    });
+  }, [settings.providerId, settings.customHeaders]);
+
   const lang: UiLanguage = settings.uiLanguage || "zh-CN";
 
   const refreshSiteStats = useCallback(() => {
@@ -77,25 +86,38 @@ export default function Options() {
     setTimeout(() => setToast(""), 2000);
   }, []);
 
-  // Debounced auto-save
+  const saveNow = useCallback(async () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = null;
+    setSaveStatus("saving");
+    try {
+      await chrome.runtime.sendMessage({
+        type: "SAVE_SETTINGS",
+        payload: settingsRef.current,
+      });
+      setSaveStatus("saved");
+      showToast(t(settingsRef.current.uiLanguage || "zh-CN", "opt.saved"));
+      setTimeout(() => setSaveStatus("idle"), 1500);
+    } catch {
+      setSaveStatus("idle");
+      showToast(t(settingsRef.current.uiLanguage || "zh-CN", "opt.saveFailed"));
+    }
+  }, [showToast]);
+
+  // Debounce text edits, but persist an explicit manga-provider choice before
+  // the user can close this page and retry from the reader.
   const scheduleSave = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      setSaveStatus("saving");
-      try {
-        await chrome.runtime.sendMessage({
-          type: "SAVE_SETTINGS",
-          payload: settingsRef.current,
-        });
-        setSaveStatus("saved");
-        showToast(t(settingsRef.current.uiLanguage || "zh-CN", "opt.saved"));
-        setTimeout(() => setSaveStatus("idle"), 1500);
-      } catch {
-        setSaveStatus("idle");
-        showToast(t(settingsRef.current.uiLanguage || "zh-CN", "opt.saveFailed"));
-      }
-    }, 600);
-  }, [showToast]);
+    saveTimerRef.current = setTimeout(() => void saveNow(), 600);
+  }, [saveNow]);
+  const handleMangaChange = useCallback((manga: AstraSettings["manga"]) => {
+    const previous = settingsRef.current;
+    const next = { ...previous, manga };
+    settingsRef.current = next;
+    setSettings(next);
+    if (manga.providerId !== previous.manga.providerId || manga.modelId !== previous.manga.modelId) void saveNow();
+    else scheduleSave();
+  }, [saveNow, scheduleSave]);
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -319,6 +341,7 @@ export default function Options() {
     { id: "sec-uilang", labelKey: "opt.uiLang" },
     { id: "sec-translation", labelKey: "opt.translation" },
     { id: "sec-glossary", labelKey: "opt.glossary" },
+    { id: "sec-manga", labelKey: "manga.title" },
     { id: "sec-live-translate", labelKey: "opt.liveSettings" },
     { id: "sec-floatingball", labelKey: "opt.floatingBall" },
     { id: "sec-chat-context", labelKey: "opt.chatContext" },
@@ -945,6 +968,8 @@ export default function Options() {
           </button>
         </div>
       </div>
+
+      <MangaSettingsCard settings={settings} onChange={handleMangaChange} />
 
       {/* Live Video / Tab Audio Subtitles Card */}
       <div className="ast-card" id="sec-live-translate">

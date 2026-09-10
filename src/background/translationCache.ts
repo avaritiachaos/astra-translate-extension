@@ -147,15 +147,15 @@ function maxEntries(settings: AstraSettings): number {
 }
 
 function trimStore(store: CacheStore, max: number): void {
-  const entries = Object.entries(store.entries);
-  if (entries.length <= max) return;
-
-  entries
-    .sort(([, a], [, b]) => a.lastUsedAt - b.lastUsedAt)
-    .slice(0, entries.length - max)
-    .forEach(([key]) => {
-      delete store.entries[key];
-    });
+  const entries = Object.entries(store.entries).sort(([, a], [, b]) => b.lastUsedAt - a.lastUsedAt);
+  const encoder = new TextEncoder();
+  let bytes = 128;
+  let count = 0;
+  for (const [key, value] of entries) {
+    const size = encoder.encode(JSON.stringify([key, value])).byteLength;
+    if (count >= max || bytes + size > 4 * 1024 * 1024) delete store.entries[key];
+    else { bytes += size; count++; }
+  }
 }
 
 export async function createTranslationCacheKey(input: TranslationCacheKeyInput): Promise<string> {
@@ -249,5 +249,8 @@ export async function setCachedTranslations(
     }
     trimStore(store, maxEntries(settings));
     await saveStore(store);
+  }).catch(() => {
+    // A completed translation remains usable when its optional cache cannot be saved.
+    console.warn("[Astra] Translation cache write failed.");
   });
 }

@@ -1,3 +1,4 @@
+import { handleMangaMessage } from "./manga/mangaService";
 // ============================================================
 // Astra Translate – Message Router
 // ============================================================
@@ -56,10 +57,12 @@ import {
 import {
   clearChat,
   getChatState,
+  getChatImage,
   regenerateChatMessage,
   sendChatMessage,
 } from "./chatService";
 import { siteLexiconHost } from "../shared/siteLexicon";
+import { chatScopeForSender } from "../shared/chatScope";
 import { StreamBatchItemParser, topLevelJsonObjects } from "../shared/streamBatchParser";
 import {
   clearTranslationHistory,
@@ -88,22 +91,9 @@ function isExtensionPageSender(sender?: chrome.runtime.MessageSender): boolean {
   return !!url && url.startsWith(`chrome-extension://${chrome.runtime.id}/`);
 }
 
-/**
- * Who may read or drive the chat conversation: our own extension pages, and
- * our content script running in an http(s) tab (which hosts the in-page chat
- * panel).
- *
- * Trade-off, deliberately taken so chat can live in the page: this browser
- * session's conversation becomes readable by our content script on any
- * http(s) page. Page JavaScript still cannot reach it — content scripts run
- * in an isolated world, and the manifest declares no `externally_connectable`,
- * so no website can message or connect to this extension directly.
- */
+/** Page documents can access only their own conversation; extension UI keeps its private session. */
 function isChatSenderAllowed(sender?: chrome.runtime.MessageSender): boolean {
-  if (isExtensionPageSender(sender)) return true;
-  // A tab-bound sender is a content script; require a normal web origin.
-  if (!sender?.tab) return false;
-  return !!senderHost(sender);
+  return chatScopeForSender(sender,chrome.runtime.id) !== null;
 }
 
 /**
@@ -130,6 +120,7 @@ export async function handleMessage(
   msg: Message,
   sender?: chrome.runtime.MessageSender
 ): Promise<unknown> {
+  if (msg.type.startsWith("MANGA_") || msg.type === "OFFSCREEN_IDLE") return handleMangaMessage(msg,sender);
   switch (msg.type) {
     case "GET_SETTINGS":
       return getSettings();
@@ -292,7 +283,8 @@ export async function handleMessage(
         !!payload?.webSearch,
         payload?.effort,
         payload?.pageContext,
-        payload?.images
+        payload?.images,
+        chatScopeForSender(sender,chrome.runtime.id)!
       );
     }
 
@@ -301,21 +293,28 @@ export async function handleMessage(
         return { success: false, appended: false };
       }
       const payload = msg.payload as { effort?: unknown } | undefined;
-      return regenerateChatMessage(payload?.effort);
+      return regenerateChatMessage(payload?.effort,chatScopeForSender(sender,chrome.runtime.id)!);
     }
 
     case "GET_CHAT_STATE": {
       if (!isChatSenderAllowed(sender)) {
         return { success: false, turns: [], pending: false, gen: 0 };
       }
-      return getChatState();
+      return getChatState(chatScopeForSender(sender,chrome.runtime.id)!);
+    }
+
+    case "GET_CHAT_IMAGE": {
+      const scope = chatScopeForSender(sender,chrome.runtime.id);
+      const id = (msg.payload as { assetId?: unknown } | undefined)?.assetId;
+      if (!scope || typeof id !== "string" || id.length > 100) return { success: false };
+      return getChatImage(id,scope);
     }
 
     case "CLEAR_CHAT": {
       if (!isChatSenderAllowed(sender)) {
         return { success: false };
       }
-      return clearChat();
+      return clearChat(chatScopeForSender(sender,chrome.runtime.id)!);
     }
 
     case "OPEN_CHAT_PANEL": {
@@ -336,7 +335,9 @@ export async function handleMessage(
     }
 
     case "OPEN_OPTIONS_PAGE":
-      chrome.runtime.openOptionsPage();
+      if ((msg.payload as { section?: string } | undefined)?.section === "manga") {
+        await chrome.tabs.create({ url: chrome.runtime.getURL("options.html#sec-manga") });
+      } else await chrome.runtime.openOptionsPage();
       return { success: true };
 
     case "SAVE_FLOATING_BALL_OPACITY": {
@@ -407,11 +408,17 @@ export async function handleMessage(
         return { success: false, error: "Sender not allowed" };
       }
       try {
-        const windowId = sender?.tab?.windowId;
-        const dataUrl =
-          windowId !== undefined
-            ? await chrome.tabs.captureVisibleTab(windowId, { format: "png" })
-            : await chrome.tabs.captureVisibleTab({ format: "png" });
+        const query = sender?.tab?.windowId !== undefined
+          ? { active: true, windowId: sender.tab.windowId } : { active: true, currentWindow: true };
+        const [before] = await chrome.tabs.query(query);
+        if (!before?.id || (sender?.tab?.id !== undefined && before.id !== sender.tab.id)) {
+          return { success: false, error: t((await getSettings()).uiLanguage,"error.captureChanged") };
+        }
+        const dataUrl = await chrome.tabs.captureVisibleTab(before.windowId, { format: "png" });
+        const [after] = await chrome.tabs.query(query);
+        if (after?.id !== before.id || after.url !== before.url) {
+          return { success: false, error: t((await getSettings()).uiLanguage,"error.captureChanged") };
+        }
         return { success: true, dataUrl };
       } catch (err: any) {
         return { success: false, error: err?.message || "Failed to capture tab" };

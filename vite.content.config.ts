@@ -1,15 +1,15 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   build: {
     outDir: "dist",
     emptyOutDir: false,
     lib: {
-      entry: resolve(__dirname, "src/content/content.ts"),
+      entry: resolve(__dirname, mode === "manga" ? "src/content/manga-entry.ts" : "src/content/content.ts"),
       formats: ["iife"],
-      name: "AstraContent",
-      fileName: () => "content.js",
+      name: mode === "manga" ? "AstraMangaContent" : "AstraContent",
+      fileName: () => mode === "manga" ? "manga-content.js" : "content.js",
     },
     rollupOptions: {
       output: {
@@ -26,4 +26,4 @@ export default defineConfig({
       "@styles": resolve(__dirname, "src/styles"),
     },
   },
-});
+}));

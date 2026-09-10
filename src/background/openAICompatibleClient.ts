@@ -2,7 +2,10 @@
 // Astra Translate – OpenAI-compatible Client
 // ============================================================
 
-import type { UserProviderSettings, UnifiedChatMessage as ChatMessage } from "../shared/types.ts";
+import type {
+  UserProviderSettings,
+  UnifiedChatMessage as ChatMessage,
+} from "../shared/types.ts";
 import { t, type UiLanguage } from "../shared/i18n.ts";
 import {
   mapHttpError,
@@ -10,49 +13,48 @@ import {
   isNetworkError,
   ProviderRequestError,
 } from "./errors.ts";
-import {
-  computeBackoffMs,
-  isRetryableHttpStatus,
-  parseRetryAfterMs,
-  sleep,
-} from "../shared/retry.ts";
+import { computeBackoffMs, parseRetryAfterMs, sleep } from "../shared/retry.ts";
 
 export type { ChatMessage };
 
 interface CompletionChoice {
-  message: { content: string };
+  message: { content: string | unknown[] };
+  finish_reason?: string | null;
 }
 
 interface CompletionResponse {
   choices: CompletionChoice[];
 }
 
+function contentText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (!Array.isArray(value)) return "";
+  return value
+    .map((part) =>
+      typeof part === "string"
+        ? part
+        : part && typeof part.text === "string"
+          ? part.text
+          : "",
+    )
+    .join("");
+}
+
 function extractDeltaText(choice?: StreamDeltaChoice): string {
   if (!choice) return "";
-  const d = choice.delta;
-  if (d) {
-    if (typeof d.content === "string") return d.content;
-    if (typeof (d as any).text === "string") return (d as any).text;
-    if (Array.isArray(d.content)) {
-      return d.content
-        .map((p) =>
-          typeof p === "string" ? p : p && typeof p === "object" && "text" in p ? (p as any).text : ""
-        )
-        .join("");
-    }
-  }
-  const m = choice.message;
-  if (m) {
-    if (typeof m.content === "string") return m.content;
-    if (typeof (m as any).text === "string") return (m as any).text;
-  }
-  if (typeof (choice as any).text === "string") return (choice as any).text;
-  return "";
+  return (
+    contentText(choice.delta?.content) ||
+    contentText(choice.delta?.text) ||
+    contentText(choice.message?.content) ||
+    contentText(choice.message?.text) ||
+    contentText(choice.text)
+  );
 }
 
 interface StreamDeltaChoice {
   delta?: { content?: string | unknown[]; text?: string };
-  message?: { content?: string; text?: string };
+  message?: { content?: string | unknown[]; text?: string };
+  finish_reason?: string | null;
   text?: string;
 }
 
@@ -72,6 +74,13 @@ const MAX_TRANSIENT_RETRIES = 3;
 export interface ExtraRequestOptions {
   /** Merged into the request body; each key is droppable on a 400. */
   optionalBody?: Record<string, unknown>;
+  /** Required output format; compatibility retries never remove it. */
+  responseFormat?: Record<string, unknown>;
+  signal?: AbortSignal;
+  /** Bounds the entire call, including retry delays. */
+  deadlineMs?: number;
+  maxRetries?: number;
+  omitTemperature?: boolean;
 }
 
 export function buildRequestParts(
@@ -79,17 +88,28 @@ export function buildRequestParts(
   messages: ChatMessage[],
   stream: boolean,
   lang: UiLanguage = "zh-CN",
-  extra?: ExtraRequestOptions
+  extra?: ExtraRequestOptions,
 ): {
   url: string;
   headers: Record<string, string>;
   body: Record<string, unknown>;
   optionalKeys: string[];
 } {
-  const { baseUrl, endpoint, apiKey, model, temperature, disableThinking, providerId } = settings;
+  const {
+    baseUrl,
+    endpoint,
+    apiKey,
+    model,
+    temperature,
+    disableThinking,
+    providerId,
+  } = settings;
   if (!apiKey) {
     // Callers pre-check, but keep a localized safety net for new call sites.
-    throw new ProviderRequestError(t(lang, "error.apiKeyNotConfigured"), "API_KEY_MISSING");
+    throw new ProviderRequestError(
+      t(lang, "error.apiKeyNotConfigured"),
+      "API_KEY_MISSING",
+    );
   }
 
   const url = `${baseUrl.replace(/\/+$/, "")}${endpoint}`;
@@ -110,10 +130,15 @@ export function buildRequestParts(
       : providerId === "deepseek"
         ? { thinking: { type: "disabled" } }
         : disableThinking
-          ? { thinking: false }   // 自定义 OpenAI 兼容网关（如本地反代）认 thinking:false，比 reasoning_effort 更通用
+          ? { thinking: false } // 自定义 OpenAI 兼容网关（如本地反代）认 thinking:false，比 reasoning_effort 更通用
           : {};
 
-  const optionalKeys = Object.keys(optional);
+  const reserved = new Set(["model", "messages", "stream", "response_format"]);
+  const optionalKeys = Object.keys(optional).filter(
+    (key) => !reserved.has(key),
+  );
+  if (extra?.responseFormat) body.response_format = extra.responseFormat;
+  if (extra?.omitTemperature) delete body.temperature;
   for (const key of optionalKeys) body[key] = optional[key];
 
   const headers: Record<string, string> = {
@@ -139,7 +164,7 @@ export function buildRequestParts(
  */
 function dropOptionalFields(
   body: Record<string, unknown>,
-  optionalKeys: string[]
+  optionalKeys: string[],
 ): boolean {
   if (optionalKeys.length === 0) return false;
   for (const key of optionalKeys) delete body[key];
@@ -147,358 +172,334 @@ function dropOptionalFields(
   return true;
 }
 
-/**
- * Degrade multimodal content arrays to plain text strings if an unsupported
- * gateway rejects the request with a 400. Returns true when messages were flattened.
- */
-function flattenComplexMessages(body: Record<string, unknown>): boolean {
-  const msgs = body.messages as ChatMessage[] | undefined;
-  if (!Array.isArray(msgs)) return false;
-  let hasComplex = false;
-  const flattened: ChatMessage[] = msgs.map((m) => {
-    if (Array.isArray(m.content)) {
-      hasComplex = true;
-      const textParts = m.content
-        .map((p) => (p.type === "text" ? p.text : "[Image Attachment]"))
-        .join("\n\n");
-      return { role: m.role, content: textParts };
-    }
-    return m;
-  });
-  if (!hasComplex) return false;
-  body.messages = flattened;
-  return true;
+function responseError(
+  lang: UiLanguage,
+  code = "PARSE_ERROR",
+): ProviderRequestError {
+  return new ProviderRequestError(
+    t(
+      lang,
+      code === "RESPONSE_TRUNCATED"
+        ? "error.truncated"
+        : "error.invalidResponse",
+    ),
+    code,
+  );
 }
 
-/**
- * Send a single chat completion request to an OpenAI-compatible endpoint.
- * Automatically retries rate-limits and transient server/network errors with
- * exponential backoff (honours Retry-After when present).
- */
-export async function openAIChat(
+function checkFinish(reason: unknown, lang: UiLanguage): void {
+  if (reason === "length") throw responseError(lang, "RESPONSE_TRUNCATED");
+  if (typeof reason === "string" && reason !== "stop")
+    throw responseError(lang);
+}
+
+function extractContent(data: CompletionResponse, lang: UiLanguage): string {
+  const choice = data?.choices?.[0];
+  checkFinish(choice?.finish_reason, lang);
+  const content = extractDeltaText({ message: choice?.message }).trim();
+  if (!content) throw responseError(lang);
+  return content;
+}
+
+/** Read complete SSE events, including multi-line data and split UTF-8 bytes. */
+async function readStream(
+  res: Response,
+  onDelta: (text: string) => void,
+  onActivity: () => void,
+  lang: UiLanguage,
+): Promise<string> {
+  if (!res.body) throw responseError(lang);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let dataLines: string[] = [];
+  let complete = false;
+  let text = "";
+  const flushEvent = () => {
+    if (dataLines.length === 0) return;
+    const data = dataLines.join("\n").trim();
+    dataLines = [];
+    if (!data) return;
+    if (data === "[DONE]") {
+      complete = true;
+      return;
+    }
+    let chunk: StreamChunk & { error?: unknown };
+    try {
+      chunk = JSON.parse(data);
+    } catch {
+      throw responseError(lang);
+    }
+    if (chunk.error) throw responseError(lang);
+    const choice = chunk.choices?.[0];
+    const delta = extractDeltaText(choice);
+    if (delta) {
+      text += delta;
+      if (text.length > 1_000_000) throw responseError(lang);
+      onDelta(delta);
+    }
+    checkFinish(choice?.finish_reason, lang);
+    if (choice?.finish_reason === "stop") complete = true;
+  };
+  const line = (raw: string) => {
+    const value = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    if (!value) flushEvent();
+    else if (value.startsWith("data:"))
+      dataLines.push(value.slice(5).replace(/^ /, ""));
+  };
+  try {
+    while (!complete) {
+      const part = await reader.read();
+      if (part.done) break;
+      onActivity();
+      buffer += decoder.decode(part.value, { stream: true });
+      let end: number;
+      while ((end = buffer.indexOf("\n")) >= 0 && !complete) {
+        line(buffer.slice(0, end));
+        buffer = buffer.slice(end + 1);
+      }
+    }
+    if (!complete) {
+      buffer += decoder.decode();
+      if (buffer) line(buffer);
+      flushEvent();
+    }
+    if (!complete) throw responseError(lang, "RESPONSE_TRUNCATED");
+    if (!text.trim()) throw responseError(lang);
+    return text.trim();
+  } finally {
+    void reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
+
+/** Inspect only a bounded error message to distinguish format negotiation from bad images. */
+async function providerHttpError(
+  res: Response,
+  lang: UiLanguage,
+  model: string,
+): Promise<ProviderRequestError> {
+  const error = mapHttpError(res.status, lang);
+  if (![400, 404].includes(res.status) || !res.body) {
+    void res.body?.cancel().catch(() => {});
+    return error;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "",
+    bytes = 0;
+  try {
+    while (bytes < 8192) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      const part = chunk.value.subarray(0, 8192 - bytes);
+      bytes += part.length;
+      text += decoder.decode(part, { stream: true });
+    }
+  } finally {
+    void reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+  let message = text, code = "";
+  try {
+    const data = JSON.parse(text);
+    message = String(data.error?.message ?? data.message ?? "");
+    code = String(data.error?.code ?? data.code ?? "");
+  } catch {
+    /* Some gateways return plain text. */
+  }
+  if (
+    /^(model_not_found|unknown_model|model_not_available)$/i.test(code) ||
+    /unknown provider for model|(?:unknown|unsupported|nonexistent) model|model[^\n]{0,150}(?:does not exist|not found|not available)/i.test(message)
+  ) {
+    // Surface the model from our request, not the raw upstream error: proxies
+    // sometimes echo credentials or the request body in error.message.
+    return new ProviderRequestError(
+      t(lang, "error.modelUnavailable", { model }), "MODEL_NOT_FOUND", res.status,
+    );
+  }
+  if (
+    /response_format|json_schema|responseJsonSchema/i.test(message) &&
+    /unsupported|not supported|unknown (?:field|parameter)|unrecognized|not implemented/i.test(
+      message,
+    )
+  ) {
+    return new ProviderRequestError(
+      t(lang, "error.invalidResponse"),
+      "FORMAT_UNSUPPORTED",
+      400,
+    );
+  }
+  return error;
+}
+
+async function requestCompletion(
   settings: UserProviderSettings,
   messages: ChatMessage[],
-  lang: UiLanguage = "zh-CN",
-  extra?: ExtraRequestOptions
+  lang: UiLanguage,
+  extra?: ExtraRequestOptions,
+  onDelta?: (text: string) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
-  if (!settings.apiKey) {
-    throw new ProviderRequestError(t(lang, "error.apiKeyNotConfigured"), "API_KEY_MISSING");
-  }
-
   const { url, headers, body, optionalKeys } = buildRequestParts(
     settings,
     messages,
-    false,
+    !!onDelta,
     lang,
-    extra
+    extra,
   );
-
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt <= MAX_TRANSIENT_RETRIES; attempt++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), settings.timeoutMs);
-
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-
-      if (!res.ok) {
-        // Drop the error body — we only act on the status / headers.
-        void res.body?.cancel().catch(() => {});
-        if (
-          res.status === 400 &&
-          (dropOptionalFields(body, optionalKeys) || flattenComplexMessages(body))
-        ) {
-          clearTimeout(timeoutId);
-          attempt -= 1;
-          continue;
-        }
-
-        if (isRetryableHttpStatus(res.status) && attempt < MAX_TRANSIENT_RETRIES) {
-          const retryAfterMs = parseRetryAfterMs(res.headers.get("Retry-After"));
-          const wait = computeBackoffMs(attempt, { retryAfterMs });
-          clearTimeout(timeoutId);
-          await sleep(wait);
-          continue;
-        }
-
-        throw mapHttpError(res.status, lang);
-      }
-
-      const data = (await res.json()) as CompletionResponse;
-      return extractContent(data, lang);
-    } catch (err) {
-      lastError = err;
-
-      if (isTimeoutError(err)) {
-        if (attempt < MAX_TRANSIENT_RETRIES) {
-          clearTimeout(timeoutId);
-          await sleep(computeBackoffMs(attempt));
-          continue;
-        }
-        throw new ProviderRequestError(t(lang, "error.timeout"), "TIMEOUT", undefined, true);
-      }
-
-      if (isNetworkError(err)) {
-        if (attempt < MAX_TRANSIENT_RETRIES) {
-          clearTimeout(timeoutId);
-          await sleep(computeBackoffMs(attempt));
-          continue;
-        }
-        throw new ProviderRequestError(t(lang, "error.network"), "NETWORK_ERROR", undefined, true);
-      }
-
-      if (err instanceof ProviderRequestError) {
-        if (!err.retryable || attempt >= MAX_TRANSIENT_RETRIES) throw err;
-        clearTimeout(timeoutId);
-        await sleep(computeBackoffMs(attempt));
-        continue;
-      }
-
-      throw new ProviderRequestError(
-        `${t(lang, "error.unknown")}: ${(err as Error).message}`,
-        "UNKNOWN"
-      );
-    } finally {
-      clearTimeout(timeoutId);
-    }
+  const callerSignals = [
+    ...new Set([signal, extra?.signal].filter((s): s is AbortSignal => !!s)),
+  ];
+  const lifetime = new AbortController();
+  const abort = () => lifetime.abort();
+  for (const s of callerSignals) {
+    s.addEventListener("abort", abort, { once: true });
+    if (s.aborted) abort();
   }
-
-  if (lastError instanceof ProviderRequestError) throw lastError;
-  throw new ProviderRequestError(t(lang, "error.unknown"), "UNKNOWN");
+  const abortError = () =>
+    new ProviderRequestError(
+      t(
+        lang,
+        callerSignals.some((s) => s.aborted)
+          ? "error.cancelled"
+          : "error.timeout",
+      ),
+      callerSignals.some((s) => s.aborted) ? "CANCELLED" : "TIMEOUT",
+    );
+  const deadline =
+    extra?.deadlineMs && extra.deadlineMs > 0
+      ? setTimeout(abort, extra.deadlineMs)
+      : undefined;
+  const retries = Number.isFinite(extra?.maxRetries)
+    ? Math.max(
+        0,
+        Math.min(MAX_TRANSIENT_RETRIES, Math.floor(extra!.maxRetries!)),
+      )
+    : MAX_TRANSIENT_RETRIES;
+  const idleMs =
+    Number.isFinite(settings.timeoutMs) && settings.timeoutMs > 0
+      ? settings.timeoutMs
+      : 30_000;
+  try {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      if (lifetime.signal.aborted) throw abortError();
+      const controller = new AbortController();
+      const relay = () => controller.abort();
+      lifetime.signal.addEventListener("abort", relay, { once: true });
+      let timer = setTimeout(relay, idleMs);
+      const rearm = () => {
+        clearTimeout(timer);
+        timer = setTimeout(relay, idleMs);
+      };
+      const cleanup = () => {
+        clearTimeout(timer);
+        lifetime.signal.removeEventListener("abort", relay);
+      };
+      let emitted = false;
+      let retryAfterMs: number | null = null;
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const httpError = await providerHttpError(res, lang, settings.model);
+          if (res.status === 400 && httpError.code !== "MODEL_NOT_FOUND" && dropOptionalFields(body, optionalKeys)) {
+            attempt--;
+            continue;
+          }
+          retryAfterMs = parseRetryAfterMs(res.headers.get("Retry-After"));
+          throw httpError;
+        }
+        if (
+          !onDelta ||
+          /\bapplication\/(?:[^;]+\+)?json\b/i.test(
+            res.headers.get("Content-Type") ?? "",
+          )
+        ) {
+          let data: CompletionResponse;
+          try {
+            data = await res.json();
+          } catch (err) {
+            if (controller.signal.aborted) throw err;
+            throw responseError(lang);
+          }
+          const text = extractContent(data, lang);
+          if (onDelta) {
+            emitted = true;
+            onDelta(text);
+          }
+          return text;
+        }
+        return await readStream(
+          res,
+          (delta) => {
+            emitted = true;
+            onDelta(delta);
+          },
+          rearm,
+          lang,
+        );
+      } catch (err) {
+        cleanup();
+        if (lifetime.signal.aborted) throw abortError();
+        const error =
+          err instanceof ProviderRequestError
+            ? err
+            : controller.signal.aborted || isTimeoutError(err)
+              ? new ProviderRequestError(
+                  t(lang, "error.timeout"),
+                  "TIMEOUT",
+                  undefined,
+                  true,
+                )
+              : isNetworkError(err)
+                ? new ProviderRequestError(
+                    t(lang, "error.network"),
+                    "NETWORK_ERROR",
+                    undefined,
+                    true,
+                  )
+                : responseError(lang);
+        if (emitted || !error.retryable || attempt >= retries) throw error;
+        try {
+          await sleep(
+            computeBackoffMs(attempt, { retryAfterMs }),
+            lifetime.signal,
+          );
+        } catch {
+          throw abortError();
+        }
+      } finally {
+        cleanup();
+      }
+    }
+    throw responseError(lang);
+  } finally {
+    clearTimeout(deadline);
+    for (const s of callerSignals) s.removeEventListener("abort", abort);
+  }
 }
 
-/**
- * Streaming chat completion. Invokes `onDelta` with each content fragment as
- * it arrives. Retries only when no content has been emitted yet (so partial
- * page applies are not duplicated). Returns the full concatenated text.
- */
-export async function openAIChatStream(
+export function openAIChat(
+  settings: UserProviderSettings,
+  messages: ChatMessage[],
+  lang: UiLanguage = "zh-CN",
+  extra?: ExtraRequestOptions,
+): Promise<string> {
+  return requestCompletion(settings, messages, lang, extra);
+}
+
+export function openAIChatStream(
   settings: UserProviderSettings,
   messages: ChatMessage[],
   onDelta: (delta: string) => void,
   lang: UiLanguage = "zh-CN",
   signal?: AbortSignal,
-  extra?: ExtraRequestOptions
+  extra?: ExtraRequestOptions,
 ): Promise<string> {
-  if (!settings.apiKey) {
-    throw new ProviderRequestError(t(lang, "error.apiKeyNotConfigured"), "API_KEY_MISSING");
-  }
-
-  const { url, headers, body, optionalKeys } = buildRequestParts(
-    settings,
-    messages,
-    true,
-    lang,
-    extra
-  );
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt <= MAX_TRANSIENT_RETRIES; attempt++) {
-    if (signal?.aborted) {
-      throw new ProviderRequestError(t(lang, "error.timeout"), "TIMEOUT", undefined, true);
-    }
-
-    const controller = new AbortController();
-    const onAbort = () => controller.abort();
-    signal?.addEventListener("abort", onAbort, { once: true });
-
-    // Idle timeout: arms for time-to-first-byte, then re-arms on every chunk.
-    // A slow model streaming a large batch must not be cut off just because
-    // the *total* stream time exceeds timeoutMs — only a silent stall aborts.
-    let timeoutId = setTimeout(() => controller.abort(), settings.timeoutMs);
-    const rearmTimeout = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => controller.abort(), settings.timeoutMs);
-    };
-    let emittedAny = false;
-    let full = "";
-
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-
-      if (!res.ok) {
-        // Drop the error body — we only act on the status / headers.
-        void res.body?.cancel().catch(() => {});
-        if (
-          res.status === 400 &&
-          (dropOptionalFields(body, optionalKeys) || flattenComplexMessages(body))
-        ) {
-          clearTimeout(timeoutId);
-          signal?.removeEventListener("abort", onAbort);
-          attempt -= 1;
-          continue;
-        }
-
-        if (isRetryableHttpStatus(res.status) && attempt < MAX_TRANSIENT_RETRIES) {
-          const retryAfterMs = parseRetryAfterMs(res.headers.get("Retry-After"));
-          clearTimeout(timeoutId);
-          signal?.removeEventListener("abort", onAbort);
-          await sleep(computeBackoffMs(attempt, { retryAfterMs }));
-          continue;
-        }
-
-        throw mapHttpError(res.status, lang);
-      }
-
-      if (!res.body) {
-        // Provider returned a non-stream body — fall back to one-shot parse.
-        const data = (await res.json()) as CompletionResponse;
-        const content = extractContent(data, lang);
-        if (content) {
-          onDelta(content);
-          emittedAny = true;
-        }
-        return content;
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let lineBuf = "";
-      let sawDone = false;
-
-      const processLine = (rawLine: string): void => {
-        let line = rawLine;
-        if (line.endsWith("\r")) line = line.slice(0, -1);
-        if (!line || line.startsWith(":")) return;
-        if (!line.startsWith("data:")) return;
-        const data = line.slice(5).trim();
-        if (data === "[DONE]") {
-          // Some gateways keep the connection open after [DONE]; stop
-          // reading instead of waiting for the server to close it.
-          sawDone = true;
-          return;
-        }
-        try {
-          const chunk = JSON.parse(data) as StreamChunk;
-          const delta = extractDeltaText(chunk.choices?.[0]);
-          if (delta) {
-            full += delta;
-            emittedAny = true;
-            onDelta(delta);
-          }
-        } catch {
-          // Incomplete or non-JSON SSE line — skip.
-        }
-      };
-
-      try {
-        while (!sawDone) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          rearmTimeout();
-          lineBuf += decoder.decode(value, { stream: true });
-
-          let nl: number;
-          while ((nl = lineBuf.indexOf("\n")) >= 0) {
-            const line = lineBuf.slice(0, nl);
-            lineBuf = lineBuf.slice(nl + 1);
-            processLine(line);
-            if (sawDone) {
-              lineBuf = "";
-              break;
-            }
-          }
-        }
-
-        // Stream ended without [DONE]: flush bytes still held by the decoder
-        // and process a final unterminated data: line — some gateways close
-        // the body right after the last event with no trailing newline.
-        if (!sawDone) {
-          lineBuf += decoder.decode();
-          if (lineBuf) processLine(lineBuf);
-          lineBuf = "";
-        }
-      } finally {
-        // Release the connection on every exit path (incl. [DONE] with the
-        // server still holding the stream open, and mid-stream errors).
-        void reader.cancel().catch(() => {});
-      }
-
-      if (!full.trim()) {
-        throw new ProviderRequestError(t(lang, "error.invalidResponse"), "PARSE_ERROR");
-      }
-      return full.trim();
-    } catch (err) {
-      lastError = err;
-
-      // Caller-initiated abort (user cancelled / port closed): exit now.
-      // The generic AbortError path below would classify this as a timeout
-      // and sleep through a full backoff before the loop-top check notices.
-      if (signal?.aborted) {
-        if (err instanceof ProviderRequestError) throw err;
-        throw new ProviderRequestError(t(lang, "error.timeout"), "TIMEOUT", undefined, true);
-      }
-
-      // Content already reached the page: never retry (deltas would be
-      // duplicated) and never pass a truncated stream off as success — the
-      // caller gets the real error alongside whatever items already streamed.
-      if (emittedAny) {
-        if (err instanceof ProviderRequestError) throw err;
-        if (isTimeoutError(err)) {
-          throw new ProviderRequestError(t(lang, "error.timeout"), "TIMEOUT", undefined, true);
-        }
-        throw err instanceof Error
-          ? new ProviderRequestError(err.message, "UNKNOWN")
-          : new ProviderRequestError(t(lang, "error.unknown"), "UNKNOWN");
-      }
-
-      if (isTimeoutError(err)) {
-        if (attempt < MAX_TRANSIENT_RETRIES) {
-          clearTimeout(timeoutId);
-          signal?.removeEventListener("abort", onAbort);
-          await sleep(computeBackoffMs(attempt));
-          continue;
-        }
-        throw new ProviderRequestError(t(lang, "error.timeout"), "TIMEOUT", undefined, true);
-      }
-
-      if (isNetworkError(err)) {
-        if (attempt < MAX_TRANSIENT_RETRIES) {
-          clearTimeout(timeoutId);
-          signal?.removeEventListener("abort", onAbort);
-          await sleep(computeBackoffMs(attempt));
-          continue;
-        }
-        throw new ProviderRequestError(t(lang, "error.network"), "NETWORK_ERROR", undefined, true);
-      }
-
-      if (err instanceof ProviderRequestError) {
-        if (!err.retryable || attempt >= MAX_TRANSIENT_RETRIES) throw err;
-        clearTimeout(timeoutId);
-        signal?.removeEventListener("abort", onAbort);
-        await sleep(computeBackoffMs(attempt));
-        continue;
-      }
-
-      throw new ProviderRequestError(
-        `${t(lang, "error.unknown")}: ${(err as Error).message}`,
-        "UNKNOWN"
-      );
-    } finally {
-      clearTimeout(timeoutId);
-      signal?.removeEventListener("abort", onAbort);
-    }
-  }
-
-  if (lastError instanceof ProviderRequestError) throw lastError;
-  throw new ProviderRequestError(t(lang, "error.unknown"), "UNKNOWN");
-}
-
-function extractContent(data: CompletionResponse, lang: UiLanguage = "zh-CN"): string {
-  const content = data.choices?.[0]?.message?.content;
-  if (typeof content !== "string") {
-    throw new ProviderRequestError(t(lang, "error.invalidResponse"), "PARSE_ERROR");
-  }
-  return content.trim();
+  return requestCompletion(settings, messages, lang, extra, onDelta, signal);
 }

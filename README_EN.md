@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-5.0.0-7C5CFF" alt="version" />
+  <img src="https://img.shields.io/badge/version-5.4.0-7C5CFF" alt="version" />
   <img src="https://img.shields.io/badge/Manifest-V3-4F46E5" alt="manifest v3" />
   <img src="https://img.shields.io/badge/TypeScript-React_18-3178C6" alt="tech" />
   <img src="https://img.shields.io/badge/license-MIT-3FB950" alt="license" />
@@ -28,7 +28,7 @@ hold you hostage; it just translates well.**
 
 - 🔑 **Bring your own API** — connect Google Gemini (AI Studio), DeepSeek, and other LLMs; pay per use or utilize free tiers
 - 🚫 **No login / no subscription / no ads** — install, paste a key, go
-- 💸 **Permanent cache** — repeated text returns instantly, with no second charge
+- 💸 **Local cache reuse** — cache hits reuse results without another model call; older entries are evicted as needed
 - 🎨 **Adjustable translation style** — make the model translate in the tone you like
 - 🔒 **Privacy-first** — your API key stays in local storage; isolated per-provider storage
 
@@ -43,11 +43,15 @@ hold you hostage; it just translates well.**
 - **Full-page translation** — translate the whole page in one click; interrupt and restore anytime
 - **Manual translation** — open the popup and paste any text
 
+### Manga image translation (initial version)
+
+Translate one image from its context menu or select it from the popup. Includes an independent vision model, translated overlays, source comparison, restore, cancellation, caching, and tiling for long strips. No model ID is assumed by default; load the provider model list and select the exact ID of an image-capable model. See the [setup guide (Chinese)](docs/manga-translation.md).
+
 ### Smart & automatic (on by default)
 - **Smart target language** — English selection → Chinese, Chinese selection → English; no manual direction switching
 - **Same-language purity check** — automatically avoids pointless "same-language" translations and wasted tokens
 - **Soft / hard content protection** — URLs, emails, paths, code, and hashes are detected and skipped; usernames / IDs are kept intact; password fields and code blocks are never translated
-- **Persistent cache** — built-in SHA-256 dedup cache (5000 entries by default, LRU); translated text returns instantly at zero extra cost
+- **Persistent cache** — built-in SHA-256 dedup cache (5000 entries and a 4 MiB budget, LRU); cache hits need no additional model call
 - **Real-time incremental translation** — full-page mode keeps up with dynamically loaded and lazy-loaded content
 
 ### Dictionary mode
@@ -64,8 +68,8 @@ Select text and click 💬, or right-click the floating ball and pick "Ask AI ab
 - **Reads the page for you** — opening chat extracts the article automatically (scored by content density, skipping nav / header / footer / sidebar) and shows it as a removable context chip. Click ✕ to drop it, or turn the whole behaviour off in Settings
 - **Regenerate** — didn't like the answer? Hit ↻ instead of retyping the question
 - **Web supplement** — optional: search first, answer from the results, cite the sources
-- **Shared conversation** — the in-page panel and the toolbar popup are the same chat; switch freely without losing context
-- **Leaves no trace** — chats live in this browser session only and clear when you quit
+- **Isolated conversations** — the popup keeps a private conversation; each page document has its own history, so a website does not receive chat from other pages or the popup
+- **Session and image storage** — text history lives in the browser session. Images use a bounded local cache; clearing chat removes its images, and startup cleanup removes expired or unreferenced files
 
 ### Highly customizable
 - **Three independent target languages** — set separate languages for full-page, selection, and default translation

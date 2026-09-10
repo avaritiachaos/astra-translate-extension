@@ -1971,3 +1971,8 @@ body::-webkit-scrollbar-thumb:hover {
 
 
 
+
+/* Distinguish DOM text translation from image/OCR actions. */
+.ast-image-section{margin:0 16px 14px;padding:13px 14px;border:1px solid #e5e2ef;border-radius:16px;background:rgba(255,255,255,.78)}
+.ast-image-heading{display:flex;gap:10px;align-items:center;margin-bottom:12px}.ast-image-heading h2{font-size:13px;font-weight:650;margin:0;color:var(--ast-text)}.ast-image-heading span{font-size:11px;color:var(--ast-text-secondary)}.ast-image-heading .ast-image-symbol{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:#eeebfa;color:#706196}.ast-image-heading kbd{margin-left:auto;font:10px inherit;border:1px solid #e7e3ed;border-radius:5px;padding:2px 5px;color:#98909f;background:#fcfbfe}
+.ast-image-actions{display:flex;gap:8px}.ast-image-actions .ast-btn{box-shadow:none;font-size:12px;padding:9px 12px;border-radius:10px}.ast-image-primary{flex:1;background:#7161bb;color:white}.ast-image-primary:hover{background:#6251ab}.ast-image-secondary{background:#f4f1f9;color:#6b6084;border:1px solid #e6e0ee}.ast-image-secondary:hover{background:#eee9f5}

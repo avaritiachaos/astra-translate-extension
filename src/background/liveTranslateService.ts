@@ -1,3 +1,7 @@
+import {
+  ensureOffscreenDocument,
+  sendOffscreenCommand,
+} from "./offscreenManager";
 // ============================================================
 // Astra Translate – Live Translation Background Service
 // ============================================================
@@ -29,35 +33,6 @@ let currentSentence: {
 let sentenceIdleTimer: ReturnType<typeof setTimeout> | null = null;
 const SENTENCE_IDLE_TIMEOUT_MS = 2500;
 
-async function ensureOffscreenDocument(): Promise<void> {
-  const offscreenUrl = chrome.runtime.getURL("offscreen.html");
-  const existingContexts = await (chrome.runtime as any).getContexts?.({
-    contextTypes: ["OFFSCREEN_DOCUMENT"],
-    documentUrls: [offscreenUrl],
-  });
-
-  if (existingContexts && existingContexts.length > 0) {
-    return;
-  }
-
-  // Fallback check or create
-  try {
-    await chrome.offscreen.createDocument({
-      url: "offscreen.html",
-      reasons: [
-        chrome.offscreen.Reason.USER_MEDIA,
-        chrome.offscreen.Reason.AUDIO_PLAYBACK,
-      ],
-      justification: "Capture tab audio for real-time speech translation and subtitle overlay",
-    });
-  } catch (err: any) {
-    if (!err.message?.includes("Only a single offscreen document may be created")) {
-      console.debug("[Astra Live] Failed to create offscreen document:", err);
-      throw err;
-    }
-  }
-}
-
 export function getLiveTranslateState(): LiveTranslateState {
   return { ...currentState, tabId: activeTabId ?? undefined };
 }
@@ -75,7 +50,9 @@ export function clearLiveSubtitleHistory(): void {
   }
 }
 
-export async function startLiveTranslation(tabId?: number): Promise<{ success: boolean; error?: string }> {
+export async function startLiveTranslation(
+  tabId?: number,
+): Promise<{ success: boolean; error?: string }> {
   const settings = await getSettings();
 
   // Determine Gemini API key
@@ -100,7 +77,10 @@ export async function startLiveTranslation(tabId?: number): Promise<{ success: b
   if (tabId) {
     targetTab = await chrome.tabs.get(tabId).catch(() => undefined);
   } else {
-    const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [active] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
     targetTab = active;
   }
 
@@ -118,7 +98,8 @@ export async function startLiveTranslation(tabId?: number): Promise<{ success: b
   ) {
     return {
       success: false,
-      error: "Chrome 限制：无法在系统/设置页捕获音频，请在视频或普通网页（如 YouTube、B站 等）中开启同传。",
+      error:
+        "Chrome 限制：无法在系统/设置页捕获音频，请在视频或普通网页（如 YouTube、B站 等）中开启同传。",
     };
   }
 
@@ -140,18 +121,33 @@ export async function startLiveTranslation(tabId?: number): Promise<{ success: b
       });
     });
 
-    const basePrompt = settings.liveTranslatePrompt || "Translate speech into {{targetLang}}";
-    const promptWithLang = basePrompt.replace(/\{\{targetLang\}\}/g, settings.liveTranslateTargetLang);
-    const effectivePrompt = injectGlossaryIntoPrompt(promptWithLang, settings.customGlossary);
-
+    const basePrompt =
+      settings.liveTranslatePrompt || "Translate speech into {{targetLang}}";
+    const promptWithLang = basePrompt.replace(
+      /\{\{targetLang\}\}/g,
+      settings.liveTranslateTargetLang,
+    );
+    const effectivePrompt = injectGlossaryIntoPrompt(
+      promptWithLang,
+      settings.customGlossary,
+    );
 
     // Send start message to offscreen
-    await chrome.runtime.sendMessage({
+    currentState = {
+      running: true,
+      status: "connecting",
+      message: "正在连接…",
+      tabId: activeTabId,
+    };
+
+    const capture = await sendOffscreenCommand({
       type: "OFFSCREEN_START_CAPTURE",
       payload: {
         streamId,
         apiKey,
-        model: settings.liveTranslateModel || "models/gemini-3.5-live-translate-preview",
+        model:
+          settings.liveTranslateModel ||
+          "models/gemini-3.5-live-translate-preview",
         targetLang: settings.liveTranslateTargetLang || "Simplified Chinese",
         prompt: effectivePrompt,
         vadEnabled: settings.liveTranslateVadEnabled,
@@ -160,12 +156,7 @@ export async function startLiveTranslation(tabId?: number): Promise<{ success: b
       },
     });
 
-    currentState = {
-      running: true,
-      status: "connecting",
-      message: "正在连接…",
-      tabId: activeTabId,
-    };
+    if (!capture?.success) throw new Error(capture?.error || "音频捕获失败");
 
     // Tell content script to show subtitle HUD
     try {
@@ -183,8 +174,12 @@ export async function startLiveTranslation(tabId?: number): Promise<{ success: b
   } catch (err: any) {
     console.warn("[Astra Live] startLiveTranslation caught error:", err);
     let errMsg = err instanceof Error ? err.message : String(err);
-    if (errMsg.includes("Extension has not been invoked") || errMsg.includes("activeTab permission")) {
-      errMsg = "Chrome 限制：无法在系统/设置页捕获音频，请在视频或普通网页（如 YouTube、B站 等）中开启同传。";
+    if (
+      errMsg.includes("Extension has not been invoked") ||
+      errMsg.includes("activeTab permission")
+    ) {
+      errMsg =
+        "Chrome 限制：无法在系统/设置页捕获音频，请在视频或普通网页（如 YouTube、B站 等）中开启同传。";
     }
     currentState = {
       running: false,
@@ -197,7 +192,7 @@ export async function startLiveTranslation(tabId?: number): Promise<{ success: b
 
 export async function stopLiveTranslation(): Promise<{ success: boolean }> {
   try {
-    await chrome.runtime.sendMessage({ type: "OFFSCREEN_STOP_CAPTURE" });
+    await sendOffscreenCommand({ type: "OFFSCREEN_STOP_CAPTURE" });
   } catch {}
 
   flushCurrentSentence();
@@ -225,7 +220,10 @@ function flushCurrentSentence() {
     clearTimeout(sentenceIdleTimer);
     sentenceIdleTimer = null;
   }
-  if (currentSentence && (currentSentence.translation || currentSentence.original)) {
+  if (
+    currentSentence &&
+    (currentSentence.translation || currentSentence.original)
+  ) {
     subtitleHistory.push({
       ...currentSentence,
       endTime: Date.now(),
@@ -319,7 +317,10 @@ async function broadcastToCurrentTabs(msg: { type: string; payload: any }) {
     if (activeTabId) {
       chrome.tabs.sendMessage(activeTabId, msg).catch(() => {});
     }
-    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [activeTab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
     if (activeTab?.id && activeTab.id !== activeTabId) {
       chrome.tabs.sendMessage(activeTab.id, msg).catch(() => {});
     }
@@ -334,18 +335,22 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     const url = tab.url || "";
     if (url.startsWith("http://") || url.startsWith("https://")) {
       const settings = await getSettings();
-      await chrome.tabs.sendMessage(activeInfo.tabId, {
-        type: "LIVE_SUBTITLE_START_HUD",
-        payload: {
-          showOriginal: settings.liveTranslateShowOriginal,
-          fontSize: settings.liveTranslateFontSize,
-          bgOpacity: settings.liveTranslateBgOpacity,
-        },
-      }).catch(() => {});
-      await chrome.tabs.sendMessage(activeInfo.tabId, {
-        type: "LIVE_TRANSLATE_STATUS",
-        payload: currentState,
-      }).catch(() => {});
+      await chrome.tabs
+        .sendMessage(activeInfo.tabId, {
+          type: "LIVE_SUBTITLE_START_HUD",
+          payload: {
+            showOriginal: settings.liveTranslateShowOriginal,
+            fontSize: settings.liveTranslateFontSize,
+            bgOpacity: settings.liveTranslateBgOpacity,
+          },
+        })
+        .catch(() => {});
+      await chrome.tabs
+        .sendMessage(activeInfo.tabId, {
+          type: "LIVE_TRANSLATE_STATUS",
+          payload: currentState,
+        })
+        .catch(() => {});
     }
   } catch {}
 });
@@ -355,4 +360,3 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     void stopLiveTranslation();
   }
 });
-

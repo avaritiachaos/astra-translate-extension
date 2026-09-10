@@ -1,10 +1,17 @@
+import { hasOffscreenDocument, sendOffscreenCommand } from "./offscreenManager";
+import { getSettings } from "../shared/storage";
+import { openMangaPicker } from "../shared/mangaTab";
+import { clearMangaReading, stopReadingOutsideScope } from "./manga/mangaReadingService";
+import { translationContextMenus } from "./contextMenuItems";
+import { chatScopeForSender } from "../shared/chatScope";
 // ============================================================
 // Astra Translate – Background Service Worker
 // ============================================================
 
 import { handleMessage, handleTranslateBatchStream } from "./messageRouter";
-import { handleChatStream, resetStaleChatPending } from "./chatService";
+import { forgetChatTab, handleChatStream, resetStaleChatPending } from "./chatService";
 import {
+  CHAT_STORAGE_KEY,
   CHAT_STREAM_PORT,
   TRANSLATE_BATCH_STREAM_PORT,
   type ChatStreamRequest,
@@ -28,14 +35,7 @@ function isInjectableUrl(url?: string): boolean {
  * isChatSenderAllowed in messageRouter — see the trade-off note there.
  */
 function isChatPortAllowed(port: chrome.runtime.Port): boolean {
-  const sender = port.sender;
-  if (!sender) return false;
-  if (sender.url?.startsWith(`chrome-extension://${chrome.runtime.id}/`)) {
-    return true;
-  }
-  if (!sender.tab) return false;
-  const url = sender.url || sender.tab.url || "";
-  return /^https?:\/\//i.test(url);
+  return chatScopeForSender(port.sender,chrome.runtime.id) !== null;
 }
 
 /**
@@ -94,6 +94,7 @@ function releaseKeepalive(): void {
 // Listen for messages from popup, options, and content scripts
 chrome.runtime.onMessage.addListener(
   (msg, sender, sendResponse) => {
+    if (msg?.target === "offscreen") return;
     acquireKeepalive();
     handleMessage(msg, sender)
       .then((result) => sendResponse(result))
@@ -169,7 +170,7 @@ chrome.runtime.onConnect.addListener((port) => {
         } catch {
           // Popup closed — deltas go nowhere, the answer still persists.
         }
-      })
+      }, chatScopeForSender(port.sender,chrome.runtime.id)!)
         .catch((err) => {
           try {
             port.postMessage({
@@ -196,14 +197,24 @@ chrome.runtime.onConnect.addListener((port) => {
 // Remove all first to avoid "duplicate id" errors when the service worker
 // restarts and tries to re-create the same menu item.
 chrome.contextMenus.removeAll(() => {
-  chrome.contextMenus.create({
-    id: "ast-translate-selection",
-    title: "Translate selection with Astra",
-    contexts: ["selection"],
+  void getSettings().then(settings => {
+    for (const item of translationContextMenus(settings.uiLanguage)) chrome.contextMenus.create(item);
   });
 });
-
 chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "ast-pick-manga" && tab?.id !== undefined) {
+    void openMangaPicker(tab).catch(error => console.warn("Manga picker unavailable", error));
+    return;
+  }
+  if (info.menuItemId === "ast-translate-image" && tab?.id) {
+    const tabId = tab.id, frameId = info.frameId ?? 0;
+    const message = {type:"MANGA_TRANSLATE_IMAGE",payload:{srcUrl:info.srcUrl}};
+    void chrome.tabs.sendMessage(tabId,message,{frameId}).catch(async () => {
+      await chrome.scripting.executeScript({target:{tabId,frameIds:[frameId]},files:["content.js"]});
+      await chrome.tabs.sendMessage(tabId,message,{frameId});
+    }).catch(() => {});
+    return;
+  }
   if (info.menuItemId !== "ast-translate-selection" || !info.selectionText || !tab?.id) {
     return;
   }
@@ -216,6 +227,13 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 // Keyboard shortcut command
 chrome.commands?.onCommand?.addListener((command, tab) => {
+  if (command === "translate-manga") {
+    void (async () => {
+      const target = tab ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+      await openMangaPicker(target ?? {});
+    })().catch(error => console.warn("Manga picker unavailable", error));
+    return;
+  }
   if (command === "translate-selection" && tab?.id) {
     ensureContentScriptAndSend(
       tab.id,
@@ -223,4 +241,15 @@ chrome.commands?.onCommand?.addListener((command, tab) => {
       tab.url,
     );
   }
+});
+
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.url) void stopReadingOutsideScope(tabId, change.url).catch(() => {});
+});
+chrome.tabs.onRemoved.addListener((tabId)=>{
+  forgetChatTab(tabId);
+  void clearMangaReading(tabId).catch(() => {});
+  void hasOffscreenDocument().then(exists=>{
+    if(exists)return sendOffscreenCommand({type:"MANGA_CANCEL_TAB",payload:{prefix:CHAT_STORAGE_KEY+":"+tabId+":"}});
+  }).catch(()=>{});
 });

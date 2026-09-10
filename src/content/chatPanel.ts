@@ -1,3 +1,4 @@
+import { fullChatImage } from "../shared/chatImageClient";
 // ============================================================
 // Astra Translate – In-page chat panel (Content Script)
 // ============================================================
@@ -7,8 +8,8 @@
 // icon, and even on success they were pulled away from what they were reading.
 //
 // The panel talks to the same service-worker chat state as the popup (session
-// storage + CHAT_STREAM_PORT), so a conversation started here continues in the
-// popup and vice versa.
+// storage + CHAT_STREAM_PORT), but each page document has a separate conversation.
+// Private popup history is never rendered into the page DOM.
 //
 // Plain DOM, no React: the content script is built as an IIFE bundle
 // (vite.content.config.ts). Model output is rendered through the shared
@@ -73,6 +74,7 @@ let phase: ChatStreamPhase | null = null;
 let errorText = "";
 let attachment: ChatAttachment | null = null;
 let stagedImages: ChatImageAttachment[] = [];
+let chatStorageKey: string | null = null;
 /** One-shot page supplement for a selected-text question; never persisted. */
 let supplementPage = false;
 let effort: ChatEffort = "high";
@@ -1386,7 +1388,7 @@ function renderList(): void {
         imgEl.title = `${img.name || "image"}${img.width && img.height ? ` (${img.width}x${img.height})` : ""}`;
         imgEl.addEventListener("click", (e) => {
           e.stopPropagation();
-          showLightbox(img.dataUrl, img.name);
+          void fullChatImage(img).then((url) => showLightbox(url,img.name)).catch((err) => { errorText = err.message; render(); });
         });
         grid.appendChild(imgEl);
       });
@@ -1522,7 +1524,7 @@ function renderFooter(): void {
         thumb.title = `${img.name || "image"}${img.width && img.height ? ` (${img.width}x${img.height})` : ""}`;
         thumb.addEventListener("click", (e) => {
           e.stopPropagation();
-          showLightbox(img.dataUrl, img.name);
+          void fullChatImage(img).then((url) => showLightbox(url,img.name)).catch((err) => { errorText = err.message; render(); });
         });
 
         const del = document.createElement("button");
@@ -1620,6 +1622,8 @@ async function refreshState(): Promise<void> {
     if (res?.success) {
       turns = res.turns ?? [];
       pending = !!res.pending;
+      chatStorageKey = typeof res.storageKey === "string" ? res.storageKey : null;
+      if (res.storageWarning) errorText = t(lang,"chat.storageWarning");
     }
   } catch {
     // Service worker unavailable — keep whatever we have.
@@ -2511,13 +2515,8 @@ function attachDragAndResize(
     }
     if (area !== "session") return;
     let shouldRender = false;
-    const chatChange = changes[CHAT_STORAGE_KEY];
-    if (chatChange) {
-      const next = chatChange.newValue as ChatState | undefined;
-      turns = next?.turns ?? [];
-      pending = !!next?.pending;
-      shouldRender = true;
-    }
+    const chatChange = chatStorageKey ? changes[chatStorageKey] : undefined;
+    if (chatChange) void refreshState().then(render);
     const effortChange = changes[CHAT_EFFORT_SESSION_KEY];
     if (effortChange) {
       effort = normalizeChatEffort(effortChange.newValue);

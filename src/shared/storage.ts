@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { AstraSettings } from "./types";
-import { STORAGE_KEY, DEFAULT_TARGET_LANG, DEFAULT_PROVIDER_PRESETS } from "./constants";
+import { STORAGE_KEY, DEFAULT_TARGET_LANG, DEFAULT_PROVIDER_PRESETS } from "./constants.ts";
 import {
   DEFAULT_SELECTION_PROMPT,
   DEFAULT_PAGE_PROMPT,
@@ -11,10 +11,11 @@ import {
   DEFAULT_CHAT_PROMPT,
   DEFAULT_LIVE_TRANSLATE_PROMPT,
   LEGACY_DICTIONARY_PROMPTS,
-} from "./prompts";
+} from "./prompts.ts";
 
 export function getDefaultSettings(): AstraSettings {
   return {
+    manga: { providerId: "current", modelId: "", targetLanguage: "Simplified Chinese" },
     providerId: "deepseek",
     providerName: "DeepSeek",
     apiFormat: "openai-compatible",
@@ -96,6 +97,7 @@ export async function getSettings(): Promise<AstraSettings> {
   const saved = result[STORAGE_KEY] as Partial<AstraSettings> | undefined;
   if (!saved) return getDefaultSettings();
   const merged = { ...getDefaultSettings(), ...saved };
+  merged.manga = { ...getDefaultSettings().manga, ...saved.manga };
   if (!merged.providerConfigs) {
     merged.providerConfigs = {};
   }
@@ -109,6 +111,7 @@ export async function getSettings(): Promise<AstraSettings> {
       temperature: merged.temperature,
       apiFormat: merged.apiFormat,
       ...merged.providerConfigs[merged.providerId],
+      customHeaders: { ...(merged.customHeaders ?? {}) },
     };
   }
   // Auto-upgrade the dictionary prompt for users who never customized it, so the
@@ -148,6 +151,7 @@ export function switchProviderSettings(
       disableThinking: settings.disableThinking,
       temperature: settings.temperature,
       apiFormat: settings.apiFormat,
+      customHeaders: { ...(settings.customHeaders ?? {}) },
     };
   }
 
@@ -165,6 +169,7 @@ export function switchProviderSettings(
       targetSaved?.disableThinking ??
       (preset.supportsThinkingToggle ? false : true),
     temperature: targetSaved?.temperature ?? settings.temperature,
+    customHeaders: { ...(targetSaved?.customHeaders ?? {}) },
     providerConfigs: configs,
   };
 }

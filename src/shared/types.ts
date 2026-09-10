@@ -1,3 +1,4 @@
+import type { MangaSettings } from "./manga/types";
 // ============================================================
 // Astra Translate – Shared Types
 // ============================================================
@@ -50,6 +51,7 @@ export interface UserProviderSettings {
 
 // ---------- Full settings ----------
 export interface AstraSettings extends UserProviderSettings {
+  manga: MangaSettings;
   providerConfigs?: Record<string, ProviderConfigItem>;
   uiLanguage: UiLanguage;
   defaultTargetLang: string;
@@ -160,6 +162,18 @@ export type MessageType =
   | "CHAT_MESSAGE"
   | "REGENERATE_CHAT"
   | "GET_CHAT_STATE"
+  | "GET_CHAT_IMAGE"
+  | "MANGA_START"
+  | "MANGA_STATUS"
+  | "MANGA_CANCEL"
+  | "MANGA_PROBE"
+  | "MANGA_MODELS"
+  | "MANGA_PREFERENCES"
+  | "MANGA_READING_STATE"
+  | "MANGA_READING_SET"
+  | "MANGA_READING_PREFETCH"
+  | "MANGA_READING_CLAIM"
+  | "OFFSCREEN_IDLE"
   | "CLEAR_CHAT"
   | "OPEN_CHAT_PANEL"
   | "OPEN_OPTIONS_PAGE"
@@ -361,6 +375,8 @@ export interface ChatSearchSource {
 /** Image attachment uploaded, pasted, or captured in chat. */
 export interface ChatImageAttachment {
   id: string;
+  /** Extension-owned binary asset; dataUrl contains only a UI preview when reading history. */
+  assetId?: string;
   mimeType: string;
   /** Base64 data URL (e.g. data:image/jpeg;base64,...) */
   dataUrl: string;

@@ -23,8 +23,13 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["content.js"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "css": [],
       "run_at": "document_idle"
     }
@@ -43,8 +48,12 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["icons/*"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "icons/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "commands": {
@@ -53,6 +62,13 @@
         "default": "Alt+T"
       },
       "description": "Translate selected text"
+    },
+    "translate-manga": {
+      "suggested_key": {
+        "default": "Alt+M"
+      },
+      "description": "Select a manga image to translate (also in fullscreen)"
     }
-  }
+  },
+  "minimum_chrome_version": "116"
 }

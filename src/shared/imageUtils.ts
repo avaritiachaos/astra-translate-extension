@@ -110,7 +110,9 @@ export async function processImageFile(
           });
         }
 
-        // Draw and compress
+        // Flatten transparency onto white before JPEG encoding.
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0,0,width,height);
         ctx.drawImage(img, 0, 0, width, height);
         const mimeType = "image/jpeg";
         const compressedDataUrl = canvas.toDataURL(mimeType, quality);

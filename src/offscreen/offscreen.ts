@@ -1,3 +1,11 @@
+import {
+  cancelMangaTab,
+  activeMangaJobs,
+  startMangaJob,
+  cancelMangaJob,
+  mangaJobStatus,
+  onMangaIdle,
+} from "./manga/mangaJobRunner";
 // ============================================================
 // Astra Translate – Offscreen Audio Capture & Gemini Live Client
 // ============================================================
@@ -8,7 +16,8 @@ import { langCode } from "../shared/lang";
 const TARGET_SAMPLE_RATE = 16000;
 const CHUNK_SAMPLES = 1600; // ~100ms at 16kHz
 const VAD_HANGOVER_CHUNKS = 8; // Keep sending ~800ms after speech ends
-const WS_ENDPOINT = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
+const WS_ENDPOINT =
+  "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
 
 interface StartCapturePayload {
   streamId: string;
@@ -41,27 +50,27 @@ function toGeminiLangCode(lang: string): string {
   const map: Record<string, string> = {
     "Simplified Chinese": "zh-CN",
     "Traditional Chinese": "zh-TW",
-    "zh": "zh-CN",
+    zh: "zh-CN",
     "zh-CN": "zh-CN",
     "zh-TW": "zh-TW",
-    "English": "en",
-    "Japanese": "ja",
-    "Korean": "ko",
-    "Spanish": "es",
-    "French": "fr",
-    "German": "de",
-    "Russian": "ru",
-    "Portuguese": "pt",
-    "Arabic": "ar",
-    "Italian": "it",
-    "Dutch": "nl",
-    "Polish": "pl",
-    "Turkish": "tr",
-    "Vietnamese": "vi",
-    "Thai": "th",
-    "Indonesian": "id",
-    "Malay": "ms",
-    "Hindi": "hi",
+    English: "en",
+    Japanese: "ja",
+    Korean: "ko",
+    Spanish: "es",
+    French: "fr",
+    German: "de",
+    Russian: "ru",
+    Portuguese: "pt",
+    Arabic: "ar",
+    Italian: "it",
+    Dutch: "nl",
+    Polish: "pl",
+    Turkish: "tr",
+    Vietnamese: "vi",
+    Thai: "th",
+    Indonesian: "id",
+    Malay: "ms",
+    Hindi: "hi",
   };
   return map[lang] || langCode(lang) || "zh-CN";
 }
@@ -72,7 +81,11 @@ function normalizeModel(model: string): string {
   return `models/${model}`;
 }
 
-function broadcastStatus(status: LiveTranslateStatusKind, message?: string, level?: number) {
+function broadcastStatus(
+  status: LiveTranslateStatusKind,
+  message?: string,
+  level?: number,
+) {
   try {
     chrome.runtime.sendMessage({
       type: "LIVE_TRANSLATE_STATUS",
@@ -88,7 +101,11 @@ function broadcastStatus(status: LiveTranslateStatusKind, message?: string, leve
   }
 }
 
-function broadcastSubtitle(deltaTranslation?: string, deltaOriginal?: string, isFinal?: boolean) {
+function broadcastSubtitle(
+  deltaTranslation?: string,
+  deltaOriginal?: string,
+  isFinal?: boolean,
+) {
   try {
     chrome.runtime.sendMessage({
       type: "LIVE_SUBTITLE_DATA",
@@ -105,7 +122,11 @@ function broadcastSubtitle(deltaTranslation?: string, deltaOriginal?: string, is
 }
 
 function base64EncodePcm16(pcm16: Int16Array): string {
-  const uint8 = new Uint8Array(pcm16.buffer, pcm16.byteOffset, pcm16.byteLength);
+  const uint8 = new Uint8Array(
+    pcm16.buffer,
+    pcm16.byteOffset,
+    pcm16.byteLength,
+  );
   let binary = "";
   const len = uint8.byteLength;
   for (let i = 0; i < len; i++) {
@@ -120,7 +141,7 @@ function base64EncodePcm16(pcm16: Int16Array): string {
  */
 function resampleAndConvert(
   inputData: Float32Array,
-  inputSampleRate: number
+  inputSampleRate: number,
 ): { pcm16: Int16Array; rms: number } {
   const ratio = inputSampleRate / TARGET_SAMPLE_RATE;
   const outputLength = Math.round(inputData.length / ratio);
@@ -204,7 +225,10 @@ async function startAudioCapture(payload: StartCapturePayload) {
       }
 
       const inputBuffer = e.inputBuffer.getChannelData(0);
-      const { pcm16, rms } = resampleAndConvert(inputBuffer, audioContext?.sampleRate || 48000);
+      const { pcm16, rms } = resampleAndConvert(
+        inputBuffer,
+        audioContext?.sampleRate || 48000,
+      );
 
       // Report volume level periodically
       const now = Date.now();
@@ -250,7 +274,10 @@ async function startAudioCapture(payload: StartCapturePayload) {
   } catch (err) {
     console.debug("[Astra Offscreen] Audio capture error:", err);
     isRunning = false;
-    broadcastStatus("error", err instanceof Error ? err.message : "音频捕获失败");
+    broadcastStatus(
+      "error",
+      err instanceof Error ? err.message : "音频捕获失败",
+    );
   }
 }
 
@@ -339,7 +366,9 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
       }
 
       if (data.goAway) {
-        console.log("[Astra Offscreen] Gemini Live session expiring (goAway), reconnecting...");
+        console.log(
+          "[Astra Offscreen] Gemini Live session expiring (goAway), reconnecting...",
+        );
         reconnectWithBackoff(payload, gen);
         return;
       }
@@ -347,7 +376,11 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
       if (data.error) {
         const errMsg = data.error.message || JSON.stringify(data.error);
         console.debug("[Astra Offscreen] Gemini error:", errMsg);
-        if (errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("rate limit") || errMsg.toLowerCase().includes("resource_exhausted")) {
+        if (
+          errMsg.toLowerCase().includes("quota") ||
+          errMsg.toLowerCase().includes("rate limit") ||
+          errMsg.toLowerCase().includes("resource_exhausted")
+        ) {
           broadcastStatus("info", "触发配额限制，稍后重连…");
           reconnectWithBackoff(payload, gen, 3000);
         } else {
@@ -382,7 +415,9 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
           }
         }
 
-        const isTurnComplete = Boolean(serverContent.turnComplete || serverContent.generationComplete);
+        const isTurnComplete = Boolean(
+          serverContent.turnComplete || serverContent.generationComplete,
+        );
 
         if (deltaTranslation || deltaOriginal || isTurnComplete) {
           broadcastSubtitle(deltaTranslation, deltaOriginal, isTurnComplete);
@@ -399,13 +434,19 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
 
   ws.onclose = (event) => {
     if (!isRunning || sessionGeneration !== gen) return;
-    console.debug(`[Astra Offscreen] WebSocket closed: code=${event.code} reason=${event.reason}`);
+    console.debug(
+      `[Astra Offscreen] WebSocket closed: code=${event.code} reason=${event.reason}`,
+    );
     reconnectWithBackoff(payload, gen);
   };
 }
 
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-function reconnectWithBackoff(payload: StartCapturePayload, gen: number, delayMs = 1500) {
+function reconnectWithBackoff(
+  payload: StartCapturePayload,
+  gen: number,
+  delayMs = 1500,
+) {
   if (reconnectTimeout) clearTimeout(reconnectTimeout);
   if (!isRunning || sessionGeneration !== gen) return;
 
@@ -444,7 +485,6 @@ function sendAudioChunk(pcm16: Int16Array) {
     console.warn("[Astra Offscreen] sendAudioChunk error:", err);
   }
 }
-
 
 function stopAudioCapture() {
   isRunning = false;
@@ -494,25 +534,94 @@ function stopAudioCapture() {
   broadcastStatus("idle", "已停止");
 }
 
-// Listen for messages from background script
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg.type === "OFFSCREEN_START_CAPTURE") {
-    startAudioCapture(msg.payload);
+let audioStarting = false;
+let idleTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleIdleClose() {
+  clearTimeout(idleTimer);
+  if (isRunning || audioStarting || activeMangaJobs().length) return;
+  idleTimer = setTimeout(() => {
+    if (!isRunning && !audioStarting && !activeMangaJobs().length)
+      void chrome.runtime
+        .sendMessage({ type: "OFFSCREEN_IDLE" })
+        .catch(() => {});
+  }, 120_000);
+}
+onMangaIdle(scheduleIdleClose);
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (
+    msg?.target !== "offscreen" ||
+    sender.id !== chrome.runtime.id ||
+    sender.tab ||
+    !sender.url?.startsWith(chrome.runtime.getURL(""))
+  )
+    return;
+  if (msg.type === "ASTRA_HOST_PING") {
     sendResponse({ success: true });
+    return;
+  }
+  if (msg.type === "ASTRA_HOST_STATE") {
+    sendResponse({
+      success: true,
+      busy: isRunning || audioStarting || activeMangaJobs().length > 0,
+    });
+    return;
+  }
+  if (msg.type === "MANGA_EXECUTE") {
+    clearTimeout(idleTimer);
+    void startMangaJob(msg.payload)
+      .then(() => sendResponse({ success: true }))
+      .catch((error) => {
+        sendResponse({ success: false, error: error.message });
+        scheduleIdleClose();
+      });
     return true;
   }
-
+  if (msg.type === "MANGA_STATUS") {
+    sendResponse({
+      success: true,
+      job: mangaJobStatus(msg.payload.id, msg.payload.owner),
+    });
+    return;
+  }
+  if (msg.type === "MANGA_CANCEL_TAB") {
+    void cancelMangaTab(msg.payload.prefix).then(() => {
+      sendResponse({ success: true });
+      scheduleIdleClose();
+    });
+    return true;
+  }
+  if (msg.type === "MANGA_CANCEL") {
+    void cancelMangaJob(msg.payload.id, msg.payload.owner).then((success) => {
+      sendResponse({ success });
+      scheduleIdleClose();
+    });
+    return true;
+  }
+  if (msg.type === "OFFSCREEN_START_CAPTURE") {
+    clearTimeout(idleTimer);
+    audioStarting = true;
+    void startAudioCapture(msg.payload)
+      .then(() =>
+        sendResponse({
+          success: isRunning,
+          error: isRunning ? undefined : "音频捕获失败或已取消",
+        }),
+      )
+      .catch((error) => sendResponse({ success: false, error: error.message }))
+      .finally(() => {
+        audioStarting = false;
+        scheduleIdleClose();
+      });
+    return true;
+  }
   if (msg.type === "OFFSCREEN_STOP_CAPTURE") {
     stopAudioCapture();
     sendResponse({ success: true });
-    return true;
+    scheduleIdleClose();
+    return;
   }
-
   if (msg.type === "OFFSCREEN_GET_STATE") {
-    sendResponse({
-      running: isRunning,
-      payload: currentPayload,
-    });
-    return true;
+    sendResponse({ running: isRunning });
+    return;
   }
 });
