@@ -1677,87 +1677,58 @@ export default function Popup() {
             </select>
           </div>
 
-          {/* Manga Studio Grid: Two Balanced Twin Action Cards */}
-          <div className="ast-manga-grid">
-            {/* Tile 1: Whole Page Manga Translation */}
-            <div
-              className={`ast-manga-tile ast-manga-tile--page ${mangaPickPending ? "ast-manga-tile--disabled" : ""}`}
-              role="button"
-              tabIndex={0}
-              onClick={() => {
-                if (!mangaPickPending) void handleMangaPick("current");
-              }}
-              onKeyDown={(e) => {
-                if ((e.key === "Enter" || e.key === " ") && !mangaPickPending) {
-                  e.preventDefault();
-                  void handleMangaPick("current");
-                }
-              }}
-            >
-              <div className="ast-manga-tile-top">
-                <div className="ast-manga-tile-icon ast-manga-tile-icon--purple" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                    <circle cx="10" cy="8" r="2" />
-                    <path d="m18 14-4-4-4 4" />
-                  </svg>
-                </div>
-                <span className="ast-manga-tile-badge">{t(lang, "manga.badgeRecommended")}</span>
+          {/* Manga Free Studio Stage */}
+          <div className="ast-manga-stage">
+            {/* Playful Manga Dialogue Bubble Vignette */}
+            <div className="ast-manga-vignette" aria-hidden="true">
+              <div className="ast-manga-bubble ast-manga-bubble--source">
+                <span>「…」</span>
               </div>
-              <div className="ast-manga-tile-body">
-                <div className="ast-manga-tile-title">{t(lang, "manga.cardPageTitle")}</div>
-                <div className="ast-manga-tile-desc">{t(lang, "manga.cardPageDesc")}</div>
+              <div className="ast-manga-sparkle">✦</div>
+              <div className="ast-manga-bubble ast-manga-bubble--target">
+                <span>译文！</span>
               </div>
-              <button
-                type="button"
-                className="ast-manga-tile-btn ast-manga-tile-btn--primary"
-                disabled={mangaPickPending}
-                tabIndex={-1}
-              >
-                <span>{t(lang, "manga.cardPageAction")}</span>
-                <span className="ast-manga-tile-arrow" aria-hidden="true">➔</span>
-              </button>
             </div>
 
-            {/* Tile 2: Crop & Pick Single Image */}
-            <div
-              className={`ast-manga-tile ast-manga-tile--crop ${mangaPickPending ? "ast-manga-tile--disabled" : ""}`}
-              role="button"
-              tabIndex={0}
-              onClick={() => {
-                if (!mangaPickPending) void handleMangaPick("select");
-              }}
-              onKeyDown={(e) => {
-                if ((e.key === "Enter" || e.key === " ") && !mangaPickPending) {
-                  e.preventDefault();
-                  void handleMangaPick("select");
-                }
-              }}
+            {/* Stage Header Typography */}
+            <div className="ast-manga-stage-header">
+              <div className="ast-manga-stage-title">{t(lang, "manga.cardPageTitle")}</div>
+              <div className="ast-manga-stage-sub">{t(lang, "manga.cardPageDesc")}</div>
+            </div>
+
+            {/* Master Hero Button: Translate Manga Page */}
+            <button
+              type="button"
+              className="ast-btn ast-manga-btn-hero"
+              disabled={mangaPickPending}
+              aria-busy={mangaPickPending}
+              onClick={() => void handleMangaPick("current")}
             >
-              <div className="ast-manga-tile-top">
-                <div className="ast-manga-tile-icon ast-manga-tile-icon--indigo" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <span className="ast-manga-btn-hero-icon" aria-hidden="true">⚡</span>
+              <span className="ast-manga-btn-hero-label">{t(lang, "manga.cardPageAction")}</span>
+            </button>
+
+            {/* Secondary Accessory Capsule: Select Image / Crop */}
+            <button
+              type="button"
+              className={`ast-manga-capsule-btn ${mangaPickPending ? "ast-manga-capsule-btn--disabled" : ""}`}
+              disabled={mangaPickPending}
+              onClick={() => void handleMangaPick("select")}
+            >
+              <div className="ast-manga-capsule-left">
+                <span className="ast-manga-capsule-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M6 2v14a2 2 0 0 0 2 2h14" />
                     <path d="M18 22V8a2 2 0 0 0-2-2H2" />
                   </svg>
-                </div>
-                <kbd className="ast-manga-tile-kbd">Alt+M</kbd>
+                </span>
+                <span className="ast-manga-capsule-text">{t(lang, "manga.cardSelectTitle")}</span>
               </div>
-              <div className="ast-manga-tile-body">
-                <div className="ast-manga-tile-title">{t(lang, "manga.cardSelectTitle")}</div>
-                <div className="ast-manga-tile-desc">{t(lang, "manga.cardSelectDesc")}</div>
+              <div className="ast-manga-capsule-right">
+                <kbd className="ast-manga-capsule-kbd">Alt+M</kbd>
+                <span className="ast-manga-capsule-arrow" aria-hidden="true">➔</span>
               </div>
-              <button
-                type="button"
-                className="ast-manga-tile-btn ast-manga-tile-btn--secondary"
-                disabled={mangaPickPending}
-                tabIndex={-1}
-              >
-                <span>{t(lang, "manga.cardSelectAction")}</span>
-                <span className="ast-manga-tile-arrow" aria-hidden="true">➔</span>
-              </button>
-            </div>
+            </button>
           </div>
 
           {pageStatus && <div role="status" className="ast-page-status">{pageStatus}</div>}
