@@ -115,7 +115,7 @@ export function parseDuckDuckGoHtml(html: string): ParsedSearchSource[] {
  * best-effort — an unrecognised page simply yields zero results). */
 export function parseGoogleHtml(html: string): ParsedSearchSource[] {
   const raw: Omit<ParsedSearchSource, "isExternal">[] = [];
-  const resultAnchor = /<a\b[^>]*href=["'](\/url\?q=[^"']+)["'][^>]*>[\s\S]{0,700}?<h3[^>]*>([\s\S]*?)<\/h3>/gi;
+  const resultAnchor = /<a\b[^>]*href=["']((?:\/url\?q=|https?:\/\/)[^"']+)["'][^>]*>[\s\S]{0,1200}?<h3[^>]*>([\s\S]*?)<\/h3>/gi;
   let match: RegExpExecArray | null;
   while ((match = resultAnchor.exec(html))) {
     const nearby = html.slice(resultAnchor.lastIndex, resultAnchor.lastIndex + 1600);
@@ -157,14 +157,20 @@ function bingResultUrl(href: string): string {
  * and a nearby <p> snippet. Bing is the mainland-reachable middle engine. */
 export function parseBingHtml(html: string): ParsedSearchSource[] {
   const raw: Omit<ParsedSearchSource, "isExternal">[] = [];
-  const resultAnchor = /<li\b[^>]*class=["'][^"']*b_algo[^"']*["'][^>]*>[\s\S]{0,600}?<h2[^>]*>\s*<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = resultAnchor.exec(html))) {
-    const nearby = html.slice(resultAnchor.lastIndex, resultAnchor.lastIndex + 2000);
-    const snippet = /<p\b[^>]*>([\s\S]*?)<\/p>/i.exec(nearby)?.[1] ?? "";
+  const blocks = html.split(/<li\b[^>]*class=["'][^"']*b_algo[^"']*["'][^>]*>/i).slice(1);
+  for (const block of blocks) {
+    const itemContent = block.split(/<\/li>/i)[0] || block;
+    const h2Match =
+      /<h2[^>]*>\s*<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i.exec(itemContent) ||
+      /<a\b[^>]*href=["']([^"']+)["'][^>]*>\s*<h2[^>]*>([\s\S]*?)<\/h2>/i.exec(itemContent);
+    if (!h2Match) continue;
+    const snippet =
+      /<p\b[^>]*>([\s\S]*?)<\/p>/i.exec(itemContent)?.[1] ??
+      /<div\b[^>]*class=["'][^"']*(?:b_caption|b_snippet)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(itemContent)?.[1] ??
+      "";
     raw.push({
-      title: match[2],
-      url: bingResultUrl(match[1]),
+      title: h2Match[2],
+      url: bingResultUrl(h2Match[1]),
       snippet,
       source: "bing",
     });

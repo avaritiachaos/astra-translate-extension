@@ -36,9 +36,6 @@ function contentText(value: unknown): string {
     const obj = value as Record<string, unknown>;
     if (typeof obj.text === "string") return obj.text;
     if (typeof obj.content === "string") return obj.content;
-    if (typeof obj.thought === "string") return obj.thought;
-    if (typeof obj.reasoning === "string") return obj.reasoning;
-    if (typeof obj.reasoning_content === "string") return obj.reasoning_content;
     if (Array.isArray(obj.parts)) return contentText(obj.parts);
   }
   return "";
@@ -53,17 +50,9 @@ function extractDeltaText(choice?: StreamDeltaChoice): string {
     contentText(d?.content) ||
     contentText(d?.text) ||
     contentText(d?.parts) ||
-    contentText(d?.reasoning_content) ||
-    contentText(d?.thought) ||
-    contentText(d?.reasoning) ||
-    contentText(d?.thinking) ||
     contentText(m?.content) ||
     contentText(m?.text) ||
     contentText(m?.parts) ||
-    contentText(m?.reasoning_content) ||
-    contentText(m?.thought) ||
-    contentText(m?.reasoning) ||
-    contentText(m?.thinking) ||
     contentText(c?.parts) ||
     contentText(c) ||
     contentText(choice.text)

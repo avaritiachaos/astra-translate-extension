@@ -82,6 +82,20 @@ describe("built-in web search parsers", () => {
     assert.equal(results[1].url, "https://example.org/direct");
   });
 
+  it("parses modern Bing results with long stylesheet links before h2", () => {
+    const longStyles = '<link rel="stylesheet" href="/rp/style.css"/>'.repeat(40);
+    const results = parseBingHtml(`
+      <li class="b_algo" data-id="1">${longStyles}<div class="b_tpcn"><a href="https://example.com">Site</a></div>
+        <h2><a href="https://example.com/weather">Weather today</a></h2>
+        <div class="b_caption"><p>Sunny with 22 degrees.</p></div></li>
+    `);
+
+    assert.equal(results.length, 1);
+    assert.equal(results[0].title, "Weather today");
+    assert.equal(results[0].url, "https://example.com/weather");
+    assert.equal(results[0].snippet, "Sunny with 22 degrees.");
+  });
+
   it("decodes HTML entities exactly once", () => {
     const results = parseDuckDuckGoHtml(`
       <a class="result__a" href="https://example.com">Tom &amp;amp; Jerry &#39;quoted&#39;</a>
