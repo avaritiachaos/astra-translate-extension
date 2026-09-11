@@ -78,10 +78,22 @@ export function normalizeChatEffort(
 /** Optional request fields for the selected effort level and provider. */
 export function buildEffortBody(
   effort: ChatEffort,
-  providerId?: string
+  providerId?: string,
+  model?: string,
 ): Record<string, unknown> {
-  if (providerId === "google-gemini") {
+  const modelLower = (model || "").toLowerCase();
+  const isGoogle = providerId === "google-gemini" || modelLower.includes("gemini");
+  const isDeepSeek = providerId === "deepseek" || modelLower.includes("deepseek");
+
+  if (isGoogle) {
     if (effort === "off") {
+      const isGemini3 =
+        modelLower.includes("3.") ||
+        modelLower.includes("3-") ||
+        modelLower.includes("gemini-3");
+      if (isGemini3) {
+        return { reasoning_effort: "low" };
+      }
       return { reasoning_effort: "none" };
     }
     if (effort === "high" || effort === "max") {
@@ -93,7 +105,7 @@ export function buildEffortBody(
     return { reasoning_effort: "medium" };
   }
 
-  if (providerId === "deepseek") {
+  if (isDeepSeek) {
     if (effort === "off") {
       return { thinking: { type: "disabled" } };
     }

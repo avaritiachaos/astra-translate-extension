@@ -482,7 +482,7 @@ function createChatService(storageKey: string) {
         ...buildChatContext(contextTurns, { isVisionModel: isVision }),
       ];
       const extra = {
-        optionalBody: buildEffortBody(effort, settings.providerId),
+        optionalBody: buildEffortBody(effort, settings.providerId, settings.model),
         signal: controller.signal,
       };
       const content = opts.onDelta

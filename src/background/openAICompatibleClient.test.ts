@@ -232,4 +232,29 @@ describe("actionable model routing errors", () => {
     ctx.mock.method(globalThis, "fetch", async () => new Response("unknown provider for model missing", { status: 400 }));
     await assert.rejects(openAIChat(BASE_SETTINGS, imageMessages, "en-US", { optionalBody: {}, maxRetries: 0 }), (error: any) => error.code === "MODEL_NOT_FOUND");
   });
+
+  it("accepts Gemini uppercase STOP and Claude end_turn finish_reason in streaming", async ctx => {
+    ctx.mock.method(globalThis, "fetch", async () => streamResponse('data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"STOP"}]}\n\ndata: [DONE]\n\n'));
+    assert.equal(await openAIChatStream(BASE_SETTINGS, imageMessages, () => {}), "ok");
+
+    ctx.mock.method(globalThis, "fetch", async () => streamResponse('data: {"choices":[{"delta":{"content":"ok2"},"finish_reason":"end_turn"}]}\n\ndata: [DONE]\n\n'));
+    assert.equal(await openAIChatStream(BASE_SETTINGS, imageMessages, () => {}), "ok2");
+  });
+
+  it("surfaces model safety / content filter blocking clearly", async ctx => {
+    ctx.mock.method(globalThis, "fetch", async () => streamResponse('data: {"choices":[{"delta":{},"finish_reason":"SAFETY"}]}\n\ndata: [DONE]\n\n'));
+    await assert.rejects(
+      openAIChatStream(BASE_SETTINGS, imageMessages, () => {}),
+      (error: any) => error.code === "CONTENT_FILTER"
+    );
+  });
+
+  it("surfaces upstream error chunks in stream instead of hiding as parse error", async ctx => {
+    ctx.mock.method(globalThis, "fetch", async () => streamResponse('data: {"error":{"message":"Resource has been exhausted (quota)","code":429}}\n\n'));
+    await assert.rejects(
+      openAIChatStream(BASE_SETTINGS, imageMessages, () => {}),
+      (error: any) => error.code === "STREAM_ERROR" && error.message.includes("quota")
+    );
+  });
 });
+

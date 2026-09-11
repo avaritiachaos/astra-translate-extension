@@ -208,7 +208,8 @@ function ChatEffortMenu({
 
 export function getModelDisplayLabel(providerId?: string, model?: string): string {
   const norm = (model || "").toLowerCase();
-  if (providerId === "google-gemini") {
+  if (providerId === "google-gemini" || norm.includes("gemini")) {
+    if (norm.includes("3.8")) return "Gemini 3.8";
     if (!model || norm.includes("3.7")) return "Gemini 3.7";
     if (norm.includes("3.5")) return "Gemini 3.5";
     if (norm.includes("2.5")) return "Gemini 2.5";
@@ -217,7 +218,7 @@ export function getModelDisplayLabel(providerId?: string, model?: string): strin
     if (norm.includes("gemini")) return "Gemini";
     return model;
   }
-  if (providerId === "deepseek") {
+  if (providerId === "deepseek" || norm.includes("deepseek")) {
     if (!model || norm.includes("v4") || norm.includes("flash")) return "DeepSeek V4";
     if (norm.includes("chat") || norm.includes("v3")) return "DeepSeek V3";
     if (norm.includes("reasoner") || norm.includes("r1")) return "DeepSeek R1";

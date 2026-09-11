@@ -121,6 +121,8 @@ export function buildRequestParts(
   };
 
   const modelLower = (model || "").toLowerCase();
+  const isGoogle = providerId === "google-gemini" || modelLower.includes("gemini");
+  const isDeepSeek = providerId === "deepseek" || modelLower.includes("deepseek");
 
   let defaultTranslationOptional: Record<string, unknown> = {};
   if (providerId === "google-gemini") {
@@ -136,6 +138,12 @@ export function buildRequestParts(
     defaultTranslationOptional = { thinking: { type: "disabled" } };
   } else if (disableThinking) {
     defaultTranslationOptional = { thinking: false };
+  } else if (modelLower.includes("gemini")) {
+    if (modelLower.includes("2.5") && !modelLower.includes("pro")) {
+      defaultTranslationOptional = { reasoning_effort: "none" };
+    } else {
+      defaultTranslationOptional = { reasoning_effort: "low" };
+    }
   }
 
   const optional: Record<string, unknown> = extra?.optionalBody
@@ -196,17 +204,57 @@ function responseError(
   );
 }
 
+export function isNormalFinishReason(reason: unknown): boolean {
+  if (typeof reason !== "string") return false;
+  const norm = reason.toLowerCase().trim();
+  return (
+    norm === "stop" ||
+    norm === "end_turn" ||
+    norm === "stop_sequence" ||
+    norm === "eos" ||
+    norm === "eos_token"
+  );
+}
+
+export function isSafetyFinishReason(reason: unknown): boolean {
+  if (typeof reason !== "string") return false;
+  const norm = reason.toLowerCase().trim();
+  return (
+    norm === "safety" ||
+    norm === "content_filter" ||
+    norm === "recitation" ||
+    norm === "blocklist" ||
+    norm === "prohibited_content"
+  );
+}
+
 function checkFinish(reason: unknown, lang: UiLanguage): void {
+  if (!reason) return;
   if (reason === "length") throw responseError(lang, "RESPONSE_TRUNCATED");
-  if (typeof reason === "string" && reason !== "stop")
+  if (isSafetyFinishReason(reason)) {
+    throw new ProviderRequestError(
+      t(lang, "error.contentFilterBlocked"),
+      "CONTENT_FILTER",
+    );
+  }
+  if (!isNormalFinishReason(reason)) {
     throw responseError(lang);
+  }
 }
 
 function extractContent(data: CompletionResponse, lang: UiLanguage): string {
   const choice = data?.choices?.[0];
   checkFinish(choice?.finish_reason, lang);
   const content = extractDeltaText({ message: choice?.message }).trim();
-  if (!content) throw responseError(lang);
+  if (!content) {
+    if (choice?.finish_reason && isSafetyFinishReason(choice.finish_reason)) {
+      throw new ProviderRequestError(
+        t(lang, "error.contentFilterBlocked"),
+        "CONTENT_FILTER",
+      );
+    }
+    throw responseError(lang);
+  }
   return content;
 }
 
@@ -239,7 +287,13 @@ async function readStream(
     } catch {
       throw responseError(lang);
     }
-    if (chunk.error) throw responseError(lang);
+    if (chunk.error) {
+      const errMsg =
+        typeof chunk.error === "object" && chunk.error !== null
+          ? String((chunk.error as any).message || (chunk.error as any).code || "Stream error")
+          : String(chunk.error);
+      throw new ProviderRequestError(errMsg, "STREAM_ERROR");
+    }
     const choice = chunk.choices?.[0];
     const delta = extractDeltaText(choice);
     if (delta) {
@@ -248,7 +302,7 @@ async function readStream(
       onDelta(delta);
     }
     checkFinish(choice?.finish_reason, lang);
-    if (choice?.finish_reason === "stop") complete = true;
+    if (isNormalFinishReason(choice?.finish_reason)) complete = true;
   };
   const line = (raw: string) => {
     const value = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
