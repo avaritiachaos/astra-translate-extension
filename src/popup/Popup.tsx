@@ -1568,50 +1568,102 @@ export default function Popup() {
             </div>
           )}
 
-          {/* Page translation */}
+          {/* Integrated Current Webpage Actions (Page & Manga) */}
           <div className="ast-page-section">
             <div className="ast-page-header">
-              <div className="ast-page-title">{t(lang, "popup.webTextTitle")}</div>
-              <select
-                className="ast-lang-select"
-                value={pageTargetLang}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setPageTargetLang(v);
-                  savePageTargetLang(v);
-                }}
-              >
-                {SUPPORTED_LANGUAGES.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-              <span className={`ast-lang-saved ${pageLangSaved ? "ast-lang-saved--show" : ""}`}>
-                ✓
-              </span>
+              <div className="ast-page-title-group">
+                <span className="ast-page-header-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="2" y1="12" x2="22" y2="12" />
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                  </svg>
+                </span>
+                <span className="ast-page-title">{t(lang, "popup.pageActionsTitle")}</span>
+              </div>
+              <div className="ast-page-lang-wrapper">
+                <select
+                  className="ast-lang-select"
+                  value={pageTargetLang}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setPageTargetLang(v);
+                    savePageTargetLang(v);
+                  }}
+                  title={t(lang, "popup.targetLang")}
+                >
+                  {SUPPORTED_LANGUAGES.map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+                <span className={`ast-lang-saved ${pageLangSaved ? "ast-lang-saved--show" : ""}`}>
+                  ✓
+                </span>
+              </div>
             </div>
-            <div className="ast-page-actions">
-              <button className="ast-btn ast-btn-primary" onClick={handlePageTranslate}>
-                {t(lang, "popup.webTextAction")}
-              </button>
-              <button className="ast-btn ast-btn-secondary" onClick={handlePageRestore}>
-                {t(lang, "popup.restorePage")}
-              </button>
+
+            <div className="ast-page-grid">
+              {/* Web Text Card */}
+              <div className="ast-page-card">
+                <div className="ast-page-card-header">
+                  <span className="ast-page-card-icon" aria-hidden="true">🌐</span>
+                  <span className="ast-page-card-label">{t(lang, "popup.webTextTitle")}</span>
+                </div>
+                <div className="ast-page-card-actions">
+                  <button
+                    type="button"
+                    className="ast-btn ast-btn-primary ast-page-btn-main"
+                    onClick={handlePageTranslate}
+                    title={t(lang, "popup.webTextAction")}
+                  >
+                    {t(lang, "popup.webTextAction")}
+                  </button>
+                  <button
+                    type="button"
+                    className="ast-btn ast-btn-secondary ast-page-btn-sub"
+                    onClick={handlePageRestore}
+                    title={t(lang, "popup.restorePage")}
+                  >
+                    {t(lang, "popup.restorePage")}
+                  </button>
+                </div>
+              </div>
+
+              {/* Manga & Image Card */}
+              <div className="ast-page-card">
+                <div className="ast-page-card-header">
+                  <span className="ast-page-card-icon" aria-hidden="true">🖼️</span>
+                  <span className="ast-page-card-label">{t(lang, "manga.imageTitle")}</span>
+                  <kbd className="ast-page-kbd">Alt+M</kbd>
+                </div>
+                <div className="ast-page-card-actions">
+                  <button
+                    type="button"
+                    className="ast-btn ast-btn-primary ast-page-btn-main"
+                    disabled={mangaPickPending}
+                    aria-busy={mangaPickPending}
+                    onClick={() => void handleMangaPick("current")}
+                    title={t(lang, "manga.translateCurrentImage")}
+                  >
+                    {t(lang, "manga.translateCurrentImage")}
+                  </button>
+                  <button
+                    type="button"
+                    className="ast-btn ast-btn-secondary ast-page-btn-sub"
+                    disabled={mangaPickPending}
+                    onClick={() => void handleMangaPick("select")}
+                    title={t(lang, "manga.selectImageShort")}
+                  >
+                    {t(lang, "manga.selectImageShort")}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-          <section className="ast-image-section" aria-label={t(lang, "manga.imageTitle")}>
-            <div className="ast-image-heading">
-              <span className="ast-image-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1.5"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg></span>
-              <div><h2>{t(lang, "manga.imageTitle")}</h2><span>{t(lang, "manga.imageSubtitle")}</span></div>
-              <kbd>Alt+M</kbd>
-            </div>
-            <div className="ast-image-actions">
-              <button className="ast-btn ast-image-primary" disabled={mangaPickPending} aria-busy={mangaPickPending} onClick={()=>void handleMangaPick("current")}>{t(lang,"manga.translateCurrentImage")}</button>
-              <button className="ast-btn ast-image-secondary" disabled={mangaPickPending} onClick={()=>void handleMangaPick("select")}>{t(lang,"manga.selectImageShort")}</button>
-            </div>
+
             {pageStatus && <div role="status" className="ast-page-status">{pageStatus}</div>}
-          </section>
+          </div>
         </>
       )}
 

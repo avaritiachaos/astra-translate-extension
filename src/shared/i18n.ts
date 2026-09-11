@@ -7,6 +7,7 @@ export type UiLanguage = "zh-CN" | "en-US" | "ja-JP";
 type MessageDict = Record<string, string>;
 
 const zhCN: MessageDict = {
+  "popup.pageActionsTitle": "当前网页",
   "popup.webTextTitle": "网页文字",
   "popup.webTextAction": "翻译网页文字",
   "manga.imageTitle": "图片翻译",
@@ -465,6 +466,7 @@ const zhCN: MessageDict = {
 
 
 const enUS: MessageDict = {
+  "popup.pageActionsTitle": "Current Page",
   "popup.webTextTitle": "Webpage text",
   "popup.webTextAction": "Translate webpage text",
   "manga.imageTitle": "Image translation",
@@ -923,6 +925,7 @@ const enUS: MessageDict = {
 
 
 const jaJP: MessageDict = {
+  "popup.pageActionsTitle": "現在のページ",
   "popup.webTextTitle": "ページ内の文字",
   "popup.webTextAction": "ページ内の文字を翻訳",
   "manga.imageTitle": "画像翻訳",
