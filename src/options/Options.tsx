@@ -1236,6 +1236,23 @@ export default function Options() {
         <div className="ast-form-hint ast-web-search-description">
           {t(lang, "opt.webSearchDescription")}
         </div>
+
+        {settings.chatWebSearchEnabled && (
+          <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--ast-border, #e5e7eb)" }}>
+            <div className="ast-toggle-row">
+              <span className="ast-toggle-label">{t(lang, "opt.webSearchFallback")}</span>
+              <input
+                type="checkbox"
+                className="ast-toggle"
+                checked={settings.chatWebSearchFallbackEnabled ?? true}
+                onChange={(e) => update("chatWebSearchFallbackEnabled", e.target.checked)}
+              />
+            </div>
+            <div className="ast-form-hint ast-web-search-description">
+              {t(lang, "opt.webSearchFallbackDescription")}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Prompt Settings Card */}

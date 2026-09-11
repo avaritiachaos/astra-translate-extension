@@ -4,21 +4,21 @@
 // Key-free, browser-native search for popup chat only. Chrome's own network /
 // system proxy settings apply to these fetches automatically.
 
-import type { ChatSearchSource } from "../shared/types";
-import { t, type UiLanguage } from "../shared/i18n";
+import type { ChatSearchSource } from "../shared/types.ts";
+import { t, type UiLanguage } from "../shared/i18n.ts";
 import {
   bingSearchUrl,
   duckDuckGoSearchUrl,
   googleSearchUrl,
   searchLocaleFor,
-} from "../shared/searchLocale";
-import { AstraError, isNetworkError, isTimeoutError } from "./errors";
+} from "../shared/searchLocale.ts";
+import { AstraError, isNetworkError, isTimeoutError } from "./errors.ts";
 import {
   parseBingHtml,
   parseDuckDuckGoHtml,
   parseGoogleHtml,
   type ParsedSearchSource,
-} from "./webSearchParser";
+} from "./webSearchParser.ts";
 
 const SEARCH_TIMEOUT_MS = 12_000;
 const MAX_RESULTS = 5;
@@ -90,16 +90,19 @@ const ENGINES: EngineAttempt[] = [
 export async function webSearch(
   query: string,
   lang: UiLanguage = "zh-CN",
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  allowFallback: boolean = true
 ): Promise<WebSearchResult> {
   const q = query.trim();
   if (!q) return { sources: [], noResults: true };
+
+  const engineList = allowFallback ? ENGINES : [ENGINES[0]];
 
   // Any single engine may be rate-limited, blocked, or have shifted markup;
   // an engine that completes with zero hits still counts as a real answer.
   let lastError: unknown;
   let anyEngineCompleted = false;
-  for (const engine of ENGINES) {
+  for (const engine of engineList) {
     try {
       const sources = engine.parse(await fetchText(engine.url(q, lang), lang, signal));
       anyEngineCompleted = true;

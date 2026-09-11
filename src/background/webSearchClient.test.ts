@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { parseBingHtml, parseDuckDuckGoHtml, parseGoogleHtml } from "./webSearchParser.ts";
 
@@ -104,5 +104,64 @@ describe("built-in web search parsers", () => {
 
     assert.equal(results[0].title, "Tom &amp; Jerry 'quoted'");
     assert.equal(results[0].snippet, "literal &lt;tag&gt; stays escaped");
+  });
+});
+
+describe("webSearch client cascading and fallback control", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("cascades to Bing and DuckDuckGo when fallback is enabled and Google fails", async () => {
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      urls.push(url);
+      if (url.includes("google.com")) {
+        return new Response("<html><body>blocked or unrecognized</body></html>", { status: 200 });
+      }
+      if (url.includes("bing.com")) {
+        return new Response(
+          '<li class="b_algo"><h2><a href="https://example.com/bing">Bing Result</a></h2><div class="b_caption"><p>Snippet</p></div></li>',
+          { status: 200 }
+        );
+      }
+      return new Response("", { status: 404 });
+    }) as typeof fetch;
+
+    const { webSearch } = await import("./webSearchClient.ts");
+    const result = await webSearch("test query", "en-US", undefined, true);
+    assert.equal(result.noResults, false);
+    assert.equal(result.sources.length, 1);
+    assert.equal(result.sources[0].source, "bing");
+    assert.equal(urls.some((u) => u.includes("google.com")), true);
+    assert.equal(urls.some((u) => u.includes("bing.com")), true);
+  });
+
+  it("never calls secondary engines when allowFallback is false", async () => {
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      urls.push(url);
+      if (url.includes("google.com")) {
+        return new Response("<html><body>google blocked</body></html>", { status: 200 });
+      }
+      return new Response(
+        '<li class="b_algo"><h2><a href="https://example.com/bing">Bing Result</a></h2></li>',
+        { status: 200 }
+      );
+    }) as typeof fetch;
+
+    const { webSearch } = await import("./webSearchClient.ts");
+    const result = await webSearch("sensitive query", "zh-CN", undefined, false);
+    assert.equal(result.noResults, true);
+    assert.equal(result.sources.length, 0);
+    // Crucial check: only Google was queried, secondary engines were NEVER queried
+    assert.equal(urls.length, 1);
+    assert.equal(urls[0].includes("google.com"), true);
+    assert.equal(urls.some((u) => u.includes("bing.com")), false);
+    assert.equal(urls.some((u) => u.includes("duckduckgo.com")), false);
   });
 });

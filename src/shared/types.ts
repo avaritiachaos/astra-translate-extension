@@ -110,6 +110,12 @@ export interface AstraSettings extends UserProviderSettings {
    */
   chatWebSearchEnabled: boolean;
   /**
+   * Allow chat web search to fall back to secondary engines (Bing, DuckDuckGo)
+   * if Google Search is blocked or fails. When disabled, only Google is used
+   * to prevent query/IP leakage on domestic routing rules.
+   */
+  chatWebSearchFallbackEnabled: boolean;
+  /**
    * Attach the current page's readable content to a new chat automatically.
    * The extracted text is sent to the configured model provider, so this is
    * user-visible (a removable chip) and can be turned off globally.

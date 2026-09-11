@@ -419,14 +419,15 @@ function createChatService(storageKey: string) {
         opts.onPhase?.("searching");
         // Search transport/HTTP failures stay explicit. A completed search with
         // no sources is different: answer normally, but label it as ungrounded.
+        const allowFallback = settings.chatWebSearchFallbackEnabled ?? true;
         const primary = searchQueryFor(question.content, claim.attachment);
-        let search = await webSearch(primary, lang, controller.signal);
+        let search = await webSearch(primary, lang, controller.signal, allowFallback);
         // The page-title hint can over-constrain the query; retry once with the
         // bare question before giving up on grounding.
         if (search.noResults) {
           const bare = buildChatSearchQuery(question.content);
           if (bare !== primary) {
-            search = await webSearch(bare, lang, controller.signal);
+            search = await webSearch(bare, lang, controller.signal, allowFallback);
           }
         }
         sources = search.sources;

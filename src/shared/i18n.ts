@@ -254,6 +254,8 @@ const zhCN: MessageDict = {
   "opt.webSearch": "对话联网补充",
   "opt.webSearchEnable": "允许对话使用联网搜索",
   "opt.webSearchDescription": "仅作用于 popup「对话」模式。开启后，对话里会出现「联网」开关；打开时优先尝试 Google 搜索，再基于外部结果回答并展示来源。Google 受页面结构或访问限制影响时，会依次自动改用 Bing、DuckDuckGo。无需额外搜索 API Key；查询会发送给搜索站点，并遵循 Chrome / 系统代理设置。划词 / 页面翻译不会联网。",
+  "opt.webSearchFallback": "允许回退到备用搜索引擎（如 Bing、DuckDuckGo）",
+  "opt.webSearchFallbackDescription": "关闭后仅使用 Google 搜索；当 Google 访问受限或遇到验证码时不使用其他搜索引擎，防止在自建节点或分流代理环境下因回退到国内引擎而泄露真实 IP 与敏感搜索词。",
   "opt.resetPrompts": "恢复默认 Prompt",
 
   "opt.chatContext": "对话页面上下文",
@@ -736,6 +738,8 @@ const enUS: MessageDict = {
   "opt.webSearch": "Chat web supplement",
   "opt.webSearchEnable": "Allow chat web search",
   "opt.webSearchDescription": "Only affects popup Chat. When enabled, Chat tries Google first, then answers from clearly marked external results. If Google's public result page is blocked or its markup changes, Chat automatically falls back to Bing, then DuckDuckGo. No separate search API key is needed. Queries are sent to search sites and use Chrome / system proxy settings. Selection and page translation never search.",
+  "opt.webSearchFallback": "Allow fallback to secondary search engines (e.g. Bing, DuckDuckGo)",
+  "opt.webSearchFallbackDescription": "When disabled, Chat only uses Google Search and will never fall back to other engines, preventing IP or query leakage to secondary engines under split-tunnel proxy rules.",
   "opt.resetPrompts": "Restore Default Prompts",
 
   "opt.chatContext": "Chat page context",
@@ -1218,6 +1222,8 @@ const jaJP: MessageDict = {
   "opt.webSearch": "チャットのウェブ補足",
   "opt.webSearchEnable": "チャットでウェブ検索を許可",
   "opt.webSearchDescription": "ポップアップのチャットにのみ適用されます。有効にするとまず Google 検索を試し、外部結果に基づいて回答・参照元を表示します。Google の公開結果ページがアクセス制限や構造変更で使えない場合は、Bing、DuckDuckGo の順に自動で切り替えます。検索 API Key は不要です。質問は検索サイトに送信され、Chrome / システムのプロキシ設定に従います。選択翻訳・ページ翻訳では検索しません。",
+  "opt.webSearchFallback": "代替検索エンジン（Bing、DuckDuckGo 等）へのフォールバックを許可",
+  "opt.webSearchFallbackDescription": "無効にすると Google 検索のみを使用し、代替エンジンへの切り替えを行いません。プロキシ環境での IP や検索内容の漏洩を防ぎます。",
   "opt.resetPrompts": "デフォルト Prompt に戻す",
 
   "opt.chatContext": "チャットのページコンテキスト",
