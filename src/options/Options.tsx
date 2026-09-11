@@ -339,6 +339,7 @@ export default function Options() {
   const SECTIONS: Array<{ id: string; labelKey: string }> = [
     { id: "sec-provider", labelKey: "opt.provider" },
     { id: "sec-uilang", labelKey: "opt.uiLang" },
+    { id: "sec-popuptabs", labelKey: "opt.popupTabsNav" },
     { id: "sec-translation", labelKey: "opt.translation" },
     { id: "sec-glossary", labelKey: "opt.glossary" },
     { id: "sec-manga", labelKey: "manga.title" },
@@ -540,6 +541,57 @@ export default function Options() {
             <option value="en-US">English</option>
             <option value="ja-JP">日本語</option>
           </select>
+        </div>
+      </div>
+
+      {/* Popup Tabs Customization Card */}
+      <div className="ast-card" id="sec-popuptabs">
+        <div className="ast-card-title">{t(lang, "opt.popupTabsTitle")}</div>
+        <div className="ast-form-hint">{t(lang, "opt.popupTabsHint")}</div>
+        <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+          <label className="ast-checkbox-label" style={{ opacity: 0.75, cursor: "default" }}>
+            <input type="checkbox" checked disabled />
+            <span>🌐 {t(lang, "popup.modeTranslate")} <span style={{ fontSize: "11px", color: "var(--ast-muted)" }}>({t(lang, "opt.tabCoreFeature")})</span></span>
+          </label>
+          <label className="ast-checkbox-label">
+            <input
+              type="checkbox"
+              checked={settings.popupTabs?.chat !== false}
+              onChange={(e) => {
+                update("popupTabs", {
+                  ...(settings.popupTabs || { chat: true, manga: true, live: true }),
+                  chat: e.target.checked,
+                });
+              }}
+            />
+            <span>💬 {t(lang, "popup.modeChat")}</span>
+          </label>
+          <label className="ast-checkbox-label">
+            <input
+              type="checkbox"
+              checked={settings.popupTabs?.manga !== false}
+              onChange={(e) => {
+                update("popupTabs", {
+                  ...(settings.popupTabs || { chat: true, manga: true, live: true }),
+                  manga: e.target.checked,
+                });
+              }}
+            />
+            <span>📖 {t(lang, "popup.modeManga")} <span style={{ fontSize: "11px", color: "var(--ast-muted)" }}>({t(lang, "opt.tabMangaHint")})</span></span>
+          </label>
+          <label className="ast-checkbox-label">
+            <input
+              type="checkbox"
+              checked={settings.popupTabs?.live !== false}
+              onChange={(e) => {
+                update("popupTabs", {
+                  ...(settings.popupTabs || { chat: true, manga: true, live: true }),
+                  live: e.target.checked,
+                });
+              }}
+            />
+            <span>🎙️ {t(lang, "popup.modeLive")}</span>
+          </label>
         </div>
       </div>
 

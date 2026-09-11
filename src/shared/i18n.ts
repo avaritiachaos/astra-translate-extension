@@ -470,6 +470,11 @@ const zhCN: MessageDict = {
   "opt.liveSettings": "实时音视频同传字幕",
   "opt.liveSettingsDescription": "基于 Google Gemini Live API，直接捕获标签页音频并实时生成双语悬浮字幕。",
   "opt.livePrompt": "同传提示词 (Prompt)",
+  "opt.popupTabsNav": "标签栏",
+  "opt.popupTabsTitle": "弹窗功能标签栏",
+  "opt.popupTabsHint": "自定义扩展弹窗顶部显示的标签页。不常使用的功能可以隐藏以保持界面清爽。",
+  "opt.tabCoreFeature": "核心功能，不可隐藏",
+  "opt.tabMangaHint": "隐藏后仍可通过 Alt+M 快捷键或页面悬浮球随时调用",
 };
 
 
@@ -937,6 +942,11 @@ const enUS: MessageDict = {
   "opt.liveSettings": "Live Video / Audio Subtitles",
   "opt.liveSettingsDescription": "Real-time speech-to-text and subtitle translation powered by Google Gemini Live API.",
   "opt.livePrompt": "Live Subtitles Prompt",
+  "opt.popupTabsNav": "Tabs",
+  "opt.popupTabsTitle": "Popup Tabs Visibility",
+  "opt.popupTabsHint": "Customize which tabs appear in the popup. Hide features you don't use often for a cleaner view.",
+  "opt.tabCoreFeature": "Core feature, always visible",
+  "opt.tabMangaHint": "Even when hidden, you can still use Alt+M or the floating ball anytime",
 };
 
 
@@ -1404,6 +1414,11 @@ const jaJP: MessageDict = {
   "opt.liveSettings": "リアルタイム音声通訳字幕設定",
   "opt.liveSettingsDescription": "Google Gemini Live API を利用し、タブ音声をリアルタイムで字幕翻訳します。",
   "opt.livePrompt": "通訳プロンプト (Prompt)",
+  "opt.popupTabsNav": "タブ表示",
+  "opt.popupTabsTitle": "ポップアップタブの表示設定",
+  "opt.popupTabsHint": "ポップアップ上部に表示するタブをカスタマイズします。使わない機能を非表示にしてすっきりさせることができます。",
+  "opt.tabCoreFeature": "基本機能（常に表示）",
+  "opt.tabMangaHint": "非表示にしても、Alt+Mキーやフローティングボールからいつでも利用可能",
 };
 
 

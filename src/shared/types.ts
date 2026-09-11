@@ -49,9 +49,16 @@ export interface UserProviderSettings {
   customHeaders?: Record<string, string>;
 }
 
+export interface PopupTabsSettings {
+  chat: boolean;
+  manga: boolean;
+  live: boolean;
+}
+
 // ---------- Full settings ----------
 export interface AstraSettings extends UserProviderSettings {
   manga: MangaSettings;
+  popupTabs: PopupTabsSettings;
   providerConfigs?: Record<string, ProviderConfigItem>;
   uiLanguage: UiLanguage;
   defaultTargetLang: string;

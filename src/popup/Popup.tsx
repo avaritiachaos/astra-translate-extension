@@ -491,6 +491,13 @@ export default function Popup() {
   }, []);
 
   useEffect(() => {
+    if (!settings) return;
+    if (mode === "chat" && settings.popupTabs?.chat === false) setMode("translate");
+    if (mode === "manga" && settings.popupTabs?.manga === false) setMode("translate");
+    if (mode === "live" && settings.popupTabs?.live === false) setMode("translate");
+  }, [settings, mode]);
+
+  useEffect(() => {
     if (!historyOpen) return;
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target;
@@ -1332,33 +1339,39 @@ export default function Popup() {
               <span className="ast-seg-icon">🌐</span>
               <span>{t(lang, "popup.modeTranslate")}</span>
             </button>
-            <button
-              role="tab"
-              aria-selected={mode === "manga"}
-              className={`ast-seg-btn ${mode === "manga" ? "ast-seg-btn--active" : ""}`}
-              onClick={() => switchMode("manga")}
-            >
-              <span className="ast-seg-icon">📖</span>
-              <span>{t(lang, "popup.modeManga")}</span>
-            </button>
-            <button
-              role="tab"
-              aria-selected={mode === "chat"}
-              className={`ast-seg-btn ${mode === "chat" ? "ast-seg-btn--active" : ""}`}
-              onClick={() => switchMode("chat")}
-            >
-              <span className="ast-seg-icon">💬</span>
-              <span>{t(lang, "popup.modeChat")}</span>
-            </button>
-            <button
-              role="tab"
-              aria-selected={mode === "live"}
-              className={`ast-seg-btn ${mode === "live" ? "ast-seg-btn--active" : ""}`}
-              onClick={() => switchMode("live")}
-            >
-              <span className="ast-seg-icon">🎙️</span>
-              <span>{t(lang, "popup.modeLive")}</span>
-            </button>
+            {settings?.popupTabs?.chat !== false && (
+              <button
+                role="tab"
+                aria-selected={mode === "chat"}
+                className={`ast-seg-btn ${mode === "chat" ? "ast-seg-btn--active" : ""}`}
+                onClick={() => switchMode("chat")}
+              >
+                <span className="ast-seg-icon">💬</span>
+                <span>{t(lang, "popup.modeChat")}</span>
+              </button>
+            )}
+            {settings?.popupTabs?.manga !== false && (
+              <button
+                role="tab"
+                aria-selected={mode === "manga"}
+                className={`ast-seg-btn ${mode === "manga" ? "ast-seg-btn--active" : ""}`}
+                onClick={() => switchMode("manga")}
+              >
+                <span className="ast-seg-icon">📖</span>
+                <span>{t(lang, "popup.modeManga")}</span>
+              </button>
+            )}
+            {settings?.popupTabs?.live !== false && (
+              <button
+                role="tab"
+                aria-selected={mode === "live"}
+                className={`ast-seg-btn ${mode === "live" ? "ast-seg-btn--active" : ""}`}
+                onClick={() => switchMode("live")}
+              >
+                <span className="ast-seg-icon">🎙️</span>
+                <span>{t(lang, "popup.modeLive")}</span>
+              </button>
+            )}
           </div>
 
           <div className="ast-popup-header-actions">
@@ -1518,7 +1531,7 @@ export default function Popup() {
               placeholder={t(lang, "popup.placeholder")}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              rows={3}
+              rows={4}
             />
           </div>
 
@@ -1611,8 +1624,8 @@ export default function Popup() {
               <button
                 type="button"
                 className="ast-btn ast-btn-primary"
-                style={{ flex: 1 }}
                 onClick={handlePageTranslate}
+                title={t(lang, "popup.webTextAction")}
               >
                 {t(lang, "popup.webTextAction")}
               </button>
@@ -1620,6 +1633,7 @@ export default function Popup() {
                 type="button"
                 className="ast-btn ast-btn-secondary"
                 onClick={handlePageRestore}
+                title={t(lang, "popup.restorePage")}
               >
                 {t(lang, "popup.restorePage")}
               </button>
@@ -1631,59 +1645,15 @@ export default function Popup() {
 
       {mode === "manga" && (
         <div className="ast-manga-panel">
-          {/* Hero Banner */}
-          <div className="ast-manga-hero">
-            <div className="ast-manga-hero-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                <circle cx="10" cy="8" r="2" />
-                <path d="m18 14-4-4-4 4" />
-              </svg>
-            </div>
-            <div className="ast-manga-hero-text">
-              <div className="ast-manga-hero-title">{t(lang, "manga.tabTitle")}</div>
-              <div className="ast-manga-hero-sub">{t(lang, "manga.tabSubtitle")}</div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="ast-manga-actions">
-            <button
-              type="button"
-              className="ast-btn ast-btn-primary ast-manga-primary-btn"
-              disabled={mangaPickPending}
-              aria-busy={mangaPickPending}
-              onClick={() => void handleMangaPick("current")}
-            >
-              <span className="ast-manga-btn-icon">🎯</span>
-              <span className="ast-manga-btn-label">{t(lang, "manga.actionTranslatePage")}</span>
-            </button>
-            <button
-              type="button"
-              className="ast-btn ast-btn-secondary ast-manga-secondary-btn"
-              disabled={mangaPickPending}
-              onClick={() => void handleMangaPick("select")}
-            >
-              <span className="ast-manga-btn-icon">🔍</span>
-              <span className="ast-manga-btn-label">{t(lang, "manga.actionSelect")}</span>
-              <kbd className="ast-manga-kbd">Alt+M</kbd>
-            </button>
-          </div>
-
-          {/* Quick Preferences Card */}
-          <div className="ast-manga-prefs">
-            <div className="ast-manga-prefs-title">
-              <span>⚙️</span>
-              <span>{t(lang, "manga.quickSettings")}</span>
-            </div>
-            <div className="ast-manga-prefs-row">
-              <label className="ast-manga-prefs-label" htmlFor="manga-popup-target-lang">
-                {t(lang, "manga.target")}
+          {/* Top Bar: Target Language + Thinking Effort */}
+          <div className="ast-manga-bar">
+            <div className="ast-manga-bar-item">
+              <label className="ast-manga-bar-label" htmlFor="manga-popup-target-lang">
+                🌐 {t(lang, "popup.targetLang")}
               </label>
               <select
                 id="manga-popup-target-lang"
-                className="ast-lang-select ast-manga-select"
+                className="ast-lang-select ast-manga-bar-select"
                 value={settings?.manga?.targetLanguage || "Simplified Chinese"}
                 onChange={async (e) => {
                   if (!settings) return;
@@ -1705,13 +1675,14 @@ export default function Popup() {
                 ))}
               </select>
             </div>
-            <div className="ast-manga-prefs-row">
-              <label className="ast-manga-prefs-label" htmlFor="manga-popup-effort">
-                {t(lang, "manga.effort")}
+
+            <div className="ast-manga-bar-item">
+              <label className="ast-manga-bar-label" htmlFor="manga-popup-effort">
+                ⚡ {t(lang, "manga.effort")}
               </label>
               <select
                 id="manga-popup-effort"
-                className="ast-lang-select ast-manga-select"
+                className="ast-lang-select ast-manga-bar-select"
                 value={settings?.manga?.thinkingEffort || "low"}
                 onChange={async (e) => {
                   if (!settings) return;
@@ -1736,30 +1707,49 @@ export default function Popup() {
                 <option value="off">{t(lang, "manga.effortOff")}</option>
               </select>
             </div>
-            <div className="ast-manga-prefs-row ast-manga-model-row">
-              <span className="ast-manga-prefs-label">{t(lang, "manga.currentModel")}</span>
-              <span
-                className="ast-manga-model-val"
-                title={settings?.manga?.modelId || settings?.model || "—"}
-              >
-                {settings?.manga?.modelId || settings?.model || "—"}
-              </span>
-              <button
-                type="button"
-                className="ast-manga-config-link"
-                onClick={openOptions}
-              >
-                {t(lang, "manga.openSettings")} ↗
-              </button>
-            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="ast-manga-actions-box">
+            <button
+              type="button"
+              className="ast-btn ast-btn-primary ast-manga-btn-primary"
+              disabled={mangaPickPending}
+              aria-busy={mangaPickPending}
+              onClick={() => void handleMangaPick("current")}
+            >
+              <span className="ast-manga-btn-icon">🎯</span>
+              <span>{t(lang, "manga.actionTranslatePage")}</span>
+            </button>
+            <button
+              type="button"
+              className="ast-btn ast-btn-secondary ast-manga-btn-secondary"
+              disabled={mangaPickPending}
+              onClick={() => void handleMangaPick("select")}
+            >
+              <span className="ast-manga-btn-icon">🔍</span>
+              <span>{t(lang, "manga.actionSelect")}</span>
+              <kbd className="ast-manga-kbd">Alt+M</kbd>
+            </button>
           </div>
 
           {pageStatus && <div role="status" className="ast-page-status">{pageStatus}</div>}
 
-          {/* In-page reading tip */}
-          <div className="ast-manga-tip">
-            <span>💡</span>
-            <span>{t(lang, "manga.tipText")}</span>
+          {/* Discreet Footer Meta */}
+          <div className="ast-manga-footer">
+            <span
+              className="ast-manga-footer-model"
+              title={settings?.manga?.modelId || settings?.model || "—"}
+            >
+              {t(lang, "manga.currentModel")}: <strong>{settings?.manga?.modelId || settings?.model || "—"}</strong>
+            </span>
+            <button
+              type="button"
+              className="ast-manga-footer-link"
+              onClick={openOptions}
+            >
+              {t(lang, "manga.openSettings")} ↗
+            </button>
           </div>
         </div>
       )}

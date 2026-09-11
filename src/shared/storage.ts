@@ -69,6 +69,12 @@ export function getDefaultSettings(): AstraSettings {
     liveTranslateBgOpacity: 80,
     liveTranslatePrompt: DEFAULT_LIVE_TRANSLATE_PROMPT,
 
+    popupTabs: {
+      chat: true,
+      manga: true,
+      live: true,
+    },
+
     providerConfigs: {
       deepseek: {
         apiKey: "",
@@ -98,6 +104,7 @@ export async function getSettings(): Promise<AstraSettings> {
   if (!saved) return getDefaultSettings();
   const merged = { ...getDefaultSettings(), ...saved };
   merged.manga = { ...getDefaultSettings().manga, ...saved.manga };
+  merged.popupTabs = { ...getDefaultSettings().popupTabs, ...saved.popupTabs };
   if (!merged.providerConfigs) {
     merged.providerConfigs = {};
   }
