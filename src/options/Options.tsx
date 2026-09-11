@@ -1239,7 +1239,40 @@ export default function Options() {
 
         {settings.chatWebSearchEnabled && (
           <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--ast-border, #e5e7eb)" }}>
-            <div className="ast-toggle-row">
+            <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "8px" }}>
+              {t(lang, "opt.googleSearchTitle")}
+            </div>
+            <div className="ast-form-hint ast-web-search-description" style={{ marginBottom: "12px" }}>
+              {t(lang, "opt.googleSearchHelp")}
+            </div>
+
+            <div className="ast-form-group" style={{ marginBottom: "12px" }}>
+              <label className="ast-form-label" style={{ fontSize: "12px", marginBottom: "4px" }}>
+                {t(lang, "opt.googleSearchApiKey")}
+              </label>
+              <input
+                type="password"
+                className="ast-form-input"
+                placeholder="AIzaSy..."
+                value={settings.googleSearchApiKey || ""}
+                onChange={(e) => update("googleSearchApiKey", e.target.value)}
+              />
+            </div>
+
+            <div className="ast-form-group" style={{ marginBottom: "14px" }}>
+              <label className="ast-form-label" style={{ fontSize: "12px", marginBottom: "4px" }}>
+                {t(lang, "opt.googleSearchCx")}
+              </label>
+              <input
+                type="text"
+                className="ast-form-input"
+                placeholder="a1b2c3d4e5f6..."
+                value={settings.googleSearchCx || ""}
+                onChange={(e) => update("googleSearchCx", e.target.value)}
+              />
+            </div>
+
+            <div className="ast-toggle-row" style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px dashed var(--ast-border, #e5e7eb)" }}>
               <span className="ast-toggle-label">{t(lang, "opt.webSearchFallback")}</span>
               <input
                 type="checkbox"

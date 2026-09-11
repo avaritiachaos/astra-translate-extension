@@ -14,6 +14,7 @@ import {
 } from "../shared/searchLocale.ts";
 import { AstraError, isNetworkError, isTimeoutError } from "./errors.ts";
 import {
+  isGoogleCaptcha,
   parseBingHtml,
   parseDuckDuckGoHtml,
   parseGoogleHtml,
@@ -70,6 +71,7 @@ async function fetchText(url: string, lang: UiLanguage, signal?: AbortSignal): P
 }
 
 interface EngineAttempt {
+  name: "google" | "bing" | "duckduckgo";
   url: (query: string, lang: UiLanguage) => string;
   parse: (html: string) => ParsedSearchSource[];
 }
@@ -77,24 +79,125 @@ interface EngineAttempt {
 // Preference order: Google first for result quality, Bing as fallback,
 // DuckDuckGo's lightweight HTML endpoint as the last resort.
 const ENGINES: EngineAttempt[] = [
-  { url: (q, lang) => googleSearchUrl(q, lang, MAX_RESULTS), parse: parseGoogleHtml },
-  { url: (q, lang) => bingSearchUrl(q, lang), parse: parseBingHtml },
-  { url: (q, lang) => duckDuckGoSearchUrl(q, lang), parse: parseDuckDuckGoHtml },
+  { name: "google", url: (q, lang) => googleSearchUrl(q, lang, MAX_RESULTS), parse: parseGoogleHtml },
+  { name: "bing", url: (q, lang) => bingSearchUrl(q, lang), parse: parseBingHtml },
+  { name: "duckduckgo", url: (q, lang) => duckDuckGoSearchUrl(q, lang), parse: parseDuckDuckGoHtml },
 ];
 
+interface GoogleCustomSearchResponse {
+  items?: Array<{
+    title?: string;
+    link?: string;
+    snippet?: string;
+  }>;
+  error?: {
+    code?: number;
+    message?: string;
+  };
+}
+
 /**
- * Search public result pages without a separate API key, cascading through
- * the engine list until one yields parseable hits. Every result is external
- * context and is preserved separately from the model-generated answer.
+ * Official Google Custom Search JSON API client (100 free queries/day).
+ * Completely immune to scraping blocks, 429 limits, and captchas.
+ */
+async function fetchGoogleCustomSearch(
+  query: string,
+  apiKey: string,
+  cx: string,
+  lang: UiLanguage,
+  signal?: AbortSignal
+): Promise<WebSearchResult> {
+  const q = query.trim();
+  if (!q) return { sources: [], noResults: true };
+
+  const hl = searchLocaleFor(lang).googleLanguage;
+  const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(
+    apiKey.trim()
+  )}&cx=${encodeURIComponent(cx.trim())}&q=${encodeURIComponent(
+    q
+  )}&num=${MAX_RESULTS}&hl=${encodeURIComponent(hl)}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
+  const abort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener("abort", abort, { once: true });
+  }
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      let detail = `HTTP ${response.status}`;
+      try {
+        const errJson = (await response.json()) as GoogleCustomSearchResponse;
+        if (errJson.error?.message) {
+          detail = `${detail}: ${errJson.error.message}`;
+        }
+      } catch {}
+      throw new AstraError(t(lang, "chat.searchFailed", { status: detail }), "SEARCH_HTTP");
+    }
+
+    const data = (await response.json()) as GoogleCustomSearchResponse;
+    const items = data.items || [];
+    const sources: ChatSearchSource[] = items
+      .filter((item) => item.link && item.title)
+      .slice(0, MAX_RESULTS)
+      .map((item) => ({
+        title: item.title!.trim(),
+        url: item.link!.trim(),
+        snippet: (item.snippet || "").trim(),
+        source: "google" as const,
+        isExternal: true as const,
+      }));
+
+    return {
+      sources,
+      noResults: sources.length === 0,
+    };
+  } catch (err) {
+    if (err instanceof AstraError) throw err;
+    if (signal?.aborted) throw err;
+    if (isTimeoutError(err) || (err instanceof Error && err.name === "AbortError")) {
+      throw new AstraError(t(lang, "chat.searchTimeout"), "SEARCH_TIMEOUT");
+    }
+    if (isNetworkError(err)) {
+      throw new AstraError(t(lang, "chat.searchNetwork"), "SEARCH_NETWORK");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
+/**
+ * Search the web for chat grounding.
+ * When official Google Search API credentials (apiKey and cx) are configured,
+ * only the official Google Custom Search API is used (100% Google, zero fallback).
+ * Otherwise, cascades through public result pages until one yields parseable hits.
  */
 export async function webSearch(
   query: string,
   lang: UiLanguage = "zh-CN",
   signal?: AbortSignal,
-  allowFallback: boolean = true
+  allowFallback: boolean = true,
+  googleApiKey?: string,
+  googleCx?: string
 ): Promise<WebSearchResult> {
   const q = query.trim();
   if (!q) return { sources: [], noResults: true };
+
+  // 1. If official Google API is configured, use it exclusively (no fallback to secondary engines)
+  if (googleApiKey?.trim() && googleCx?.trim()) {
+    return fetchGoogleCustomSearch(q, googleApiKey, googleCx, lang, signal);
+  }
 
   const engineList = allowFallback ? ENGINES : [ENGINES[0]];
 
@@ -104,7 +207,11 @@ export async function webSearch(
   let anyEngineCompleted = false;
   for (const engine of engineList) {
     try {
-      const sources = engine.parse(await fetchText(engine.url(q, lang), lang, signal));
+      const html = await fetchText(engine.url(q, lang), lang, signal);
+      if (engine.name === "google" && isGoogleCaptcha(html)) {
+        throw new AstraError(t(lang, "chat.googleSearchBlocked"), "GOOGLE_CAPTCHA");
+      }
+      const sources = engine.parse(html);
       anyEngineCompleted = true;
       if (sources.length > 0) return { sources, noResults: false };
     } catch (err) {

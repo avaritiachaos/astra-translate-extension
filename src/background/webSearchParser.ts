@@ -111,10 +111,19 @@ export function parseDuckDuckGoHtml(html: string): ParsedSearchSource[] {
   return sanitizeSources(raw);
 }
 
+export function isGoogleCaptcha(html: string): boolean {
+  return (
+    html.includes("/sorry/index") ||
+    html.includes("captcha-form") ||
+    html.includes("g-recaptcha") ||
+    html.includes('id="captcha"')
+  );
+}
+
 /** Parse Google result HTML (primary engine; markup shifts often, so
  * best-effort — an unrecognised page simply yields zero results). */
 export function parseGoogleHtml(html: string): ParsedSearchSource[] {
-  if (html.includes("/sorry/index") || html.includes("captcha-form") || html.includes("g-recaptcha")) {
+  if (isGoogleCaptcha(html)) {
     return [];
   }
   const raw: Omit<ParsedSearchSource, "isExternal">[] = [];

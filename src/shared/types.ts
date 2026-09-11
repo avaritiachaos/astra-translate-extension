@@ -116,6 +116,16 @@ export interface AstraSettings extends UserProviderSettings {
    */
   chatWebSearchFallbackEnabled: boolean;
   /**
+   * Optional Google Custom Search JSON API Key (100 free searches/day).
+   * When provided alongside googleSearchCx, chat web search will use the official
+   * Google Custom Search JSON API, completely immune to 429 and captchas.
+   */
+  googleSearchApiKey: string;
+  /**
+   * Optional Google Programmable Search Engine ID (CX).
+   */
+  googleSearchCx: string;
+  /**
    * Attach the current page's readable content to a new chat automatically.
    * The extracted text is sent to the configured model provider, so this is
    * user-visible (a removable chip) and can be turned off globally.

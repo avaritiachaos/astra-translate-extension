@@ -57,6 +57,8 @@ export function getDefaultSettings(): AstraSettings {
     chatPrompt: DEFAULT_CHAT_PROMPT,
     chatWebSearchEnabled: false,
     chatWebSearchFallbackEnabled: true,
+    googleSearchApiKey: "",
+    googleSearchCx: "",
     chatAutoAttachPage: true,
     enableTranslationCache: true,
     translationCacheMaxEntries: 5000,

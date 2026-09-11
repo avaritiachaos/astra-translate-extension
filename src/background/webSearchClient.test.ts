@@ -164,4 +164,66 @@ describe("webSearch client cascading and fallback control", () => {
     assert.equal(urls.some((u) => u.includes("bing.com")), false);
     assert.equal(urls.some((u) => u.includes("duckduckgo.com")), false);
   });
+
+  it("uses official Google Custom Search API when apiKey and cx are provided", async () => {
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      urls.push(url);
+      if (url.includes("googleapis.com/customsearch/v1")) {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                title: "Official Google Result",
+                link: "https://example.com/official-google",
+                snippet: "Snippet from Google Custom Search API",
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      return new Response("", { status: 500 });
+    }) as typeof fetch;
+
+    const { webSearch } = await import("./webSearchClient.ts");
+    const result = await webSearch(
+      "official query",
+      "zh-CN",
+      undefined,
+      false,
+      "fake-api-key",
+      "fake-cx"
+    );
+
+    assert.equal(result.noResults, false);
+    assert.equal(result.sources.length, 1);
+    assert.equal(result.sources[0].title, "Official Google Result");
+    assert.equal(result.sources[0].url, "https://example.com/official-google");
+    assert.equal(result.sources[0].source, "google");
+    // Ensure only Google Custom Search API was queried
+    assert.equal(urls.length, 1);
+    assert.equal(urls[0].includes("googleapis.com/customsearch/v1"), true);
+    assert.equal(urls[0].includes("key=fake-api-key"), true);
+    assert.equal(urls[0].includes("cx=fake-cx"), true);
+  });
+
+  it("fails with captcha notice when Google scraping is blocked and fallback is false", async () => {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      return new Response("<html><body><div id=\"captcha\">solve captcha</div></body></html>", {
+        status: 200,
+      });
+    }) as typeof fetch;
+
+    const { webSearch } = await import("./webSearchClient.ts");
+    await assert.rejects(
+      async () => {
+        await webSearch("query blocked by captcha", "zh-CN", undefined, false);
+      },
+      (err: any) => {
+        return err.code === "GOOGLE_CAPTCHA";
+      }
+    );
+  });
 });
