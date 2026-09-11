@@ -1,5 +1,6 @@
 import { fullChatImage } from "../shared/chatImageClient";
 import { openMangaPicker, translateCurrentMangaPage, MangaPageError } from "../shared/mangaTab";
+import type { MangaThinkingEffort } from "../shared/manga/types";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { DEFAULT_PROVIDER_PRESETS, SUPPORTED_LANGUAGES } from "../shared/constants";
@@ -400,7 +401,7 @@ function ChatModelMenu({
   );
 }
 
-type PopupMode = "translate" | "chat" | "live";
+type PopupMode = "translate" | "manga" | "chat" | "live";
 
 export default function Popup() {
   const [settings, setSettings] = useState<AstraSettings | null>(null);
@@ -1333,6 +1334,15 @@ export default function Popup() {
             </button>
             <button
               role="tab"
+              aria-selected={mode === "manga"}
+              className={`ast-seg-btn ${mode === "manga" ? "ast-seg-btn--active" : ""}`}
+              onClick={() => switchMode("manga")}
+            >
+              <span className="ast-seg-icon">📖</span>
+              <span>{t(lang, "popup.modeManga")}</span>
+            </button>
+            <button
+              role="tab"
               aria-selected={mode === "chat"}
               className={`ast-seg-btn ${mode === "chat" ? "ast-seg-btn--active" : ""}`}
               onClick={() => switchMode("chat")}
@@ -1568,18 +1578,12 @@ export default function Popup() {
             </div>
           )}
 
-          {/* Integrated Current Webpage Actions (Page & Manga) */}
+          {/* Webpage Text Translation Bar */}
           <div className="ast-page-section">
             <div className="ast-page-header">
               <div className="ast-page-title-group">
-                <span className="ast-page-header-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="2" y1="12" x2="22" y2="12" />
-                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                  </svg>
-                </span>
-                <span className="ast-page-title">{t(lang, "popup.pageActionsTitle")}</span>
+                <span className="ast-page-header-icon" aria-hidden="true">🌐</span>
+                <span className="ast-page-title">{t(lang, "popup.webTextTitle")}</span>
               </div>
               <div className="ast-page-lang-wrapper">
                 <select
@@ -1603,68 +1607,161 @@ export default function Popup() {
                 </span>
               </div>
             </div>
-
-            <div className="ast-page-grid">
-              {/* Web Text Card */}
-              <div className="ast-page-card">
-                <div className="ast-page-card-header">
-                  <span className="ast-page-card-icon" aria-hidden="true">🌐</span>
-                  <span className="ast-page-card-label">{t(lang, "popup.webTextTitle")}</span>
-                </div>
-                <div className="ast-page-card-actions">
-                  <button
-                    type="button"
-                    className="ast-btn ast-btn-primary ast-page-btn-main"
-                    onClick={handlePageTranslate}
-                    title={t(lang, "popup.webTextAction")}
-                  >
-                    {t(lang, "popup.webTextAction")}
-                  </button>
-                  <button
-                    type="button"
-                    className="ast-btn ast-btn-secondary ast-page-btn-sub"
-                    onClick={handlePageRestore}
-                    title={t(lang, "popup.restorePage")}
-                  >
-                    {t(lang, "popup.restorePage")}
-                  </button>
-                </div>
-              </div>
-
-              {/* Manga & Image Card */}
-              <div className="ast-page-card">
-                <div className="ast-page-card-header">
-                  <span className="ast-page-card-icon" aria-hidden="true">🖼️</span>
-                  <span className="ast-page-card-label">{t(lang, "manga.imageTitle")}</span>
-                  <kbd className="ast-page-kbd">Alt+M</kbd>
-                </div>
-                <div className="ast-page-card-actions">
-                  <button
-                    type="button"
-                    className="ast-btn ast-btn-primary ast-page-btn-main"
-                    disabled={mangaPickPending}
-                    aria-busy={mangaPickPending}
-                    onClick={() => void handleMangaPick("current")}
-                    title={t(lang, "manga.translateCurrentImage")}
-                  >
-                    {t(lang, "manga.translateCurrentImage")}
-                  </button>
-                  <button
-                    type="button"
-                    className="ast-btn ast-btn-secondary ast-page-btn-sub"
-                    disabled={mangaPickPending}
-                    onClick={() => void handleMangaPick("select")}
-                    title={t(lang, "manga.selectImageShort")}
-                  >
-                    {t(lang, "manga.selectImageShort")}
-                  </button>
-                </div>
-              </div>
+            <div className="ast-page-actions">
+              <button
+                type="button"
+                className="ast-btn ast-btn-primary"
+                style={{ flex: 1 }}
+                onClick={handlePageTranslate}
+              >
+                {t(lang, "popup.webTextAction")}
+              </button>
+              <button
+                type="button"
+                className="ast-btn ast-btn-secondary"
+                onClick={handlePageRestore}
+              >
+                {t(lang, "popup.restorePage")}
+              </button>
             </div>
-
             {pageStatus && <div role="status" className="ast-page-status">{pageStatus}</div>}
           </div>
         </>
+      )}
+
+      {mode === "manga" && (
+        <div className="ast-manga-panel">
+          {/* Hero Banner */}
+          <div className="ast-manga-hero">
+            <div className="ast-manga-hero-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                <circle cx="10" cy="8" r="2" />
+                <path d="m18 14-4-4-4 4" />
+              </svg>
+            </div>
+            <div className="ast-manga-hero-text">
+              <div className="ast-manga-hero-title">{t(lang, "manga.tabTitle")}</div>
+              <div className="ast-manga-hero-sub">{t(lang, "manga.tabSubtitle")}</div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="ast-manga-actions">
+            <button
+              type="button"
+              className="ast-btn ast-btn-primary ast-manga-primary-btn"
+              disabled={mangaPickPending}
+              aria-busy={mangaPickPending}
+              onClick={() => void handleMangaPick("current")}
+            >
+              <span className="ast-manga-btn-icon">🎯</span>
+              <span className="ast-manga-btn-label">{t(lang, "manga.actionTranslatePage")}</span>
+            </button>
+            <button
+              type="button"
+              className="ast-btn ast-btn-secondary ast-manga-secondary-btn"
+              disabled={mangaPickPending}
+              onClick={() => void handleMangaPick("select")}
+            >
+              <span className="ast-manga-btn-icon">🔍</span>
+              <span className="ast-manga-btn-label">{t(lang, "manga.actionSelect")}</span>
+              <kbd className="ast-manga-kbd">Alt+M</kbd>
+            </button>
+          </div>
+
+          {/* Quick Preferences Card */}
+          <div className="ast-manga-prefs">
+            <div className="ast-manga-prefs-title">
+              <span>⚙️</span>
+              <span>{t(lang, "manga.quickSettings")}</span>
+            </div>
+            <div className="ast-manga-prefs-row">
+              <label className="ast-manga-prefs-label" htmlFor="manga-popup-target-lang">
+                {t(lang, "manga.target")}
+              </label>
+              <select
+                id="manga-popup-target-lang"
+                className="ast-lang-select ast-manga-select"
+                value={settings?.manga?.targetLanguage || "Simplified Chinese"}
+                onChange={async (e) => {
+                  if (!settings) return;
+                  const updated = {
+                    ...settings,
+                    manga: { ...settings.manga, targetLanguage: e.target.value },
+                  };
+                  setSettings(updated);
+                  await chrome.runtime.sendMessage({
+                    type: "SAVE_SETTINGS",
+                    payload: updated,
+                  });
+                }}
+              >
+                {SUPPORTED_LANGUAGES.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="ast-manga-prefs-row">
+              <label className="ast-manga-prefs-label" htmlFor="manga-popup-effort">
+                {t(lang, "manga.effort")}
+              </label>
+              <select
+                id="manga-popup-effort"
+                className="ast-lang-select ast-manga-select"
+                value={settings?.manga?.thinkingEffort || "low"}
+                onChange={async (e) => {
+                  if (!settings) return;
+                  const updated = {
+                    ...settings,
+                    manga: {
+                      ...settings.manga,
+                      thinkingEffort: e.target.value as MangaThinkingEffort,
+                    },
+                  };
+                  setSettings(updated);
+                  await chrome.runtime.sendMessage({
+                    type: "SAVE_SETTINGS",
+                    payload: updated,
+                  });
+                }}
+              >
+                <option value="low">{t(lang, "manga.effortLow")}</option>
+                <option value="default">{t(lang, "manga.effortDefault")}</option>
+                <option value="medium">{t(lang, "manga.effortMedium")}</option>
+                <option value="high">{t(lang, "manga.effortHigh")}</option>
+                <option value="off">{t(lang, "manga.effortOff")}</option>
+              </select>
+            </div>
+            <div className="ast-manga-prefs-row ast-manga-model-row">
+              <span className="ast-manga-prefs-label">{t(lang, "manga.currentModel")}</span>
+              <span
+                className="ast-manga-model-val"
+                title={settings?.manga?.modelId || settings?.model || "—"}
+              >
+                {settings?.manga?.modelId || settings?.model || "—"}
+              </span>
+              <button
+                type="button"
+                className="ast-manga-config-link"
+                onClick={openOptions}
+              >
+                {t(lang, "manga.openSettings")} ↗
+              </button>
+            </div>
+          </div>
+
+          {pageStatus && <div role="status" className="ast-page-status">{pageStatus}</div>}
+
+          {/* In-page reading tip */}
+          <div className="ast-manga-tip">
+            <span>💡</span>
+            <span>{t(lang, "manga.tipText")}</span>
+          </div>
+        </div>
       )}
 
       {mode === "chat" && (
