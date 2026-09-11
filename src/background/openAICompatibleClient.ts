@@ -28,38 +28,54 @@ interface CompletionResponse {
 
 function contentText(value: unknown): string {
   if (typeof value === "string") return value;
-  if (!Array.isArray(value)) return "";
-  return value
-    .map((part) =>
-      typeof part === "string"
-        ? part
-        : part && typeof part.text === "string"
-          ? part.text
-          : "",
-    )
-    .join("");
+  if (!value) return "";
+  if (Array.isArray(value)) {
+    return value.map((part) => contentText(part)).join("");
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.text === "string") return obj.text;
+    if (typeof obj.content === "string") return obj.content;
+    if (typeof obj.thought === "string") return obj.thought;
+    if (typeof obj.reasoning === "string") return obj.reasoning;
+    if (typeof obj.reasoning_content === "string") return obj.reasoning_content;
+    if (Array.isArray(obj.parts)) return contentText(obj.parts);
+  }
+  return "";
 }
 
 function extractDeltaText(choice?: StreamDeltaChoice): string {
   if (!choice) return "";
+  const d = choice.delta as any;
+  const m = choice.message as any;
+  const c = (choice as any).content;
   return (
-    contentText(choice.delta?.content) ||
-    contentText(choice.delta?.text) ||
-    contentText(choice.message?.content) ||
-    contentText(choice.message?.text) ||
-    contentText(choice.text) ||
-    contentText((choice.delta as any)?.reasoning_content) ||
-    contentText((choice.delta as any)?.thought) ||
-    contentText((choice.message as any)?.reasoning_content) ||
-    contentText((choice.message as any)?.thought)
+    contentText(d?.content) ||
+    contentText(d?.text) ||
+    contentText(d?.parts) ||
+    contentText(d?.reasoning_content) ||
+    contentText(d?.thought) ||
+    contentText(d?.reasoning) ||
+    contentText(d?.thinking) ||
+    contentText(m?.content) ||
+    contentText(m?.text) ||
+    contentText(m?.parts) ||
+    contentText(m?.reasoning_content) ||
+    contentText(m?.thought) ||
+    contentText(m?.reasoning) ||
+    contentText(m?.thinking) ||
+    contentText(c?.parts) ||
+    contentText(c) ||
+    contentText(choice.text)
   );
 }
 
 interface StreamDeltaChoice {
-  delta?: { content?: string | unknown[]; text?: string };
-  message?: { content?: string | unknown[]; text?: string };
+  delta?: { content?: string | unknown[]; text?: string; parts?: unknown[] };
+  message?: { content?: string | unknown[]; text?: string; parts?: unknown[] };
   finish_reason?: string | null;
   text?: string;
+  content?: unknown;
 }
 
 interface StreamChunk {
@@ -250,9 +266,9 @@ function extractContent(data: CompletionResponse, lang: UiLanguage): string {
       "CONTENT_FILTER",
     );
   }
-  const choice = data?.choices?.[0];
+  const choice = data?.choices?.[0] || (data as any)?.candidates?.[0];
   checkFinish(choice?.finish_reason, lang);
-  const content = extractDeltaText({ message: choice?.message }).trim();
+  const content = extractDeltaText(choice).trim();
   if (!content) {
     if (choice?.finish_reason && isSafetyFinishReason(choice.finish_reason)) {
       throw new ProviderRequestError(
@@ -263,6 +279,8 @@ function extractContent(data: CompletionResponse, lang: UiLanguage): string {
     throw new ProviderRequestError(
       t(lang, "error.emptyResponse"),
       "EMPTY_RESPONSE",
+      undefined,
+      true,
     );
   }
   return content;
@@ -311,7 +329,7 @@ async function readStream(
           : String(chunk.error);
       throw new ProviderRequestError(errMsg, "STREAM_ERROR");
     }
-    const choice = chunk.choices?.[0];
+    const choice = chunk.choices?.[0] || (chunk as any).candidates?.[0];
     const delta = extractDeltaText(choice);
     if (delta) {
       text += delta;
@@ -349,6 +367,8 @@ async function readStream(
       throw new ProviderRequestError(
         t(lang, "error.emptyResponse"),
         "EMPTY_RESPONSE",
+        undefined,
+        true,
       );
     }
     return text.trim();
@@ -501,6 +521,7 @@ async function requestCompletion(
         }
         if (
           !onDelta ||
+          !body.stream ||
           /\bapplication\/(?:[^;]+\+)?json\b/i.test(
             res.headers.get("Content-Type") ?? "",
           )
@@ -550,6 +571,12 @@ async function requestCompletion(
                   )
                 : responseError(lang);
         if (emitted || !error.retryable || attempt >= retries) throw error;
+        if (error.code === "EMPTY_RESPONSE") {
+          const dropped = dropOptionalFields(body, optionalKeys);
+          if (!dropped || attempt >= 1) {
+            body.stream = false;
+          }
+        }
         try {
           await sleep(
             computeBackoffMs(attempt, { retryAfterMs }),
