@@ -11,6 +11,7 @@ import {
   visibleMangaSpread,
   type MangaImage,
 } from "./mangaImage";
+import { MangaViewportLease, whileMangaWanted } from "../../shared/manga/workInterest";
 import { imageBlobToDataUrl } from "../../shared/imageAssets";
 import { t, type UiLanguage } from "../../shared/i18n";
 import type { MangaJob, Rect } from "../../shared/manga/types";
@@ -21,6 +22,9 @@ interface Entry {
   token: string;
   view: MangaOverlay;
   jobId?: string;
+  claimedJobId?: string;
+  lifetime: AbortController;
+  viewportLease: MangaViewportLease;
   timer?: ReturnType<typeof setTimeout>;
   cancelled: boolean;
   automatic: boolean;
@@ -89,7 +93,8 @@ async function startImages(images: MangaImage[], automatic = false) {
   anchor = images[0];
   const generation = batchGeneration;
   for (const image of images.slice(0, 2)) {
-    if (generation !== batchGeneration || !image.isConnected) break;
+    if (generation !== batchGeneration) break;
+    if (!image.isConnected || !visibleMangaImageRect(image)) continue;
     const previous = currentEntry(image);
     if (
       scheduled.has(image) ||
@@ -115,6 +120,7 @@ function restoreAll(disableReading = true) {
   refreshReader();
 }
 let frame = 0;
+let visibilityCheck: ReturnType<typeof setTimeout> | undefined;
 let documentObserver: MutationObserver | undefined;
 const pageKey = () => location.origin + location.pathname + location.search;
 const currentSource = mangaImageSource;
@@ -126,6 +132,8 @@ function scheduleLayout() {
     return;
   frame = requestAnimationFrame(() => {
     frame = 0;
+    clearTimeout(visibilityCheck);visibilityCheck = undefined;
+    let recheck = Infinity;
     for (const entry of entries.values()) {
       if (
         !entry.image.isConnected ||
@@ -133,8 +141,13 @@ function scheduleLayout() {
         currentSource(entry.image) !== entry.url
       )
         restore(entry);
-      else entry.view.layout();
+      else {
+        const state = entry.viewportLease.update(entry.view.state.phase === "working", !!visibleMangaImageRect(entry.image), Date.now());
+        if (state.cancel) restore(entry);
+        else { recheck = Math.min(recheck, state.delay ?? Infinity);entry.view.layout(); }
+      }
     }
+    if (Number.isFinite(recheck)) visibilityCheck = setTimeout(scheduleLayout, Math.max(1, recheck));
     refreshReader();
   });
 }
@@ -144,14 +157,19 @@ function cancel(id: string) {
     .catch(() => {});
 }
 function restore(entry: Entry, invalidate = true) {
+  if (entry.cancelled) return;
   if (invalidate) starts.set(entry.image, (starts.get(entry.image) ?? 0) + 1);
   entry.cancelled = true;
+  entry.lifetime.abort();
   clearTimeout(entry.timer);
   entry.observer.disconnect();
   entry.view.dispose();
-  entries.delete(entry.image);
+  if (entries.get(entry.image) === entry) entries.delete(entry.image);
   if (entry.jobId) cancel(entry.jobId);
-  if (entries.size === 0) documentObserver?.disconnect();
+  if (entry.claimedJobId) void chrome.runtime.sendMessage({
+    type: "MANGA_READING_RELEASE", payload: { imageUrl: entry.url, jobId: entry.claimedJobId },
+  }).catch(() => {});
+  if (entries.size === 0) { documentObserver?.disconnect();clearTimeout(visibilityCheck);visibilityCheck = undefined; }
   refreshReader();
 }
 function visibleImage(entry: Entry): Promise<string> {
@@ -374,6 +392,7 @@ async function start(image: MangaImage, force = false, automatic = false) {
     starts.get(image) !== version ||
     generation !== batchGeneration ||
     !image.isConnected ||
+    !visibleMangaImageRect(image) ||
     currentSource(image) !== expectedSource ||
     pageKey() !== expectedPage ||
     (automatic &&
@@ -401,6 +420,8 @@ async function start(image: MangaImage, force = false, automatic = false) {
     view,
     observer,
     cancelled: false,
+    lifetime: new AbortController(),
+    viewportLease: new MangaViewportLease(),
     automatic,
     fallback: false,
     force,
@@ -436,6 +457,7 @@ async function start(image: MangaImage, force = false, automatic = false) {
         .catch(() => null);
       const deadline = Date.now() + 150_000;
       while (claim?.job && !entry.cancelled) {
+        entry.claimedJobId = claim.job.id;
         if (currentSource(image) !== entry.url || entry.page !== pageKey()) {
           restore(entry);
           return;
@@ -473,8 +495,9 @@ async function start(image: MangaImage, force = false, automatic = false) {
       await fallback(entry, force);
       return;
     }
-    await image.decode();
+    await whileMangaWanted(image.decode(), entry.lifetime.signal);
     if (entry.cancelled) return;
+    if (!visibleMangaImageRect(image)) { restore(entry);return; }
     if (currentSource(image) !== entry.url || entry.page !== pageKey()) {
       restore(entry);
       return;
@@ -648,6 +671,11 @@ export function initMangaController(repair = false) {
   });
   autoReader = createMangaAutoReader({
     start: (images) => startImages(images, true),
+    prioritize: images => {
+      for (const entry of [...entries.values()]) {
+        if (entry.view.state.phase === "working" && !images.includes(entry.image)) restore(entry);
+      }
+    },
     existing: (image) => currentEntry(image)?.view.state.phase,
     failure: (image) => {
       const state = currentEntry(image)?.view.state;
@@ -692,6 +720,7 @@ export function initMangaController(repair = false) {
       readerControls?.dispose();
       documentObserver?.disconnect();
       cancelAnimationFrame(frame);
+      clearTimeout(visibilityCheck);visibilityCheck = undefined;
       frame = 0;
       document.removeEventListener("contextmenu", contextmenu, true);
       removeEventListener("scroll", scheduleLayout, true);

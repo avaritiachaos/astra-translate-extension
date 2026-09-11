@@ -63,7 +63,6 @@ export async function automaticMangaAllowed(
     // forever. A matching page claims it before reaching normal MANGA_START.
     if (
       ahead &&
-      !ahead.claimed &&
       ahead.source !== source &&
       (ahead.page === page || ahead.fromPage !== page)
     ) {
@@ -194,6 +193,13 @@ export async function handleMangaReading(
       return { success: true, state: publicState(session) };
     }
     if (!session) return { success: false, inactive: true };
+    if (msg.type === "MANGA_READING_RELEASE") {
+      const ahead = session.ahead;
+      if (ahead?.claimed && ahead.page === page && ahead.jobId === msg.payload?.jobId && ahead.source === msg.payload?.imageUrl) {
+        await cancelAhead(session);session.ahead = undefined;await save(tabId!, session);
+      }
+      return { success: true };
+    }
     if (msg.type === "MANGA_READING_CLAIM") {
       const ahead = session.ahead;
       if (

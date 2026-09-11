@@ -84,9 +84,20 @@ export function updateFloatingBall(opts: {
 }
 
 function applyBallStyles(el: HTMLElement): void {
+  // Host-page rules (including !important or modern corner-shape superellipse)
+  // must not turn the floating ball into a squircle/rounded square.
+  el.style.setProperty("border-radius", "50%", "important");
+  el.style.setProperty("corner-shape", "round", "important");
+  el.style.setProperty("box-sizing", "border-box", "important");
+  el.style.setProperty("padding", "0", "important");
+  const pulse = el.querySelector<HTMLElement>(
+    "." + BALL_PREFIX + "-pulse",
+  );
+  pulse?.style.setProperty("border-radius", "50%", "important");
+  pulse?.style.setProperty("corner-shape", "round", "important");
   el.style.opacity = String(currentOpacity);
-  el.style.width = currentSize + "px";
-  el.style.height = currentSize + "px";
+  el.style.setProperty("width", currentSize + "px", "important");
+  el.style.setProperty("height", currentSize + "px", "important");
   const iconSize = Math.round(currentSize * 0.58);
   const icon = el.querySelector(`.${BALL_PREFIX}-icon`) as HTMLElement | null;
   if (icon) {

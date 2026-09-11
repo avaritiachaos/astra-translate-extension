@@ -570,7 +570,8 @@ export function injectThemeVars(): void {
       z-index: 2147483644;
       width: 48px;
       height: 48px;
-      border-radius: 50%;
+      border-radius: 50% !important;
+      corner-shape: round !important;
       background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
       box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35), 0 0 0 2px rgba(255,255,255,0.2);
       cursor: pointer;
@@ -597,7 +598,8 @@ export function injectThemeVars(): void {
     .ast-ball-pulse {
       position: absolute;
       inset: -4px;
-      border-radius: 50%;
+      border-radius: 50% !important;
+      corner-shape: round !important;
       border: 2px solid rgba(99, 102, 241, 0.3);
       animation: ast-ball-pulse 2s ease-out infinite;
       pointer-events: none;

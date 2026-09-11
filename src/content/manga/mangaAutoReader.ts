@@ -22,6 +22,7 @@ import {
 
 export function createMangaAutoReader(actions: {
   start: (images: MangaImage[]) => Promise<void>;
+  prioritize: (images: MangaImage[]) => void;
   existing: (image: MangaImage) => "working" | "ready" | "error" | undefined;
   failure: (image: MangaImage) => MangaFailure;
   paused: () => boolean;
@@ -118,7 +119,9 @@ export function createMangaAutoReader(actions: {
     const sources = images.map(mangaImageSource);
     const canvasVersions = images.map((image) => versions.get(image) ?? 0);
     const sourcePage = location.href;
-    const stillCurrent = () =>
+    const stillCurrent = () => {
+      const current = visible();
+      return current.length === images.length && current.every((image, index) => image === images[index]) &&
       location.href === sourcePage &&
       images.every(
         (image, index) =>
@@ -127,6 +130,7 @@ export function createMangaAutoReader(actions: {
           (!isCanvasImage(image) ||
             (versions.get(image) ?? 0) === canvasVersions[index]),
       );
+    };
     const signature =
       location.href +
       "|" +
@@ -148,6 +152,7 @@ export function createMangaAutoReader(actions: {
     if (!gate.observe(signature, Date.now())) return;
     const turn = sequence;
     gate.mark(signature);
+    actions.prioritize(images);
     const pending = images.filter((image) => !actions.existing(image));
     if (pending.length) {
       state.hint = "manga.autoTranslating";
