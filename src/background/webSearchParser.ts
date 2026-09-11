@@ -184,14 +184,13 @@ export function parseBingHtml(html: string): ParsedSearchSource[] {
   const raw: Omit<ParsedSearchSource, "isExternal">[] = [];
   const blocks = html.split(/<li\b[^>]*class=["'][^"']*b_algo[^"']*["'][^>]*>/i).slice(1);
   for (const block of blocks) {
-    const itemContent = block.split(/<\/li>/i)[0] || block;
     const h2Match =
-      /<h2[^>]*>\s*<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i.exec(itemContent) ||
-      /<a\b[^>]*href=["']([^"']+)["'][^>]*>\s*<h2[^>]*>([\s\S]*?)<\/h2>/i.exec(itemContent);
+      /<h2[^>]*>\s*<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i.exec(block) ||
+      /<a\b[^>]*href=["']([^"']+)["'][^>]*>\s*<h2[^>]*>([\s\S]*?)<\/h2>/i.exec(block);
     if (!h2Match) continue;
     const snippet =
-      /<p\b[^>]*>([\s\S]*?)<\/p>/i.exec(itemContent)?.[1] ??
-      /<div\b[^>]*class=["'][^"']*(?:b_caption|b_snippet)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(itemContent)?.[1] ??
+      /<p\b[^>]*>([\s\S]*?)<\/p>/i.exec(block)?.[1] ??
+      /<div\b[^>]*class=["'][^"']*(?:b_caption|b_snippet)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1] ??
       "";
     raw.push({
       title: h2Match[2],

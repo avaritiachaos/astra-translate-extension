@@ -45,7 +45,6 @@ async function fetchText(url: string, lang: UiLanguage, signal?: AbortSignal): P
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": searchLocaleFor(lang).acceptLanguage,
       },
-      credentials: "include",
       signal: controller.signal,
     });
     if (!response.ok) {
