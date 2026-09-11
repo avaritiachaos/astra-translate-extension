@@ -725,11 +725,12 @@ body::-webkit-scrollbar-thumb:hover {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Compact Manga Bar (matches Translate tab's top bar) */
-.ast-manga-bar {
+/* Single-row Language Bar */
+.ast-manga-lang-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 10px;
   padding: 8px 12px;
   background: var(--ast-glass-card);
   border: 1px solid var(--ast-glass-border);
@@ -739,77 +740,132 @@ body::-webkit-scrollbar-thumb:hover {
   -webkit-backdrop-filter: blur(16px);
 }
 
-.ast-manga-bar-item {
+.ast-manga-lang-label {
   display: flex;
   align-items: center;
   gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ast-text-secondary);
+  white-space: nowrap;
+}
+
+.ast-manga-lang-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.ast-manga-lang-select {
+  max-width: 200px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+/* Feature Cards Container */
+.ast-manga-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ast-manga-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--ast-glass-card);
+  border: 1px solid var(--ast-glass-border);
+  border-radius: var(--ast-radius);
+  box-shadow: var(--ast-shadow), var(--ast-glass-specular);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  cursor: pointer;
+  transition: all var(--ast-transition);
+  user-select: none;
+}
+
+.ast-manga-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.12), var(--ast-shadow);
+}
+
+.ast-manga-card:active {
+  transform: translateY(0);
+}
+
+.ast-manga-card--disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.ast-manga-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+
+.ast-manga-card-icon--purple {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%);
+  color: #8b5cf6;
+}
+
+.ast-manga-card-icon--indigo {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%);
+  color: var(--ast-primary);
+}
+
+.ast-manga-card-body {
   flex: 1;
   min-width: 0;
 }
 
-.ast-manga-bar-label {
-  font-size: 11.5px;
-  font-weight: 600;
+.ast-manga-card-title {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ast-text);
+  line-height: 1.3;
+}
+
+.ast-manga-card-desc {
+  font-size: 11px;
   color: var(--ast-muted);
+  line-height: 1.35;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ast-manga-card-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-.ast-manga-bar-select {
-  flex: 1;
-  min-width: 0;
-  padding: 4px 6px;
-  font-size: 11.5px;
-  border-radius: 8px;
-}
-
-/* Action Buttons Container */
-.ast-manga-actions-box {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.ast-manga-btn-primary {
-  width: 100%;
+.ast-manga-card-badge-wrap {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 16px;
-  font-size: 13px;
-  font-weight: 650;
-  border-radius: 12px;
-  letter-spacing: 0.01em;
-}
-
-.ast-manga-btn-secondary {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 9px 16px;
-  font-size: 12.5px;
-  font-weight: 600;
-  border-radius: 12px;
-}
-
-.ast-manga-btn-icon {
-  font-size: 14px;
-  line-height: 1;
 }
 
 .ast-manga-kbd {
-  margin-left: auto;
-  font-size: 10px;
+  font-size: 11px;
   font-family: inherit;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--ast-muted);
   background: rgba(0, 0, 0, 0.05);
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 5px;
-  padding: 2px 6px;
+  border-radius: 6px;
+  padding: 4px 8px;
   line-height: 1.2;
 }
 
@@ -827,13 +883,13 @@ body::-webkit-scrollbar-thumb:hover {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 4px 2px 0;
+  padding: 4px 4px 0;
   font-size: 11px;
   color: var(--ast-muted);
 }
 
 .ast-manga-footer-model {
-  max-width: 280px;
+  max-width: 300px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -17,9 +17,21 @@ const BASE_SETTINGS: UserProviderSettings = {
 };
 
 describe("openAICompatibleClient buildRequestParts", () => {
-  it("disables reasoning_effort by default for Google Gemini translation requests", () => {
+  it("uses low reasoning_effort by default for Gemini 3 translation requests", () => {
     const parts = buildRequestParts(
-      BASE_SETTINGS,
+      BASE_SETTINGS, // model: "gemini-3.7-flash"
+      [{ role: "user", content: "Translate this" }],
+      false,
+      "zh-CN"
+    );
+
+    assert.equal(parts.body.reasoning_effort, "low");
+    assert.deepEqual(parts.optionalKeys, ["reasoning_effort"]);
+  });
+
+  it("uses none reasoning_effort for Gemini 2.5 Flash translation requests", () => {
+    const parts = buildRequestParts(
+      { ...BASE_SETTINGS, model: "gemini-2.5-flash" },
       [{ role: "user", content: "Translate this" }],
       false,
       "zh-CN"

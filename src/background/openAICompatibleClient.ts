@@ -120,18 +120,27 @@ export function buildRequestParts(
     stream,
   };
 
-  // Translation paths carry no per-request options and keep the historical
-  // DeepSeek behaviour. Chat passes its effort level in via `extra`, which
-  // already accounts for the thinking switch, so the two never stack.
+  const modelLower = (model || "").toLowerCase();
+
+  let defaultTranslationOptional: Record<string, unknown> = {};
+  if (providerId === "google-gemini") {
+    // Gemini 3.x (3.7 / 3.8) does not support "none" and returns 400;
+    // "low" effort minimizes thinking budget and gives sub-second translation.
+    // Gemini 2.5 Flash supports "none".
+    if (modelLower.includes("2.5") && !modelLower.includes("pro")) {
+      defaultTranslationOptional = { reasoning_effort: "none" };
+    } else {
+      defaultTranslationOptional = { reasoning_effort: "low" };
+    }
+  } else if (providerId === "deepseek") {
+    defaultTranslationOptional = { thinking: { type: "disabled" } };
+  } else if (disableThinking) {
+    defaultTranslationOptional = { thinking: false };
+  }
+
   const optional: Record<string, unknown> = extra?.optionalBody
     ? { ...extra.optionalBody }
-    : providerId === "google-gemini"
-      ? { reasoning_effort: "none" }
-      : providerId === "deepseek"
-        ? { thinking: { type: "disabled" } }
-        : disableThinking
-          ? { thinking: false } // 自定义 OpenAI 兼容网关（如本地反代）认 thinking:false，比 reasoning_effort 更通用
-          : {};
+    : defaultTranslationOptional;
 
   const reserved = new Set(["model", "messages", "stream", "response_format"]);
   const optionalKeys = Object.keys(optional).filter(
