@@ -47,7 +47,11 @@ function extractDeltaText(choice?: StreamDeltaChoice): string {
     contentText(choice.delta?.text) ||
     contentText(choice.message?.content) ||
     contentText(choice.message?.text) ||
-    contentText(choice.text)
+    contentText(choice.text) ||
+    contentText((choice.delta as any)?.reasoning_content) ||
+    contentText((choice.delta as any)?.thought) ||
+    contentText((choice.message as any)?.reasoning_content) ||
+    contentText((choice.message as any)?.thought)
   );
 }
 
@@ -232,11 +236,20 @@ function checkFinish(reason: unknown, lang: UiLanguage): void {
     );
   }
   if (!isNormalFinishReason(reason)) {
-    throw responseError(lang);
+    throw new ProviderRequestError(
+      `未知的结束原因 (${String(reason)})`,
+      "UNEXPECTED_FINISH_REASON",
+    );
   }
 }
 
 function extractContent(data: CompletionResponse, lang: UiLanguage): string {
+  if ((data as any)?.promptFeedback?.blockReason) {
+    throw new ProviderRequestError(
+      t(lang, "error.contentFilterBlocked"),
+      "CONTENT_FILTER",
+    );
+  }
   const choice = data?.choices?.[0];
   checkFinish(choice?.finish_reason, lang);
   const content = extractDeltaText({ message: choice?.message }).trim();
@@ -247,7 +260,10 @@ function extractContent(data: CompletionResponse, lang: UiLanguage): string {
         "CONTENT_FILTER",
       );
     }
-    throw responseError(lang);
+    throw new ProviderRequestError(
+      t(lang, "error.emptyResponse"),
+      "EMPTY_RESPONSE",
+    );
   }
   return content;
 }
@@ -275,11 +291,18 @@ async function readStream(
       complete = true;
       return;
     }
-    let chunk: StreamChunk & { error?: unknown };
+    let chunk: StreamChunk & { error?: unknown; promptFeedback?: { blockReason?: string } };
     try {
       chunk = JSON.parse(data);
     } catch {
-      throw responseError(lang);
+      // Ignore non-JSON ping / heartbeat SSE comments
+      return;
+    }
+    if (chunk.promptFeedback?.blockReason) {
+      throw new ProviderRequestError(
+        t(lang, "error.contentFilterBlocked"),
+        "CONTENT_FILTER",
+      );
     }
     if (chunk.error) {
       const errMsg =
@@ -322,7 +345,12 @@ async function readStream(
       flushEvent();
     }
     if (!complete) throw responseError(lang, "RESPONSE_TRUNCATED");
-    if (!text.trim()) throw responseError(lang);
+    if (!text.trim()) {
+      throw new ProviderRequestError(
+        t(lang, "error.emptyResponse"),
+        "EMPTY_RESPONSE",
+      );
+    }
     return text.trim();
   } finally {
     void reader.cancel().catch(() => {});

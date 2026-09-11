@@ -1650,11 +1650,11 @@ export default function Popup() {
           <div className="ast-manga-lang-bar">
             <span className="ast-manga-lang-label">
               <span className="ast-manga-lang-icon" aria-hidden="true">🌐</span>
-              <span>{t(lang, "manga.target")}</span>
+              <span>{t(lang, "manga.targetLangLabel")}</span>
             </span>
             <select
               id="manga-popup-target-lang"
-              className="ast-lang-select ast-manga-lang-select"
+              className="ast-manga-lang-select"
               value={settings?.manga?.targetLanguage || "Simplified Chinese"}
               onChange={async (e) => {
                 if (!settings) return;
@@ -1677,52 +1677,43 @@ export default function Popup() {
             </select>
           </div>
 
-          {/* Interactive Feature Cards */}
-          <div className="ast-manga-cards">
-            {/* Card 1: Full Page Manga Translation */}
-            <div
-              className={`ast-manga-card ast-manga-card--primary ${mangaPickPending ? "ast-manga-card--disabled" : ""}`}
-              onClick={() => {
-                if (!mangaPickPending) void handleMangaPick("current");
-              }}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if ((e.key === "Enter" || e.key === " ") && !mangaPickPending) {
-                  e.preventDefault();
-                  void handleMangaPick("current");
-                }
-              }}
-            >
-              <div className="ast-manga-card-icon ast-manga-card-icon--purple" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                  <circle cx="10" cy="8" r="2" />
-                  <path d="m18 14-4-4-4 4" />
-                </svg>
+          {/* Unified Manga Studio Deck */}
+          <div className="ast-manga-deck">
+            {/* Primary Hero Section: Full Page Manga Translation */}
+            <div className="ast-manga-hero">
+              <div className="ast-manga-hero-badge">
+                <div className="ast-manga-hero-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                    <circle cx="10" cy="8" r="2" />
+                    <path d="m18 14-4-4-4 4" />
+                  </svg>
+                </div>
+                <div className="ast-manga-hero-text">
+                  <div className="ast-manga-hero-title">{t(lang, "manga.cardPageTitle")}</div>
+                  <div className="ast-manga-hero-sub">{t(lang, "manga.cardPageDesc")}</div>
+                </div>
               </div>
-              <div className="ast-manga-card-body">
-                <div className="ast-manga-card-title">{t(lang, "manga.cardPageTitle")}</div>
-                <div className="ast-manga-card-desc">{t(lang, "manga.cardPageDesc")}</div>
-              </div>
+
               <button
                 type="button"
-                className="ast-btn ast-btn-primary ast-manga-card-btn"
+                className="ast-btn ast-manga-hero-btn"
                 disabled={mangaPickPending}
                 aria-busy={mangaPickPending}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void handleMangaPick("current");
-                }}
+                onClick={() => void handleMangaPick("current")}
               >
-                {t(lang, "manga.cardPageAction")}
+                <span className="ast-manga-btn-icon">⚡</span>
+                <span>{t(lang, "manga.cardPageAction")}</span>
               </button>
             </div>
 
-            {/* Card 2: Select Image / Crop */}
+            {/* Hairline Divider */}
+            <div className="ast-manga-deck-divider" />
+
+            {/* Secondary Action: Select Image / Crop */}
             <div
-              className={`ast-manga-card ${mangaPickPending ? "ast-manga-card--disabled" : ""}`}
+              className={`ast-manga-sub-row ${mangaPickPending ? "ast-manga-sub-row--disabled" : ""}`}
               onClick={() => {
                 if (!mangaPickPending) void handleMangaPick("select");
               }}
@@ -1735,19 +1726,12 @@ export default function Popup() {
                 }
               }}
             >
-              <div className="ast-manga-card-icon ast-manga-card-icon--indigo" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  <line x1="11" y1="8" x2="11" y2="14" />
-                  <line x1="8" y1="11" x2="14" y2="11" />
-                </svg>
+              <div className="ast-manga-sub-left">
+                <span className="ast-manga-sub-icon" aria-hidden="true">🔍</span>
+                <span className="ast-manga-sub-label">{t(lang, "manga.cardSelectTitle")}</span>
               </div>
-              <div className="ast-manga-card-body">
-                <div className="ast-manga-card-title">{t(lang, "manga.cardSelectTitle")}</div>
-                <div className="ast-manga-card-desc">{t(lang, "manga.cardSelectDesc")}</div>
-              </div>
-              <div className="ast-manga-card-badge-wrap">
+              <div className="ast-manga-sub-right">
+                <span className="ast-manga-sub-hint">点击选图</span>
                 <kbd className="ast-manga-kbd">Alt+M</kbd>
               </div>
             </div>
