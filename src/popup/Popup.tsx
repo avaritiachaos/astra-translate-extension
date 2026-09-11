@@ -1677,48 +1677,57 @@ export default function Popup() {
             </select>
           </div>
 
-          {/* Unified Manga Studio Deck */}
-          <div className="ast-manga-deck">
-            {/* Primary Hero Section: Full Page Manga Translation */}
-            <div className="ast-manga-hero">
-              <div className="ast-manga-hero-badge">
-                <div className="ast-manga-hero-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {/* Manga Studio Grid: Two Balanced Twin Action Cards */}
+          <div className="ast-manga-grid">
+            {/* Tile 1: Whole Page Manga Translation */}
+            <div
+              className={`ast-manga-tile ast-manga-tile--page ${mangaPickPending ? "ast-manga-tile--disabled" : ""}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                if (!mangaPickPending) void handleMangaPick("current");
+              }}
+              onKeyDown={(e) => {
+                if ((e.key === "Enter" || e.key === " ") && !mangaPickPending) {
+                  e.preventDefault();
+                  void handleMangaPick("current");
+                }
+              }}
+            >
+              <div className="ast-manga-tile-top">
+                <div className="ast-manga-tile-icon ast-manga-tile-icon--purple" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
                     <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
                     <circle cx="10" cy="8" r="2" />
                     <path d="m18 14-4-4-4 4" />
                   </svg>
                 </div>
-                <div className="ast-manga-hero-text">
-                  <div className="ast-manga-hero-title">{t(lang, "manga.cardPageTitle")}</div>
-                  <div className="ast-manga-hero-sub">{t(lang, "manga.cardPageDesc")}</div>
-                </div>
+                <span className="ast-manga-tile-badge">{t(lang, "manga.badgeRecommended")}</span>
               </div>
-
+              <div className="ast-manga-tile-body">
+                <div className="ast-manga-tile-title">{t(lang, "manga.cardPageTitle")}</div>
+                <div className="ast-manga-tile-desc">{t(lang, "manga.cardPageDesc")}</div>
+              </div>
               <button
                 type="button"
-                className="ast-btn ast-manga-hero-btn"
+                className="ast-manga-tile-btn ast-manga-tile-btn--primary"
                 disabled={mangaPickPending}
-                aria-busy={mangaPickPending}
-                onClick={() => void handleMangaPick("current")}
+                tabIndex={-1}
               >
-                <span className="ast-manga-btn-icon">⚡</span>
                 <span>{t(lang, "manga.cardPageAction")}</span>
+                <span className="ast-manga-tile-arrow" aria-hidden="true">➔</span>
               </button>
             </div>
 
-            {/* Hairline Divider */}
-            <div className="ast-manga-deck-divider" />
-
-            {/* Secondary Action: Select Image / Crop */}
+            {/* Tile 2: Crop & Pick Single Image */}
             <div
-              className={`ast-manga-sub-row ${mangaPickPending ? "ast-manga-sub-row--disabled" : ""}`}
+              className={`ast-manga-tile ast-manga-tile--crop ${mangaPickPending ? "ast-manga-tile--disabled" : ""}`}
+              role="button"
+              tabIndex={0}
               onClick={() => {
                 if (!mangaPickPending) void handleMangaPick("select");
               }}
-              role="button"
-              tabIndex={0}
               onKeyDown={(e) => {
                 if ((e.key === "Enter" || e.key === " ") && !mangaPickPending) {
                   e.preventDefault();
@@ -1726,14 +1735,28 @@ export default function Popup() {
                 }
               }}
             >
-              <div className="ast-manga-sub-left">
-                <span className="ast-manga-sub-icon" aria-hidden="true">🔍</span>
-                <span className="ast-manga-sub-label">{t(lang, "manga.cardSelectTitle")}</span>
+              <div className="ast-manga-tile-top">
+                <div className="ast-manga-tile-icon ast-manga-tile-icon--indigo" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 2v14a2 2 0 0 0 2 2h14" />
+                    <path d="M18 22V8a2 2 0 0 0-2-2H2" />
+                  </svg>
+                </div>
+                <kbd className="ast-manga-tile-kbd">Alt+M</kbd>
               </div>
-              <div className="ast-manga-sub-right">
-                <span className="ast-manga-sub-hint">点击选图</span>
-                <kbd className="ast-manga-kbd">Alt+M</kbd>
+              <div className="ast-manga-tile-body">
+                <div className="ast-manga-tile-title">{t(lang, "manga.cardSelectTitle")}</div>
+                <div className="ast-manga-tile-desc">{t(lang, "manga.cardSelectDesc")}</div>
               </div>
+              <button
+                type="button"
+                className="ast-manga-tile-btn ast-manga-tile-btn--secondary"
+                disabled={mangaPickPending}
+                tabIndex={-1}
+              >
+                <span>{t(lang, "manga.cardSelectAction")}</span>
+                <span className="ast-manga-tile-arrow" aria-hidden="true">➔</span>
+              </button>
             </div>
           </div>
 
@@ -1745,7 +1768,7 @@ export default function Popup() {
               className="ast-manga-footer-model"
               title={settings?.manga?.modelId || settings?.model || "—"}
             >
-              {t(lang, "manga.currentModel")}: <strong>{settings?.manga?.modelId || settings?.model || "—"}</strong>
+              {t(lang, "manga.currentModel")}: <span className="ast-manga-model-chip">{getModelDisplayLabel(settings?.providerId, settings?.manga?.modelId || settings?.model)}</span>
             </span>
             <button
               type="button"
