@@ -42,9 +42,10 @@ async function fetchText(url: string, lang: UiLanguage, signal?: AbortSignal): P
   try {
     const response = await fetch(url, {
       headers: {
-        Accept: "text/html,application/xhtml+xml",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": searchLocaleFor(lang).acceptLanguage,
       },
+      credentials: "include",
       signal: controller.signal,
     });
     if (!response.ok) {
@@ -74,22 +75,13 @@ interface EngineAttempt {
   parse: (html: string) => ParsedSearchSource[];
 }
 
-function getEngines(lang: UiLanguage): EngineAttempt[] {
-  // For Simplified Chinese, prioritize Bing: it is directly reachable without
-  // VPN/proxy in mainland China and provides high-quality localized results (weather, news, etc.).
-  if (lang === "zh-CN") {
-    return [
-      { url: (q, l) => bingSearchUrl(q, l), parse: parseBingHtml },
-      { url: (q, l) => googleSearchUrl(q, l, MAX_RESULTS), parse: parseGoogleHtml },
-      { url: (q, l) => duckDuckGoSearchUrl(q, l), parse: parseDuckDuckGoHtml },
-    ];
-  }
-  return [
-    { url: (q, l) => googleSearchUrl(q, l, MAX_RESULTS), parse: parseGoogleHtml },
-    { url: (q, l) => bingSearchUrl(q, l), parse: parseBingHtml },
-    { url: (q, l) => duckDuckGoSearchUrl(q, l), parse: parseDuckDuckGoHtml },
-  ];
-}
+// Preference order: Google first for result quality, Bing as fallback,
+// DuckDuckGo's lightweight HTML endpoint as the last resort.
+const ENGINES: EngineAttempt[] = [
+  { url: (q, lang) => googleSearchUrl(q, lang, MAX_RESULTS), parse: parseGoogleHtml },
+  { url: (q, lang) => bingSearchUrl(q, lang), parse: parseBingHtml },
+  { url: (q, lang) => duckDuckGoSearchUrl(q, lang), parse: parseDuckDuckGoHtml },
+];
 
 /**
  * Search public result pages without a separate API key, cascading through
@@ -108,7 +100,7 @@ export async function webSearch(
   // an engine that completes with zero hits still counts as a real answer.
   let lastError: unknown;
   let anyEngineCompleted = false;
-  for (const engine of getEngines(lang)) {
+  for (const engine of ENGINES) {
     try {
       const sources = engine.parse(await fetchText(engine.url(q, lang), lang, signal));
       anyEngineCompleted = true;

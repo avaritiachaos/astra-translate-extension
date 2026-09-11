@@ -114,17 +114,42 @@ export function parseDuckDuckGoHtml(html: string): ParsedSearchSource[] {
 /** Parse Google result HTML (primary engine; markup shifts often, so
  * best-effort — an unrecognised page simply yields zero results). */
 export function parseGoogleHtml(html: string): ParsedSearchSource[] {
+  if (html.includes("/sorry/index") || html.includes("captcha-form") || html.includes("g-recaptcha")) {
+    return [];
+  }
   const raw: Omit<ParsedSearchSource, "isExternal">[] = [];
   const resultAnchor = /<a\b[^>]*href=["']((?:\/url\?q=|https?:\/\/)[^"']+)["'][^>]*>[\s\S]{0,1200}?<h3[^>]*>([\s\S]*?)<\/h3>/gi;
   let match: RegExpExecArray | null;
   while ((match = resultAnchor.exec(html))) {
     const nearby = html.slice(resultAnchor.lastIndex, resultAnchor.lastIndex + 1600);
+    const url = googleResultUrl(match[1]);
+    if (!url) continue;
     raw.push({
       title: match[2],
-      url: googleResultUrl(match[1]),
-      snippet: firstClassContent(nearby, "VwiC3b") || firstClassContent(nearby, "IsZvec"),
+      url,
+      snippet:
+        firstClassContent(nearby, "VwiC3b") ||
+        firstClassContent(nearby, "IsZvec") ||
+        firstClassContent(nearby, "BNeawe"),
       source: "google",
     });
+  }
+  if (raw.length === 0) {
+    const h3Wrap = /<h3[^>]*>\s*<a\b[^>]*href=["']((?:\/url\?q=|https?:\/\/)[^"']+)["'][^>]*>([\s\S]*?)<\/a>\s*<\/h3>/gi;
+    while ((match = h3Wrap.exec(html))) {
+      const nearby = html.slice(h3Wrap.lastIndex, h3Wrap.lastIndex + 1600);
+      const url = googleResultUrl(match[1]);
+      if (!url) continue;
+      raw.push({
+        title: match[2],
+        url,
+        snippet:
+          firstClassContent(nearby, "VwiC3b") ||
+          firstClassContent(nearby, "IsZvec") ||
+          firstClassContent(nearby, "BNeawe"),
+        source: "google",
+      });
+    }
   }
   return sanitizeSources(raw);
 }
