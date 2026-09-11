@@ -34,6 +34,7 @@ function contentText(value: unknown): string {
   }
   if (typeof value === "object") {
     const obj = value as Record<string, unknown>;
+    if (obj.thought === true || obj.thought || obj.type === "thought") return "";
     if (typeof obj.text === "string") return obj.text;
     if (typeof obj.content === "string") return obj.content;
     if (Array.isArray(obj.parts)) return contentText(obj.parts);
@@ -46,6 +47,7 @@ function extractDeltaText(choice?: StreamDeltaChoice): string {
   const d = choice.delta as any;
   const m = choice.message as any;
   const c = (choice as any).content;
+  if (d?.thought || m?.thought || (choice as any).thought) return "";
   return (
     contentText(d?.content) ||
     contentText(d?.text) ||
@@ -69,6 +71,8 @@ interface StreamDeltaChoice {
 
 interface StreamChunk {
   choices?: StreamDeltaChoice[];
+  error?: unknown;
+  promptFeedback?: { blockReason?: string };
 }
 
 /** Max automatic retries for transient failures (429 / 5xx / network). */
@@ -248,6 +252,10 @@ function checkFinish(reason: unknown, lang: UiLanguage): void {
   }
 }
 
+function stripThink(s: string): string {
+  return s.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<think>[\s\S]*$/gi, "").trimStart();
+}
+
 function extractContent(data: CompletionResponse, lang: UiLanguage): string {
   if ((data as any)?.promptFeedback?.blockReason) {
     throw new ProviderRequestError(
@@ -257,7 +265,7 @@ function extractContent(data: CompletionResponse, lang: UiLanguage): string {
   }
   const choice = data?.choices?.[0] || (data as any)?.candidates?.[0];
   checkFinish(choice?.finish_reason, lang);
-  const content = extractDeltaText(choice).trim();
+  const content = stripThink(extractDeltaText(choice)).trim();
   if (!content) {
     if (choice?.finish_reason && isSafetyFinishReason(choice.finish_reason)) {
       throw new ProviderRequestError(
@@ -278,38 +286,31 @@ function extractContent(data: CompletionResponse, lang: UiLanguage): string {
 /** Read complete SSE events, including multi-line data and split UTF-8 bytes. */
 async function readStream(
   res: Response,
-  onDelta: (text: string) => void,
+  onDelta: (delta: string) => void,
   onActivity: () => void,
   lang: UiLanguage,
 ): Promise<string> {
-  if (!res.body) throw responseError(lang);
-  const reader = res.body.getReader();
+  const reader = res.body?.getReader();
+  if (!reader) throw responseError(lang);
   const decoder = new TextDecoder();
   let buffer = "";
-  let dataLines: string[] = [];
-  let complete = false;
   let text = "";
+  let emittedLength = 0;
+  let complete = false;
+  let dataLines: string[] = [];
   const flushEvent = () => {
     if (dataLines.length === 0) return;
-    const data = dataLines.join("\n").trim();
+    const combined = dataLines.join("\n").trim();
     dataLines = [];
-    if (!data) return;
-    if (data === "[DONE]") {
-      complete = true;
+    if (!combined || combined === "[DONE]") {
+      if (combined === "[DONE]") complete = true;
       return;
     }
-    let chunk: StreamChunk & { error?: unknown; promptFeedback?: { blockReason?: string } };
+    let chunk: StreamChunk;
     try {
-      chunk = JSON.parse(data);
+      chunk = JSON.parse(combined);
     } catch {
-      // Ignore non-JSON ping / heartbeat SSE comments
       return;
-    }
-    if (chunk.promptFeedback?.blockReason) {
-      throw new ProviderRequestError(
-        t(lang, "error.contentFilterBlocked"),
-        "CONTENT_FILTER",
-      );
     }
     if (chunk.error) {
       const errMsg =
@@ -318,12 +319,22 @@ async function readStream(
           : String(chunk.error);
       throw new ProviderRequestError(errMsg, "STREAM_ERROR");
     }
+    if ((chunk as any).promptFeedback?.blockReason) {
+      throw new ProviderRequestError(
+        t(lang, "error.contentFilterBlocked"),
+        "CONTENT_FILTER",
+      );
+    }
     const choice = chunk.choices?.[0] || (chunk as any).candidates?.[0];
     const delta = extractDeltaText(choice);
     if (delta) {
       text += delta;
       if (text.length > 1_000_000) throw responseError(lang);
-      onDelta(delta);
+      const clean = stripThink(text);
+      if (clean.length > emittedLength) {
+        onDelta(clean.slice(emittedLength));
+        emittedLength = clean.length;
+      }
     }
     checkFinish(choice?.finish_reason, lang);
     if (isNormalFinishReason(choice?.finish_reason)) complete = true;
@@ -352,7 +363,8 @@ async function readStream(
       flushEvent();
     }
     if (!complete) throw responseError(lang, "RESPONSE_TRUNCATED");
-    if (!text.trim()) {
+    const finalText = stripThink(text).trim();
+    if (!finalText) {
       throw new ProviderRequestError(
         t(lang, "error.emptyResponse"),
         "EMPTY_RESPONSE",
@@ -360,7 +372,7 @@ async function readStream(
         true,
       );
     }
-    return text.trim();
+    return finalText;
   } finally {
     void reader.cancel().catch(() => {});
     reader.releaseLock();
