@@ -76,6 +76,7 @@ describe("openAICompatibleClient buildRequestParts", () => {
       {
         ...BASE_SETTINGS,
         providerId: "custom-openai-compatible",
+        model: "custom-model",
         disableThinking: true,
       },
       [{ role: "user", content: "Translate this" }],
@@ -85,6 +86,23 @@ describe("openAICompatibleClient buildRequestParts", () => {
 
     assert.equal(parts.body.thinking, false);
     assert.deepEqual(parts.optionalKeys, ["thinking"]);
+  });
+
+  it("safely falls back to low reasoning_effort for Gemini 3 custom provider (CPA)", () => {
+    const parts = buildRequestParts(
+      {
+        ...BASE_SETTINGS,
+        providerId: "custom-openai-compatible",
+        model: "gemini-3.8-flash-high",
+        disableThinking: true,
+      },
+      [{ role: "user", content: "Translate this" }],
+      false,
+      "zh-CN"
+    );
+
+    assert.equal(parts.body.reasoning_effort, "low");
+    assert.deepEqual(parts.optionalKeys, ["reasoning_effort"]);
   });
 });
 

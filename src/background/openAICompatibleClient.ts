@@ -125,7 +125,7 @@ export function buildRequestParts(
   const isDeepSeek = providerId === "deepseek" || modelLower.includes("deepseek");
 
   let defaultTranslationOptional: Record<string, unknown> = {};
-  if (providerId === "google-gemini") {
+  if (isGoogle) {
     // Gemini 3.x (3.7 / 3.8) does not support "none" and returns 400;
     // "low" effort minimizes thinking budget and gives sub-second translation.
     // Gemini 2.5 Flash supports "none".
@@ -134,16 +134,10 @@ export function buildRequestParts(
     } else {
       defaultTranslationOptional = { reasoning_effort: "low" };
     }
-  } else if (providerId === "deepseek") {
+  } else if (isDeepSeek) {
     defaultTranslationOptional = { thinking: { type: "disabled" } };
   } else if (disableThinking) {
     defaultTranslationOptional = { thinking: false };
-  } else if (modelLower.includes("gemini")) {
-    if (modelLower.includes("2.5") && !modelLower.includes("pro")) {
-      defaultTranslationOptional = { reasoning_effort: "none" };
-    } else {
-      defaultTranslationOptional = { reasoning_effort: "low" };
-    }
   }
 
   const optional: Record<string, unknown> = extra?.optionalBody
