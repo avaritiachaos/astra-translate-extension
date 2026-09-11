@@ -171,6 +171,7 @@ export async function handleMangaMessage(
         timeoutMs: 60_000,
       },
       targetLanguage: manga.targetLanguage,
+      thinkingEffort: manga.thinkingEffort ?? "low",
       glossary: String(settings.customGlossary ?? "").slice(0, 8000),
       language: lang,
       force: probe || msg.payload?.force === true,

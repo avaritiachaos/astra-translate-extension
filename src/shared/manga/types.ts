@@ -1,9 +1,12 @@
 import type { UserProviderSettings } from "../types";
 import type { UiLanguage } from "../i18n";
+export type MangaThinkingEffort = "low" | "default" | "medium" | "high" | "off";
+
 export interface MangaSettings {
   providerId: string;
   modelId: string;
   targetLanguage: string;
+  thinkingEffort?: MangaThinkingEffort;
 }
 export type Box1000 = [number, number, number, number];
 export interface Rect {
@@ -78,6 +81,7 @@ export interface MangaExecution {
   provider: UserProviderSettings;
   language: UiLanguage;
   targetLanguage: string;
+  thinkingEffort?: MangaThinkingEffort;
   glossary: string;
   force: boolean;
 }

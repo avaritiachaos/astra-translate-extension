@@ -15,7 +15,7 @@ import {
 
 export function getDefaultSettings(): AstraSettings {
   return {
-    manga: { providerId: "current", modelId: "", targetLanguage: "Simplified Chinese" },
+    manga: { providerId: "current", modelId: "", targetLanguage: "Simplified Chinese", thinkingEffort: "low" },
     providerId: "deepseek",
     providerName: "DeepSeek",
     apiFormat: "openai-compatible",

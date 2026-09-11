@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { AstraSettings } from "../shared/types";
-import type { MangaSettings as Settings } from "../shared/manga/types";
+import type { MangaSettings as Settings, MangaThinkingEffort } from "../shared/manga/types";
 import {
   DEFAULT_PROVIDER_PRESETS,
   SUPPORTED_LANGUAGES,
@@ -195,7 +195,32 @@ export function MangaSettingsCard({
             ))}
           </select>
         </div>
+        <div className="ast-form-group">
+          <label className="ast-form-label" htmlFor="manga-effort">
+            {t(lang, "manga.effort")}
+          </label>
+          <select
+            id="manga-effort"
+            className="ast-form-select"
+            value={settings.manga.thinkingEffort ?? "low"}
+            onChange={(e) =>
+              onChange({
+                ...settings.manga,
+                thinkingEffort: e.target.value as MangaThinkingEffort,
+              })
+            }
+          >
+            <option value="low">{t(lang, "manga.effortLow")}</option>
+            <option value="default">{t(lang, "manga.effortDefault")}</option>
+            <option value="medium">{t(lang, "manga.effortMedium")}</option>
+            <option value="high">{t(lang, "manga.effortHigh")}</option>
+            <option value="off">{t(lang, "manga.effortOff")}</option>
+          </select>
+        </div>
       </div>
+      <p className="ast-form-hint" style={{ marginTop: -4, marginBottom: 12 }}>
+        {t(lang, "manga.effortHint")}
+      </p>
       <div className="ast-form-group">
         <button type="button" className="ast-btn ast-btn-secondary"
           disabled={modelsLoading || busy || !connection.ready} onClick={() => void loadModels()}>

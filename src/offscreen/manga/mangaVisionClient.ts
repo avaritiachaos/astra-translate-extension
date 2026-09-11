@@ -6,6 +6,8 @@ import {
   MANGA_RESULT_SCHEMA,
   parseMangaResult,
 } from "../../shared/manga/result";
+import type { MangaThinkingEffort } from "../../shared/manga/types";
+import { buildMangaEffortBody } from "../../shared/manga/thinkingEffort";
 const formats = new Map<string, number>();
 export async function translateMangaTile(
   provider: UserProviderSettings,
@@ -14,6 +16,7 @@ export async function translateMangaTile(
   glossary: string,
   language: UiLanguage,
   signal: AbortSignal,
+  thinkingEffort: MangaThinkingEffort = "low",
 ) {
   const key = provider.baseUrl + provider.endpoint + "|" + provider.model;
   let format = formats.get(key) ?? 0;
@@ -69,7 +72,7 @@ export async function translateMangaTile(
         language,
         signal,
         {
-          optionalBody: {},
+          optionalBody: buildMangaEffortBody(provider, thinkingEffort),
           responseFormat,
           omitTemperature: true,
           maxRetries: 1,

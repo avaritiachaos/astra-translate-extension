@@ -177,6 +177,7 @@ async function execute(entry: RunningJob) {
         request.glossary,
         request.language,
         signal,
+        request.thinkingEffort,
       );
       check();
       const positioned = result.regions.map((region) => {
