@@ -106,8 +106,8 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
 .clear{font-size:18px;line-height:1;padding:8px 10px;color:#c4b8e5}
 .clear:hover{color:#fff;background:rgba(239,68,68,0.25)}
 .collapse{font-size:12px;font-weight:600;padding:6px 12px;color:#d8d2ea;background:rgba(255,255,255,0.08);border-radius:14px;border:1px solid rgba(255,255,255,0.12);display:inline-flex;align-items:center;gap:4px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
-.collapse:hover{background:rgba(255,255,255,0.18);color:#fff;border-color:rgba(255,255,255,0.25)}
-.trigger{background:#7161dc;color:#fff;border-radius:24px;padding:11px 18px;box-shadow:0 4px 20px #17132940;font-weight:600}
+.trigger{background:linear-gradient(135deg,#7c3aed 0%,#6366f1 100%);color:#fff;border-radius:24px;padding:9px 18px;box-shadow:0 6px 22px rgba(124,58,237,0.4),0 0 0 1px rgba(255,255,255,0.2);font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:transform 0.15s,box-shadow 0.15s}
+.trigger:hover{background:linear-gradient(135deg,#8b5cf6 0%,#818cf8 100%);transform:scale(1.05);box-shadow:0 8px 28px rgba(124,58,237,0.55)}
 .panel{position:absolute;right:0;bottom:58px;width:340px;max-width:calc(100vw - 24px);max-height:min(65vh,480px);overflow-y:auto;overflow-x:hidden;color:#292533;background:#faf9ff;border:1px solid #e5e1f1;border-radius:18px;box-shadow:0 12px 38px #17132938;padding:14px;box-sizing:border-box}
 .translation-result{border:1px solid #e6e1ee;border-radius:10px;padding:10px;margin:8px 0;background:white}.result-heading{display:flex;gap:6px;align-items:center;margin-bottom:5px}.result-badge{font-size:11px;line-height:1.5;color:#6751a3;background:#f2eefc;border-radius:5px;padding:2px 5px}.translation-result[data-translation-state=uncertain] .result-badge{color:#825915;background:#fff4df}.translation-result[data-translation-state=untranslated] .result-badge{color:#72657b;background:#efecf2}.row .result-reason{font-size:11px;color:#84748f;margin-bottom:8px}.result-translation{font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}.row .result-source{font-size:12px;color:#8c8293;border-top:1px solid #f0edf4;margin-top:9px;padding-top:7px}.row .result-counts{font-size:11px;color:#84788f}.panel.translations{width:390px}.panel.translations header{margin-bottom:8px}
 .panel header{font-size:13px;font-weight:600;margin-bottom:8px}.row{border-top:1px solid #e9e6f2;padding:10px 0}.row:first-child{border-top:0}.row p{font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 5px;color:#736b82}.row.error p{color:#8d5315}.row button{color:#66519a;background:#f0edf8;font-size:12px;padding:5px 8px;margin-right:4px}.hint{font-size:11px;color:#9690a3;line-height:1.5;margin:8px 0 0}
@@ -334,7 +334,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
       String(!panel.hidden && panelMode === "reading"),
     );
   };
-  trigger.onclick = actions.pick;
+  trigger.onclick = actions.translate;
   pick.onclick = actions.pick;
   translate.onclick = actions.translate;
   clear.textContent = "×";
@@ -467,7 +467,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   };
   drag = makeMangaDockDraggable(host, grip, layoutPanel);
   const mount = () => {
-    if (!session && !(document.fullscreenElement && pageCount)) {
+    if (!session && !pageCount && !document.fullscreenElement) {
       host.remove();
       return;
     }
@@ -509,8 +509,9 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     dock.dataset.status = working ? "working" : errors.length ? "error" : "idle";
     grip.setAttribute("aria-label", t(lang, "manga.dragToolbar"));
     grip.title = t(lang, "manga.dragToolbarHint");
-    trigger.textContent = t(lang, "manga.title");
-    trigger.setAttribute("aria-label", t(lang, "manga.pick"));
+    trigger.textContent = "📖 " + t(lang, "manga.title");
+    trigger.setAttribute("aria-label", t(lang, "manga.translateVisible"));
+    trigger.title = t(lang, "manga.translateVisible");
     dock.classList.toggle("compact", !expanded);
     compact.hidden = expanded;
     compact.textContent = stateText();

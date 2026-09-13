@@ -46,7 +46,21 @@ async function serial<T>(tabId: number, run: () => Promise<T>): Promise<T> {
   }
 }
 async function load(tabId: number): Promise<ReadingSession | undefined> {
-  return (await chrome.storage.session.get(PREFIX + tabId))[PREFIX + tabId];
+  const inSession = (await chrome.storage.session.get(PREFIX + tabId))[PREFIX + tabId];
+  if (inSession) return inSession;
+  try {
+    const inLocal = (await chrome.storage.local.get(PREFIX + tabId))[PREFIX + tabId];
+    if (inLocal && typeof inLocal === "object") {
+      const expires = inLocal.expires ?? 0;
+      if (expires > Date.now()) {
+        await chrome.storage.session.set({ [PREFIX + tabId]: inLocal });
+        return inLocal;
+      } else {
+        await chrome.storage.local.remove(PREFIX + tabId);
+      }
+    }
+  } catch {}
+  return undefined;
 }
 function allAheads(session?: ReadingSession): Ahead[] {
   if (!session) return [];
@@ -83,6 +97,15 @@ export async function automaticMangaAllowed(
 }
 async function save(tabId: number, session: ReadingSession) {
   await chrome.storage.session.set({ [PREFIX + tabId]: session });
+  try {
+    await chrome.storage.local.set({ [PREFIX + tabId]: session });
+  } catch {}
+}
+async function removeSession(tabId: number) {
+  await chrome.storage.session.remove(PREFIX + tabId).catch(() => {});
+  try {
+    await chrome.storage.local.remove(PREFIX + tabId);
+  } catch {}
 }
 async function cancelAheads(
   session?: ReadingSession,
@@ -105,14 +128,14 @@ export async function stopReadingOutsideScope(tabId: number, url: string) {
   await serial(tabId, async () => {
     const session = await load(tabId);
     if (!session || readingSessionAllows(session, url)) return;
-    await chrome.storage.session.remove(PREFIX + tabId);
+    await removeSession(tabId);
     await cancelAheads(session);
   });
 }
 export async function clearMangaReading(tabId: number) {
   await serial(tabId, async () => {
     const session = await load(tabId);
-    await chrome.storage.session.remove(PREFIX + tabId);
+    await removeSession(tabId);
     await cancelAheads(session);
   });
 }
@@ -207,14 +230,14 @@ export async function handleMangaReading(
     let session = await load(tabId!);
     if (session && !readingSessionAllows(session, page)) {
       await cancelAhead(session);
-      await chrome.storage.session.remove(PREFIX + tabId!);
+      await removeSession(tabId!);
       session = undefined;
     }
     if (msg.type === "MANGA_READING_STATE")
       return { success: true, state: await publicState(session) };
     if (msg.type === "MANGA_READING_SET") {
       if (msg.payload?.enabled !== true) {
-        await chrome.storage.session.remove(PREFIX + tabId!);
+        await removeSession(tabId!);
         await cancelAhead(session);
         return { success: true, state: await publicState() };
       }
