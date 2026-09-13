@@ -1101,42 +1101,11 @@ body::-webkit-scrollbar-thumb:hover {
 
 .ast-chat-empty {
   margin: auto;
-  padding: 38px 24px;
+  padding: 32px 20px;
+  color: var(--ast-muted);
+  font-size: 12.5px;
   text-align: center;
-  font-size: 13px;
-  line-height: 1.75;
-  max-width: 295px;
-  user-select: none;
-  background: linear-gradient(
-    135deg,
-    var(--ast-muted) 0%,
-    #8b5cf6 25%,
-    #a855f7 50%,
-    #6366f1 75%,
-    var(--ast-muted) 100%
-  );
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: ast-chat-text-shimmer 4s ease-in-out infinite alternate, ast-chat-text-float 3.6s ease-in-out infinite;
-}
-
-@keyframes ast-chat-text-shimmer {
-  0% {
-    background-position: 0% 50%;
-  }
-  100% {
-    background-position: 100% 50%;
-  }
-}
-
-@keyframes ast-chat-text-float {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-3px);
-  }
+  line-height: 1.6;
 }
 
 /* Chat Bubbles */
