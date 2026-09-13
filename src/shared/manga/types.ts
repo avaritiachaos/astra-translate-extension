@@ -7,6 +7,10 @@ export interface MangaSettings {
   modelId: string;
   targetLanguage: string;
   thinkingEffort?: MangaThinkingEffort;
+  concurrency?: number;
+  prefetchDepth?: number;
+  autoReadingDefault?: boolean;
+  prefetchDefault?: boolean;
 }
 export type Box1000 = [number, number, number, number];
 export interface Rect {
@@ -84,6 +88,8 @@ export interface MangaExecution {
   thinkingEffort?: MangaThinkingEffort;
   glossary: string;
   force: boolean;
+  concurrency?: number;
+  priority?: "high" | "normal" | "low";
 }
 export const MANGA_ACTIVE_PHASES = new Set<MangaPhase>([
   "queued",

@@ -47,58 +47,74 @@ function httpSource(value: string, base: string): string | undefined {
     return;
   }
 }
-function nextImageInReader(
+function nextImagesInReader(
   images: MangaImage[],
   root: Element,
-): string | undefined {
+  maxCount = 3,
+): string[] {
   const list = [...root.querySelectorAll("img")].filter(
     (el): el is HTMLImageElement => el.tagName === "IMG",
   );
   const indexes = images.map((image) =>
     list.indexOf(image as HTMLImageElement),
   );
-  if (indexes.some((index) => index < 0)) return;
-  const previous = list[Math.max(...indexes)],
-    next = list[Math.max(...indexes) + 1];
-  if (
-    !next ||
-    !next.complete ||
-    !next.naturalWidth ||
-    next.naturalWidth < 160 ||
-    next.naturalHeight < 220
-  )
-    return;
-  if (
-    next.naturalWidth / previous.naturalWidth < 0.5 ||
-    next.naturalWidth / previous.naturalWidth > 2
-  )
-    return;
-  const source = httpSource(next.currentSrc || next.src, location.href);
-  if (!source || images.some((image) => mangaImageSource(image) === source))
-    return;
-  const pageIndex = previous.dataset.page,
-    nextIndex = next.dataset.page;
-  const numbered =
-    pageIndex &&
-    nextIndex &&
-    /^\d+$/.test(pageIndex) &&
-    /^\d+$/.test(nextIndex) &&
-    Number(nextIndex) === Number(pageIndex) + 1;
-  if (
-    !numbered &&
-    !isNextNumberedImage(previous.currentSrc || previous.src, source)
-  )
-    return;
-  const a = previous.getBoundingClientRect(),
-    b = next.getBoundingClientRect();
-  if (
-    b.width > 0 &&
-    b.height > 0 &&
-    b.y < a.bottom - 8 &&
-    Math.abs(b.x - a.x) < a.width * 0.8
-  )
-    return;
-  return source;
+  if (indexes.some((index) => index < 0)) return [];
+  const maxIdx = Math.max(...indexes);
+  const results: string[] = [];
+  const existingSources = new Set(images.map(mangaImageSource));
+
+  for (
+    let offset = 1;
+    offset <= maxCount && maxIdx + offset < list.length;
+    offset++
+  ) {
+    const previous = list[maxIdx + offset - 1];
+    const next = list[maxIdx + offset];
+    if (
+      !next ||
+      !next.complete ||
+      !next.naturalWidth ||
+      next.naturalWidth < 160 ||
+      next.naturalHeight < 220
+    )
+      continue;
+    if (
+      next.naturalWidth / previous.naturalWidth < 0.5 ||
+      next.naturalWidth / previous.naturalWidth > 2
+    )
+      continue;
+    const source = httpSource(next.currentSrc || next.src, location.href);
+    if (!source || existingSources.has(source) || results.includes(source))
+      continue;
+
+    const pageIndex = previous.dataset.page,
+      nextIndex = next.dataset.page;
+    const numbered =
+      pageIndex &&
+      nextIndex &&
+      /^\d+$/.test(pageIndex) &&
+      /^\d+$/.test(nextIndex) &&
+      Number(nextIndex) === Number(pageIndex) + 1;
+    if (
+      !numbered &&
+      !isNextNumberedImage(previous.currentSrc || previous.src, source)
+    ) {
+      const a = previous.getBoundingClientRect(),
+        b = next.getBoundingClientRect();
+      const isVerticalChain =
+        b.y >= a.y &&
+        Math.abs(b.x - a.x) < Math.max(a.width, b.width) * 0.8;
+      if (!isVerticalChain) continue;
+    }
+    results.push(source);
+  }
+  return results;
+}
+function nextImageInReader(
+  images: MangaImage[],
+  root: Element,
+): string | undefined {
+  return nextImagesInReader(images, root, 1)[0];
 }
 function stableImageSelector(image: HTMLImageElement): string | undefined {
   if (
@@ -118,6 +134,20 @@ function stableImageSelector(image: HTMLImageElement): string | undefined {
     )
       return "#" + CSS.escape(parent.id) + " img";
   }
+}
+export async function nextMangaImages(
+  images: MangaImage[],
+  root: Element | undefined,
+  signal: AbortSignal,
+  maxCount = 3,
+): Promise<Array<{ pageUrl: string; imageUrl: string }>> {
+  if (!images.length || images.some(isCanvasImage) || !root) return [];
+  const mounted = nextImagesInReader(images, root, maxCount);
+  if (mounted.length) {
+    return mounted.map((imageUrl) => ({ pageUrl: location.href, imageUrl }));
+  }
+  const single = await nextMangaImage(images, root, signal);
+  return single ? [single] : [];
 }
 export async function nextMangaImage(
   images: MangaImage[],

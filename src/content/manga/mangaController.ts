@@ -44,6 +44,8 @@ let autoReader: ReturnType<typeof createMangaAutoReader> | undefined;
 let readingSession = false,
   showOriginal = false,
   captureActive = false;
+let autoReadingDefault = true,
+  prefetchDefault = true;
 let anchor: MangaImage | undefined;
 let batchGeneration = 0;
 const scheduled = new Set<MangaImage>();
@@ -520,7 +522,7 @@ async function start(image: MangaImage, force = false, automatic = false) {
       );
   }
 }
-function translateCurrent() {
+function translateCurrent(forceAuto?: boolean) {
   const images = visibleMangaSpread(document, anchor);
   if (!images.length) {
     pickImage();
@@ -530,6 +532,11 @@ function translateCurrent() {
   readerControls?.reflectOriginal(false);
   for (const entry of entries.values()) entry.view.setOriginal(false);
   void startImages(images);
+  if (forceAuto ?? autoReadingDefault) {
+    if (!autoReader?.state.enabled) {
+      void autoReader?.set(true, prefetchDefault);
+    }
+  }
   return { pickerReady: false, currentStarted: true };
 }
 function pickImage() {
@@ -567,6 +574,10 @@ export function initMangaController(repair = false) {
       .catch(() => null);
     if (!alive()) throw new Error("MANGA_CONTEXT_INVALIDATED");
     if (preferences?.language) language = preferences.language;
+    if (typeof preferences?.autoReadingDefault === "boolean")
+      autoReadingDefault = preferences.autoReadingDefault;
+    if (typeof preferences?.prefetchDefault === "boolean")
+      prefetchDefault = preferences.prefetchDefault;
     readerControls?.refresh();
     pickImage();
   };
@@ -576,7 +587,7 @@ export function initMangaController(repair = false) {
         event.target instanceof HTMLImageElement ? event.target : null;
   };
   const onMessage = (
-    msg: { type: string; payload?: { srcUrl?: string } },
+    msg: { type: string; payload?: { srcUrl?: string; auto?: boolean } },
     sender: chrome.runtime.MessageSender,
     reply: (response: unknown) => void,
   ) => {
@@ -586,7 +597,9 @@ export function initMangaController(repair = false) {
       return;
     }
     if (msg.type === "MANGA_TRANSLATE_CURRENT") {
-      reply({ success: true, ...translateCurrent() });
+      const forceAuto =
+        typeof msg.payload?.auto === "boolean" ? msg.payload.auto : undefined;
+      reply({ success: true, ...translateCurrent(forceAuto) });
       return;
     }
     if (msg.type === "MANGA_PICK_IMAGE") {
@@ -702,8 +715,12 @@ export function initMangaController(repair = false) {
   void runtime
     .sendMessage({ type: "MANGA_PREFERENCES" })
     .then((preferences) => {
-      if (!alive() || !preferences?.language) return;
-      language = preferences.language;
+      if (!alive()) return;
+      if (preferences?.language) language = preferences.language;
+      if (typeof preferences?.autoReadingDefault === "boolean")
+        autoReadingDefault = preferences.autoReadingDefault;
+      if (typeof preferences?.prefetchDefault === "boolean")
+        prefetchDefault = preferences.prefetchDefault;
       readerControls?.refresh();
     })
     .catch(() => {});

@@ -49,6 +49,10 @@ export async function handleMangaMessage(
       language: lang,
       targetLanguage: saved.manga.targetLanguage,
       configuration: resolveMangaConfiguration(saved).status,
+      autoReadingDefault: saved.manga.autoReadingDefault !== false,
+      prefetchDefault: saved.manga.prefetchDefault !== false,
+      concurrency: saved.manga.concurrency ?? 3,
+      prefetchDepth: saved.manga.prefetchDepth ?? 2,
     };
   if (msg.type === "MANGA_MODELS") {
     if (!extensionPage(sender)) return { success: false, errorCode: "SENDER_DENIED" };
@@ -175,6 +179,8 @@ export async function handleMangaMessage(
       glossary: String(settings.customGlossary ?? "").slice(0, 8000),
       language: lang,
       force: probe || msg.payload?.force === true,
+      concurrency: manga.concurrency ?? 3,
+      priority: msg.payload?.priority || (msg.payload?.automatic ? "normal" : "high"),
     },
   });
   if (!result?.success)

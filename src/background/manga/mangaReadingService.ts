@@ -30,7 +30,9 @@ interface Ahead {
 interface ReadingSession extends MangaReadingState {
   generation: string;
   ahead?: Ahead;
+  aheads?: Ahead[];
   attempt?: string;
+  attempts?: string[];
 }
 const locks = new Map<number, Promise<unknown>>();
 async function serial<T>(tabId: number, run: () => Promise<T>): Promise<T> {
@@ -46,6 +48,11 @@ async function serial<T>(tabId: number, run: () => Promise<T>): Promise<T> {
 async function load(tabId: number): Promise<ReadingSession | undefined> {
   return (await chrome.storage.session.get(PREFIX + tabId))[PREFIX + tabId];
 }
+function allAheads(session?: ReadingSession): Ahead[] {
+  if (!session) return [];
+  if (session.aheads && session.aheads.length) return session.aheads;
+  return session.ahead ? [session.ahead] : [];
+}
 export async function automaticMangaAllowed(
   sender: chrome.runtime.MessageSender,
   source?: string,
@@ -58,16 +65,17 @@ export async function automaticMangaAllowed(
     if (!page || !tab.active) return false;
     const session = await load(tabId!);
     if (!session || !readingSessionAllows(session, page)) return false;
-    const ahead = session.ahead;
-    // A skipped page must not keep the single prefetch slot (or a worker slot)
-    // forever. A matching page claims it before reaching normal MANGA_START.
-    if (
-      ahead &&
-      ahead.source !== source &&
-      (ahead.page === page || ahead.fromPage !== page)
-    ) {
-      await cancelAhead(session);
-      session.ahead = undefined;
+    const aheads = allAheads(session);
+    const obsolete = aheads.filter(
+      (ahead) =>
+        !ahead.claimed &&
+        ahead.source !== source &&
+        (ahead.page === page || ahead.fromPage !== page),
+    );
+    if (obsolete.length) {
+      await cancelAheads(session, (a) => obsolete.includes(a));
+      session.aheads = aheads.filter((a) => !obsolete.includes(a));
+      session.ahead = session.aheads[0];
       await save(tabId!, session);
     }
     return true;
@@ -76,27 +84,36 @@ export async function automaticMangaAllowed(
 async function save(tabId: number, session: ReadingSession) {
   await chrome.storage.session.set({ [PREFIX + tabId]: session });
 }
+async function cancelAheads(
+  session?: ReadingSession,
+  matcher?: (ahead: Ahead) => boolean,
+) {
+  const aheads = allAheads(session);
+  const targets = matcher ? aheads.filter(matcher) : aheads;
+  for (const ahead of targets) {
+    if (ahead.jobId && (await hasOffscreenDocument()))
+      await sendOffscreenCommand({
+        type: "MANGA_CANCEL",
+        payload: { id: ahead.jobId, owner: ahead.owner },
+      }).catch(() => {});
+  }
+}
 async function cancelAhead(session?: ReadingSession) {
-  const ahead = session?.ahead;
-  if (ahead?.jobId && (await hasOffscreenDocument()))
-    await sendOffscreenCommand({
-      type: "MANGA_CANCEL",
-      payload: { id: ahead.jobId, owner: ahead.owner },
-    }).catch(() => {});
+  await cancelAheads(session);
 }
 export async function stopReadingOutsideScope(tabId: number, url: string) {
   await serial(tabId, async () => {
     const session = await load(tabId);
     if (!session || readingSessionAllows(session, url)) return;
     await chrome.storage.session.remove(PREFIX + tabId);
-    await cancelAhead(session);
+    await cancelAheads(session);
   });
 }
 export async function clearMangaReading(tabId: number) {
   await serial(tabId, async () => {
     const session = await load(tabId);
     await chrome.storage.session.remove(PREFIX + tabId);
-    await cancelAhead(session);
+    await cancelAheads(session);
   });
 }
 async function configKey(settings: AstraSettings) {
@@ -187,6 +204,7 @@ export async function handleMangaReading(
         expires: Date.now() + READING_SESSION_MS,
         generation: session?.generation ?? crypto.randomUUID(),
         ahead: prefetch ? session?.ahead : undefined,
+        aheads: prefetch ? session?.aheads : undefined,
         attempt: prefetch ? session?.attempt : undefined,
       };
       await save(tabId!, session);
@@ -194,29 +212,42 @@ export async function handleMangaReading(
     }
     if (!session) return { success: false, inactive: true };
     if (msg.type === "MANGA_READING_RELEASE") {
-      const ahead = session.ahead;
-      if (ahead?.claimed && ahead.page === page && ahead.jobId === msg.payload?.jobId && ahead.source === msg.payload?.imageUrl) {
-        await cancelAhead(session);session.ahead = undefined;await save(tabId!, session);
+      const aheads = allAheads(session);
+      const matched = aheads.find(
+        (a) =>
+          a.claimed &&
+          a.page === page &&
+          a.jobId === msg.payload?.jobId &&
+          a.source === msg.payload?.imageUrl,
+      );
+      if (matched) {
+        await cancelAheads(session, (a) => a === matched);
+        session.aheads = aheads.filter((a) => a !== matched);
+        session.ahead = session.aheads[0];
+        await save(tabId!, session);
       }
       return { success: true };
     }
     if (msg.type === "MANGA_READING_CLAIM") {
-      const ahead = session.ahead;
-      if (
-        !ahead ||
-        ahead.source !== msg.payload?.imageUrl ||
-        ahead.page !== page
-      )
-        return { success: true };
+      const aheads = allAheads(session);
+      const ahead = aheads.find(
+        (a) =>
+          a.source === msg.payload?.imageUrl &&
+          (a.page === page || !a.page),
+      );
+      if (!ahead) return { success: true };
       if (ahead.config !== (await configKey(await getSettings()))) {
-        await cancelAhead(session);
-        session.ahead = undefined;
+        await cancelAheads(session, (a) => a === ahead);
+        session.aheads = aheads.filter((a) => a !== ahead);
+        session.ahead = session.aheads[0];
         await save(tabId!, session);
         return { success: true };
       }
       const job = await aheadJob(ahead);
       if (!job) return { success: true };
       ahead.claimed = true;
+      session.aheads = aheads;
+      session.ahead = aheads[0];
       await save(tabId!, session);
       // No original owner/token is exposed; the requesting document already owns this source page.
       return { success: true, job: { ...job, owner: "" } };
@@ -229,36 +260,43 @@ export async function handleMangaReading(
         !tab.active ||
         readingPageUrl(tab.url || "") !== page ||
         !targetPage ||
-        !(targetPage === page || isNextMangaPage(page, targetPage)) ||
+        !(targetPage === page || mangaReadingScope(page) === mangaReadingScope(targetPage)) ||
         typeof source !== "string" ||
         source.length > 8192 ||
         !imageSourceAllowed(source, new URL(page).origin)
       )
         return { success: false };
-      const attempt = page + "|" + source;
-      if (session.attempt === attempt)
-        return { success: true, queued: !!session.ahead?.jobId };
-      // Never turn the single ahead slot into an implicit chain while the current page is unchanged.
-      if (
-        session.ahead &&
-        session.ahead.fromPage === page &&
-        !session.ahead.claimed
-      )
+
+      const aheads = allAheads(session);
+      const existing = aheads.find((a) => a.source === source);
+      if (existing) {
+        return { success: true, queued: !!existing.jobId };
+      }
+
+      const settings = await getSettings();
+      const maxDepth = Math.max(1, Math.min(5, settings.manga?.prefetchDepth ?? 2));
+      const activeUnclaimed = aheads.filter((a) => !a.claimed);
+      if (activeUnclaimed.length >= maxDepth) {
         return { success: false, busy: true };
-      await cancelAhead(session);
-      session.attempt = attempt;
-      session.ahead = {
+      }
+
+      const aheadItem: Ahead = {
         page: targetPage,
         fromPage: page,
         source,
         owner,
-        config: await configKey(await getSettings()),
+        config: await configKey(settings),
         claimed: false,
       };
+      session.aheads = [...aheads, aheadItem];
+      session.ahead = session.aheads[0];
       await save(tabId!, session);
+
       const response = await start(source, "ahead-" + crypto.randomUUID());
-      if (response.success) session.ahead.jobId = response.jobId;
-      await save(tabId!, session);
+      if (response.success) {
+        aheadItem.jobId = response.jobId;
+        await save(tabId!, session);
+      }
       return {
         success: response.success,
         queued: !!response.jobId,

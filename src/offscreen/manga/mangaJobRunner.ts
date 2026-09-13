@@ -61,8 +61,19 @@ async function publish(entry: RunningJob, changes: Partial<MangaJob>) {
     console.warn("[Astra Manga] Task state could not be persisted."),
   );
 }
+let configuredConcurrency = 3;
+export function setMangaConcurrency(concurrency: number) {
+  if (concurrency >= 1 && concurrency <= 8) {
+    configuredConcurrency = concurrency;
+    pump();
+  }
+}
 export async function startMangaJob(request: MangaExecution) {
-  if (activeMangaJobs().length >= 8) throw new Error("MANGA_BUSY");
+  if (request.concurrency && request.concurrency >= 1 && request.concurrency <= 8) {
+    configuredConcurrency = request.concurrency;
+  }
+  const maxActive = Math.max(12, configuredConcurrency * 3);
+  if (activeMangaJobs().length >= maxActive) throw new Error("MANGA_BUSY");
   if (jobs.has(request.job.id)) return;
   await saveMangaJob(request.job);
   jobs.set(request.job.id, {
@@ -70,7 +81,11 @@ export async function startMangaJob(request: MangaExecution) {
     request,
     abort: new AbortController(),
   });
-  queue.push(request.job.id);
+  if (request.priority === "high") {
+    queue.unshift(request.job.id);
+  } else {
+    queue.push(request.job.id);
+  }
   pump();
 }
 export async function cancelMangaJob(id: string, owner: string) {
@@ -88,7 +103,7 @@ export async function cancelMangaJob(id: string, owner: string) {
   return true;
 }
 function pump() {
-  while (running < 2 && queue.length) {
+  while (running < configuredConcurrency && queue.length) {
     const entry = jobs.get(queue.shift()!);
     if (!entry || entry.job.phase === "cancelled" || !entry.request) continue;
     running++;

@@ -4,7 +4,7 @@ import type { MangaThinkingEffort } from "../shared/manga/types";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { DEFAULT_PROVIDER_PRESETS, SUPPORTED_LANGUAGES } from "../shared/constants";
-import { switchProviderSettings } from "../shared/storage";
+import { saveSettings, switchProviderSettings } from "../shared/storage";
 import { t, type UiLanguage } from "../shared/i18n";
 import type {
   AstraSettings,
@@ -1705,8 +1705,54 @@ export default function Popup() {
               onClick={() => void handleMangaPick("current")}
             >
               <span className="ast-manga-btn-hero-icon" aria-hidden="true">⚡</span>
-              <span className="ast-manga-btn-hero-label">{t(lang, "manga.cardPageAction")}</span>
+              <span className="ast-manga-btn-hero-label">
+                {settings?.manga?.autoReadingDefault !== false
+                  ? t(lang, "manga.autoContinuousAction")
+                  : t(lang, "manga.cardPageAction")}
+              </span>
             </button>
+
+            {/* Quick Auto-reading mode switch */}
+            <div
+              className="ast-manga-mode-row"
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: 6,
+                margin: "8px 0 10px",
+                fontSize: 12,
+                color: "var(--ast-text-subtle, #6e6584)",
+              }}
+            >
+              <label
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  style={{ cursor: "pointer", accentColor: "#7161ce" }}
+                  checked={settings?.manga?.autoReadingDefault !== false}
+                  onChange={async (e) => {
+                    const checked = e.target.checked;
+                    if (settings) {
+                      const next = {
+                        ...settings,
+                        manga: { ...settings.manga, autoReadingDefault: checked },
+                      };
+                      setSettings(next);
+                      await saveSettings(next);
+                    }
+                  }}
+                />
+                <span>{t(lang, "manga.autoReadingDefault")}</span>
+              </label>
+            </div>
 
             {/* Secondary Accessory Capsule: Select Image / Crop */}
             <button
@@ -1766,7 +1812,63 @@ export default function Popup() {
         >
           <div className="ast-chat-list" ref={chatListRef}>
             {chatTurns.length === 0 && !chatPending && !streamText && (
-              <div className="ast-chat-empty">{t(lang, "chat.empty")}</div>
+              <div className="ast-chat-empty-stage">
+                <div className="ast-chat-vignette" aria-hidden="true">
+                  <div className="ast-chat-vignette-bubble ast-chat-vignette-bubble--ai">
+                    <span className="ast-chat-vignette-dots">
+                      <span className="ast-chat-dot" />
+                      <span className="ast-chat-dot" />
+                      <span className="ast-chat-dot" />
+                    </span>
+                  </div>
+                  <div className="ast-chat-vignette-sparkle">✦</div>
+                  <div className="ast-chat-vignette-bubble ast-chat-vignette-bubble--user">
+                    <span>💭</span>
+                  </div>
+                </div>
+
+                <div className="ast-chat-empty-title">
+                  {t(lang, "chat.emptyTitle")}
+                </div>
+
+                <div className="ast-chat-empty-subtitle">
+                  <span className="ast-chat-privacy-icon" aria-hidden="true">🍃</span>
+                  <span>{t(lang, "chat.emptySubtitle")}</span>
+                </div>
+
+                <div className="ast-chat-suggestions">
+                  <button
+                    type="button"
+                    className="ast-chat-suggest-chip"
+                    onClick={() => {
+                      setChatInput(t(lang, "chat.suggestSummary"));
+                      chatInputRef.current?.focus();
+                    }}
+                  >
+                    {t(lang, "chat.suggestSummary")}
+                  </button>
+                  <button
+                    type="button"
+                    className="ast-chat-suggest-chip"
+                    onClick={() => {
+                      setChatInput(t(lang, "chat.suggestTranslate"));
+                      chatInputRef.current?.focus();
+                    }}
+                  >
+                    {t(lang, "chat.suggestTranslate")}
+                  </button>
+                  <button
+                    type="button"
+                    className="ast-chat-suggest-chip"
+                    onClick={() => {
+                      setChatInput(t(lang, "chat.suggestExtract"));
+                      chatInputRef.current?.focus();
+                    }}
+                  >
+                    {t(lang, "chat.suggestExtract")}
+                  </button>
+                </div>
+              </div>
             )}
             {chatTurns.map((turn, i) => (
               <div

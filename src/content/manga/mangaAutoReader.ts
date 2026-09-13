@@ -10,7 +10,7 @@ import {
   visibleMangaSpread,
   type MangaImage,
 } from "./mangaImage";
-import { mangaReaderRoot, nextMangaImage } from "./mangaNextPage";
+import { mangaReaderRoot, nextMangaImages, nextMangaImage } from "./mangaNextPage";
 import {
   changeMangaReading,
   readingControlErrorKey,
@@ -154,6 +154,73 @@ export function createMangaAutoReader(actions: {
     gate.mark(signature);
     actions.prioritize(images);
     const pending = images.filter((image) => !actions.existing(image));
+    const triggerPrefetch = async (
+      turnId: number,
+      targetSig: string,
+      targetImages: MangaImage[],
+    ) => {
+      if (
+        !state.prefetch ||
+        aheadSignature === targetSig ||
+        document.hidden ||
+        actions.paused()
+      )
+        return;
+      aheadSignature = targetSig;
+      if (targetImages.some(isCanvasImage)) {
+        state.hint = "manga.prefetchCanvas";
+        publish();
+        return;
+      }
+      const abort = new AbortController();
+      aheadAbort = abort;
+      const timeout = setTimeout(() => abort.abort(), 12000);
+      try {
+        const nextItems = await nextMangaImages(
+          targetImages,
+          root,
+          abort.signal,
+          3,
+        );
+        if (
+          turnId !== sequence ||
+          !state.enabled ||
+          !state.prefetch ||
+          disposed ||
+          document.hidden
+        )
+          return;
+        if (!nextItems.length) {
+          state.hint = "manga.prefetchUnavailable";
+          publish();
+          return;
+        }
+        state.hint = "manga.prefetchLoading";
+        publish();
+        let anyQueued = false;
+        for (const item of nextItems) {
+          if (turnId !== sequence || !state.enabled || disposed) break;
+          const result = await chrome.runtime.sendMessage({
+            type: "MANGA_READING_PREFETCH",
+            payload: item,
+          });
+          if (result?.success && result.queued) anyQueued = true;
+        }
+        if (turnId !== sequence || disposed) return;
+        state.hint = anyQueued
+          ? "manga.prefetchQueued"
+          : "manga.prefetchUnavailable";
+        publish();
+      } catch {
+        if (turnId === sequence && !disposed) {
+          state.hint = "manga.prefetchUnavailable";
+          publish();
+        }
+      } finally {
+        clearTimeout(timeout);
+        if (aheadAbort === abort) aheadAbort = undefined;
+      }
+    };
     if (pending.length) {
       state.hint = "manga.autoTranslating";
       state.failure = undefined;
@@ -161,6 +228,9 @@ export function createMangaAutoReader(actions: {
       publish();
       await actions.start(pending);
       if (turn !== sequence || !state.enabled || disposed) return;
+      if (state.prefetch && aheadSignature !== signature && !images.some(isCanvasImage)) {
+        void triggerPrefetch(turn, signature, images);
+      }
     }
     // Let both visible jobs finish before using the spare slot for next-page work.
     while (images.some((image) => actions.existing(image) === "working")) {
@@ -284,52 +354,7 @@ export function createMangaAutoReader(actions: {
       nowVisible.some((image, index) => image !== images[index])
     )
       return;
-    aheadSignature = signature;
-    if (images.some(isCanvasImage)) {
-      state.hint = "manga.prefetchCanvas";
-      publish();
-      return;
-    }
-    const abort = new AbortController();
-    aheadAbort = abort;
-    const timeout = setTimeout(() => abort.abort(), 8000);
-    try {
-      const next = await nextMangaImage(images, root, abort.signal);
-      if (
-        turn !== sequence ||
-        !state.enabled ||
-        !state.prefetch ||
-        disposed ||
-        document.hidden ||
-        !stillCurrent()
-      )
-        return;
-      if (!next) {
-        state.hint = "manga.prefetchUnavailable";
-        publish();
-        return;
-      }
-      state.hint = "manga.prefetchLoading";
-      publish();
-      const result = await chrome.runtime.sendMessage({
-        type: "MANGA_READING_PREFETCH",
-        payload: next,
-      });
-      if (turn !== sequence || disposed) return;
-      state.hint =
-        result?.success && result.queued
-          ? "manga.prefetchQueued"
-          : "manga.prefetchUnavailable";
-      publish();
-    } catch {
-      if (turn === sequence && !disposed) {
-        state.hint = "manga.prefetchUnavailable";
-        publish();
-      }
-    } finally {
-      clearTimeout(timeout);
-      if (aheadAbort === abort) aheadAbort = undefined;
-    }
+    await triggerPrefetch(turn, signature, images);
   };
   const tick = async () => {
     const turn = sequence;

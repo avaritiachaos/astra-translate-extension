@@ -221,6 +221,91 @@ export function MangaSettingsCard({
       <p className="ast-form-hint" style={{ marginTop: -4, marginBottom: 12 }}>
         {t(lang, "manga.effortHint")}
       </p>
+      <div className="ast-form-row" style={{ marginTop: 12 }}>
+        <div className="ast-form-group">
+          <label className="ast-form-label" htmlFor="manga-concurrency">
+            {t(lang, "manga.concurrency")}
+          </label>
+          <select
+            id="manga-concurrency"
+            className="ast-form-select"
+            value={settings.manga.concurrency ?? 3}
+            onChange={(e) =>
+              onChange({
+                ...settings.manga,
+                concurrency: parseInt(e.target.value, 10) || 3,
+              })
+            }
+          >
+            {[1, 2, 3, 4, 5, 6].map((num) => (
+              <option key={num} value={num}>
+                {num}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="ast-form-group">
+          <label className="ast-form-label" htmlFor="manga-prefetch-depth">
+            {t(lang, "manga.prefetchDepth")}
+          </label>
+          <select
+            id="manga-prefetch-depth"
+            className="ast-form-select"
+            value={settings.manga.prefetchDepth ?? 2}
+            onChange={(e) =>
+              onChange({
+                ...settings.manga,
+                prefetchDepth: parseInt(e.target.value, 10) || 2,
+              })
+            }
+          >
+            {[1, 2, 3, 4, 5].map((num) => (
+              <option key={num} value={num}>
+                {t(lang, "manga.pagesUnit", { count: num })}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <p className="ast-form-hint" style={{ marginTop: -4, marginBottom: 12 }}>
+        {t(lang, "manga.concurrencyHint")}
+      </p>
+
+      <div className="ast-toggle-row" style={{ marginTop: 8, marginBottom: 4 }}>
+        <span className="ast-toggle-label">{t(lang, "manga.autoReadingDefault")}</span>
+        <input
+          type="checkbox"
+          className="ast-toggle"
+          checked={settings.manga.autoReadingDefault !== false}
+          onChange={(e) =>
+            onChange({
+              ...settings.manga,
+              autoReadingDefault: e.target.checked,
+            })
+          }
+        />
+      </div>
+      <p className="ast-form-hint" style={{ marginTop: 0, marginBottom: 10 }}>
+        {t(lang, "manga.autoReadingDefaultHint")}
+      </p>
+
+      <div className="ast-toggle-row" style={{ marginTop: 8, marginBottom: 4 }}>
+        <span className="ast-toggle-label">{t(lang, "manga.prefetchDefault")}</span>
+        <input
+          type="checkbox"
+          className="ast-toggle"
+          checked={settings.manga.prefetchDefault !== false}
+          onChange={(e) =>
+            onChange({
+              ...settings.manga,
+              prefetchDefault: e.target.checked,
+            })
+          }
+        />
+      </div>
+      <p className="ast-form-hint" style={{ marginTop: 0, marginBottom: 16 }}>
+        {t(lang, "manga.prefetchDefaultHint")}
+      </p>
       <div className="ast-form-group">
         <button type="button" className="ast-btn ast-btn-secondary"
           disabled={modelsLoading || busy || !connection.ready} onClick={() => void loadModels()}>
