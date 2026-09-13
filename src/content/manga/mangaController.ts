@@ -678,8 +678,11 @@ export function initMangaController(repair = false) {
       for (const entry of entries.values()) entry.view.setOriginal(value);
     },
     restore: restoreAll,
-    reading: (enabled, prefetch) => {
+    reading: (enabled, prefetch, depth) => {
       void autoReader?.set(enabled, prefetch);
+      if (depth !== undefined) {
+        autoReader?.retrigger();
+      }
     },
   });
   autoReader = createMangaAutoReader({

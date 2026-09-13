@@ -20,7 +20,7 @@ export function createMangaReaderControls(
     translate: () => void;
     restore: () => void;
     original: (value: boolean) => void;
-    reading: (enabled: boolean, prefetch: boolean) => void;
+    reading: (enabled: boolean, prefetch: boolean, depth?: number) => void;
   },
 ) {
   const host = document.createElement("div"),
@@ -29,7 +29,7 @@ export function createMangaReaderControls(
   host.setAttribute("popover", "manual");
   const style = document.createElement("style");
   style.textContent = `
-:host{all:initial;position:fixed;inset:auto auto 16px 50%;transform:translateX(-50%);margin:0;padding:0;border:0;background:transparent;width:max-content;max-width:calc(100vw - 24px);overflow:visible;z-index:2147483645;font:13.5px "Segoe UI","Microsoft YaHei",sans-serif;color:#f3f1fb}
+:host{all:initial;position:fixed;inset:auto auto 16px 50%;transform:translateX(-50%);margin:0;padding:0;border:0;background:transparent;width:max-content;max-width:calc(100vw - 24px);overflow:visible;z-index:2147483645;font:13.5px "Segoe UI","Microsoft YaHei",sans-serif;color:#f3f1fb;--ast-manga-scale:1.2}
 *{box-sizing:border-box}[hidden]{display:none!important}button{font:inherit;border:0;cursor:pointer;color:inherit;white-space:nowrap;transition:background .15s,transform .1s,box-shadow .15s}button:focus-visible{outline:2px solid #a78bfa;outline-offset:2px}button:disabled{opacity:.45;cursor:default}button:active:not(:disabled){transform:scale(.97)}
 .dock,.panel,.toast,.trigger{zoom:var(--ast-manga-scale, 1)}
 .grip{cursor:grab!important;touch-action:none;user-select:none;flex:none;font-size:20px;line-height:1;padding:8px 8px!important;color:#c4b8e5;border-radius:10px}.grip:hover{color:#fff;background:#ffffff18}
@@ -137,7 +137,7 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
     button.type = "button";
   collapse.textContent = "−";
   orientationToggle.textContent = "⇋";
-  scaleToggle.textContent = "100%";
+  scaleToggle.textContent = "120%";
   const grip = document.createElement("button");
   grip.className = "grip";
   grip.type = "button";
@@ -178,7 +178,7 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
   hint.className = "hint";
   panel.append(heading, rows, hint);
 
-  let currentScale = 1.0;
+  let currentScale = 1.2;
   const SCALE_KEY = "astra_manga_scale";
   let drag: ReturnType<typeof makeMangaDockDraggable>;
   const applyScale = (scale: number, persist = true) => {
@@ -194,7 +194,7 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
     layoutPanel();
   };
   scaleToggle.onclick = () => {
-    const nextScales = [1.0, 1.2, 1.4, 0.85];
+    const nextScales = [1.2, 1.4, 1.6, 1.0];
     const currentIndex = nextScales.findIndex((s) => Math.abs(s - currentScale) < 0.05);
     const next = nextScales[(currentIndex + 1) % nextScales.length];
     applyScale(next);
@@ -205,9 +205,13 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
       const s = Number(saved[SCALE_KEY]);
       if (Number.isFinite(s) && s >= 0.75 && s <= 1.6) {
         applyScale(s, false);
+      } else {
+        applyScale(1.2, false);
       }
     })
-    .catch(() => {});
+    .catch(() => {
+      applyScale(1.2, false);
+    });
 
   let isVertical = false;
   const toggleDockOrientation = () => {
@@ -235,7 +239,8 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
       actions.translate();
       if (!readingState.enabled) actions.reading(true, false);
     },
-    onPrefetchDepthChange: () => {
+    onPrefetchDepthChange: (depth) => {
+      actions.reading(readingState.enabled, true, depth);
       layoutPanel();
     },
     getScale: () => currentScale,
@@ -438,7 +443,14 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
       return t(lang, "manga.statusTranslating", {
         progress: (ready + 1) + "/" + (items.length || 1),
       });
-    if (readingState.enabled) return t(lang, "manga.autoCompact");
+    if (readingState.enabled) {
+      if (readingState.prefetch && (readingState.aheadCount ?? 0) > 0) {
+        const readyAhead = readingState.readyCount ?? 0;
+        const totalAhead = readingState.aheadCount!;
+        return `⚡ 自动 · ${readyAhead}/${totalAhead}P`;
+      }
+      return t(lang, "manga.autoCompact");
+    }
     return "译 " + (items.length ? ready + "/" + items.length : "");
   };
   const refresh = () => {
@@ -502,11 +514,30 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
     original.setAttribute("aria-pressed", String(showingOriginal));
     clear.setAttribute("aria-label", t(lang, "manga.restoreAll"));
     clear.title = t(lang, "manga.restoreAll");
-    summary.textContent = errors.length
+    let summaryText = errors.length
       ? t(lang, "manga.readerErrors", { count: errors.length })
       : items.length
         ? t(lang, "manga.readerProgress", { ready, total: items.length })
         : t(lang, "manga.currentPageIdle");
+    if (!errors.length && readingState.enabled && readingState.prefetch) {
+      if ((readingState.aheadCount ?? 0) > 0) {
+        const ahead = readingState.aheadCount!;
+        const readyAhead = readingState.readyCount ?? 0;
+        if (readyAhead >= ahead) {
+          summaryText += t(lang, "manga.dockPrefetchReady", { ready: ahead });
+        } else {
+          summaryText += t(lang, "manga.dockPrefetchWorking", {
+            ready: readyAhead,
+            total: ahead,
+          });
+        }
+      } else if (readingState.prefetchedCount) {
+        summaryText += t(lang, "manga.dockPrefetchReady", {
+          ready: readingState.prefetchedCount,
+        });
+      }
+    }
+    summary.textContent = summaryText;
     summary.classList.toggle("error", errors.length > 0);
     summary.setAttribute("aria-label", t(lang, "manga.readerDetails"));
     summary.title = t(lang, "manga.readerDetails");

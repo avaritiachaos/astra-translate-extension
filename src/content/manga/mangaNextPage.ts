@@ -1,6 +1,7 @@
 import {
   isNextMangaPage,
   isNextNumberedImage,
+  readingPageUrl,
 } from "../../shared/manga/readingPolicy";
 import { isCanvasImage, mangaImageSource, type MangaImage } from "./mangaImage";
 export function mangaReaderRoot(images: MangaImage[]): Element | undefined {
@@ -146,82 +147,130 @@ export async function nextMangaImages(
   if (mounted.length) {
     return mounted.map((imageUrl) => ({ pageUrl: location.href, imageUrl }));
   }
-  const single = await nextMangaImage(images, root, signal);
-  return single ? [single] : [];
+  // Follow explicitly linked adjacent numbered pages in the same chapter.
+  if (images.length !== 1 || !(images[0] instanceof HTMLImageElement)) return [];
+  const selector =
+    stableImageSelector(images[0]) ||
+    (root.id ? "#" + CSS.escape(root.id) + " img" : undefined);
+  if (!selector) return [];
+
+  const results: Array<{ pageUrl: string; imageUrl: string }> = [];
+  const visitedPages = new Set<string>([
+    readingPageUrl(location.href) || location.href,
+  ]);
+  const seenImages = new Set<string>([mangaImageSource(images[0])]);
+  let currentDocUrl = location.href;
+  let currentDoc: Document | DocumentFragment = document;
+
+  while (results.length < maxCount && !signal.aborted) {
+    const links = [
+      ...currentDoc.querySelectorAll<HTMLAnchorElement | HTMLLinkElement>(
+        'a[rel~=next],link[rel~=next],a.next,a[aria-label="Next"],a[aria-label="下一页"],a[title*="Next"],a[title*="下一页"]',
+      ),
+    ];
+    const currImg = currentDoc.querySelector<HTMLImageElement>(selector);
+    const parentLink = currImg?.closest<HTMLAnchorElement>("a[href]");
+    if (parentLink) links.push(parentLink);
+
+    const urls = [
+      ...new Set(
+        links
+          .map((el) => {
+            try {
+              const raw =
+                el.getAttribute("href") || (el as HTMLAnchorElement).href;
+              return raw ? new URL(raw, currentDocUrl).href : "";
+            } catch {
+              return "";
+            }
+          })
+          .filter(
+            (href) =>
+              Boolean(href) &&
+              isNextMangaPage(currentDocUrl, href) &&
+              !visitedPages.has(href),
+          ),
+      ),
+    ];
+
+    if (urls.length !== 1) break;
+    const nextPageUrl = urls[0];
+    visitedPages.add(nextPageUrl);
+
+    try {
+      const response = await fetch(nextPageUrl, {
+        credentials: "same-origin",
+        redirect: "error",
+        signal,
+        headers: { Accept: "text/html" },
+      });
+      if (
+        !response.ok ||
+        !response.headers.get("Content-Type")?.includes("text/html") ||
+        !response.body
+      )
+        break;
+
+      const reader = response.body.getReader(),
+        decoder = new TextDecoder();
+      let html = "",
+        bytes = 0;
+      try {
+        for (;;) {
+          const part = await reader.read();
+          if (part.done) break;
+          bytes += part.value.length;
+          if (bytes > 1024 * 1024) break;
+          html += decoder.decode(part.value, { stream: true });
+        }
+        html += decoder.decode();
+      } finally {
+        void reader.cancel().catch(() => {});
+        reader.releaseLock();
+      }
+
+      const template = document.createElement("template");
+      template.innerHTML = html;
+      let matches = template.content.querySelectorAll<HTMLImageElement>(selector);
+      if (matches.length !== 1 && root.id) {
+        matches = template.content.querySelectorAll<HTMLImageElement>(
+          "#" + CSS.escape(root.id) + " img",
+        );
+      }
+      if (matches.length !== 1) break;
+
+      const imageUrl = httpSource(
+        matches[0].getAttribute("src") ||
+          matches[0].getAttribute("data-src") ||
+          "",
+        nextPageUrl,
+      );
+
+      if (
+        !imageUrl ||
+        imageUrl === nextPageUrl ||
+        seenImages.has(imageUrl)
+      )
+        break;
+
+      seenImages.add(imageUrl);
+      results.push({ pageUrl: nextPageUrl, imageUrl });
+
+      currentDocUrl = nextPageUrl;
+      currentDoc = template.content;
+    } catch {
+      break;
+    }
+  }
+
+  return results;
 }
+
 export async function nextMangaImage(
   images: MangaImage[],
   root: Element | undefined,
   signal: AbortSignal,
 ): Promise<{ pageUrl: string; imageUrl: string } | undefined> {
-  if (!images.length || images.some(isCanvasImage) || !root) return;
-  const mounted = nextImageInReader(images, root);
-  if (mounted) return { pageUrl: location.href, imageUrl: mounted };
-  // Follow only an explicitly linked adjacent numbered page in the same chapter.
-  // Never create URLs by incrementing filenames or crawl arbitrary links.
-  if (images.length !== 1 || !(images[0] instanceof HTMLImageElement)) return;
-  const selector = stableImageSelector(images[0]);
-  if (!selector) return;
-  const links = [
-    ...document.querySelectorAll<HTMLAnchorElement | HTMLLinkElement>(
-      'a[rel~=next],link[rel~=next],a.next,a[aria-label="Next"],a[aria-label="下一页"]',
-    ),
-  ];
-  const parentLink = images[0].closest<HTMLAnchorElement>("a[href]");
-  if (parentLink) links.push(parentLink);
-  const urls = [
-    ...new Set(
-      links
-        .map((el) => el.href)
-        .filter((href) => isNextMangaPage(location.href, href)),
-    ),
-  ];
-  if (urls.length !== 1) return;
-  const pageUrl = urls[0];
-  const response = await fetch(pageUrl, {
-    credentials: "same-origin",
-    redirect: "error",
-    signal,
-    headers: { Accept: "text/html" },
-  });
-  if (
-    !response.ok ||
-    !response.headers.get("Content-Type")?.includes("text/html") ||
-    !response.body
-  )
-    return;
-  const reader = response.body.getReader(),
-    decoder = new TextDecoder();
-  let html = "",
-    bytes = 0;
-  try {
-    for (;;) {
-      const part = await reader.read();
-      if (part.done) break;
-      bytes += part.value.length;
-      if (bytes > 1024 * 1024) return;
-      html += decoder.decode(part.value, { stream: true });
-    }
-    html += decoder.decode();
-  } finally {
-    void reader.cancel().catch(() => {});
-    reader.releaseLock();
-  }
-  // Template contents remain inert: no next-page scripts or image elements are
-  // mounted or executed simply to discover the exact already-linked image URL.
-  const template = document.createElement("template");
-  template.innerHTML = html;
-  const matches = template.content.querySelectorAll<HTMLImageElement>(selector);
-  if (matches.length !== 1) return;
-  const imageUrl = httpSource(
-    matches[0].getAttribute("src") || matches[0].getAttribute("data-src") || "",
-    pageUrl,
-  );
-  if (
-    !imageUrl ||
-    imageUrl === pageUrl ||
-    imageUrl === mangaImageSource(images[0])
-  )
-    return;
-  return { pageUrl, imageUrl };
+  const all = await nextMangaImages(images, root, signal, 1);
+  return all[0];
 }

@@ -54,16 +54,16 @@ export function createMangaReadingPanel(
   zoomOutBtn.className = "scale-btn";
   zoomOutBtn.textContent = "A-";
   zoomOutBtn.onclick = () => {
-    const cur = options.getScale?.() ?? 1.0;
+    const cur = options.getScale?.() ?? 1.2;
     options.setScale?.(Math.max(0.75, Math.round((cur - 0.15) * 100) / 100));
   };
 
   const scaleDisplay = document.createElement("button");
   scaleDisplay.type = "button";
   scaleDisplay.className = "scale-display";
-  scaleDisplay.textContent = "100%";
+  scaleDisplay.textContent = "120%";
   scaleDisplay.onclick = () => {
-    options.setScale?.(1.0);
+    options.setScale?.(1.2);
   };
 
   const zoomInBtn = document.createElement("button");
@@ -71,7 +71,7 @@ export function createMangaReadingPanel(
   zoomInBtn.className = "scale-btn";
   zoomInBtn.textContent = "A+";
   zoomInBtn.onclick = () => {
-    const cur = options.getScale?.() ?? 1.0;
+    const cur = options.getScale?.() ?? 1.2;
     options.setScale?.(Math.min(1.6, Math.round((cur + 0.15) * 100) / 100));
   };
 
@@ -251,7 +251,7 @@ export function createMangaReadingPanel(
       scaleDisplay.title = t(language, "manga.scaleReset");
       closeBtn.title = t(language, "manga.closeDialog");
 
-      const currentScale = options.getScale?.() ?? 1.0;
+      const currentScale = options.getScale?.() ?? 1.2;
       scaleDisplay.textContent = Math.round(currentScale * 100) + "%";
 
       labels[0].textContent = t(language, "manga.autoTranslate");
@@ -283,9 +283,24 @@ export function createMangaReadingPanel(
       const key =
         state.hint ||
         (state.enabled ? "manga.autoWaiting" : "manga.autoStopped");
-      if (key === "manga.prefetchQueued") {
+      if (state.enabled && state.prefetch && (state.aheadCount ?? 0) > 0) {
+        const total = state.aheadCount!;
+        const ready = state.readyCount ?? 0;
+        if (ready >= total) {
+          status.textContent = t(language, "manga.readingPrefetchReadyAll", {
+            count: total,
+          });
+        } else {
+          status.textContent = t(language, "manga.readingPrefetchWorking", {
+            ready,
+            total,
+          });
+        }
+      } else if (key === "manga.prefetchLoading") {
+        status.textContent = t(language, "manga.readingPrefetchSearching");
+      } else if (key === "manga.prefetchQueued") {
         status.textContent = t(language, "manga.prefetchQueuedCount", {
-          count: currentDepth,
+          count: state.prefetchTarget || currentDepth,
         });
       } else {
         status.textContent = t(language, key);

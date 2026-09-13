@@ -158,12 +158,35 @@ async function aheadJob(ahead: Ahead): Promise<MangaJob | undefined> {
   }
   return stored;
 }
-const publicState = (session?: ReadingSession): MangaReadingState => ({
-  enabled: !!session?.enabled,
-  prefetch: !!session?.prefetch,
-  scope: session?.scope,
-  expires: session?.expires,
-});
+async function publicState(
+  session?: ReadingSession,
+): Promise<MangaReadingState> {
+  if (!session?.enabled) return { enabled: false, prefetch: false };
+  const aheads = allAheads(session).filter((a) => !a.claimed);
+  let readyCount = 0,
+    workingCount = 0;
+  for (const a of aheads) {
+    if (a.jobId) {
+      const job = await aheadJob(a);
+      if (job?.phase === "ready") readyCount++;
+      else if (
+        ["queued", "loading", "preparing", "translating"].includes(
+          job?.phase ?? "",
+        )
+      )
+        workingCount++;
+    }
+  }
+  return {
+    enabled: !!session.enabled,
+    prefetch: !!session.prefetch,
+    scope: session.scope,
+    expires: session.expires,
+    aheadCount: aheads.length,
+    readyCount,
+    workingCount,
+  };
+}
 /** Sender-derived per-tab consent and a single prefetch slot. No chapter queue. */
 export async function handleMangaReading(
   msg: { type: string; payload?: any },
@@ -188,12 +211,12 @@ export async function handleMangaReading(
       session = undefined;
     }
     if (msg.type === "MANGA_READING_STATE")
-      return { success: true, state: publicState(session) };
+      return { success: true, state: await publicState(session) };
     if (msg.type === "MANGA_READING_SET") {
       if (msg.payload?.enabled !== true) {
         await chrome.storage.session.remove(PREFIX + tabId!);
         await cancelAhead(session);
-        return { success: true, state: publicState() };
+        return { success: true, state: await publicState() };
       }
       const prefetch = msg.payload?.prefetch === true;
       if (!prefetch) await cancelAhead(session);
@@ -208,7 +231,7 @@ export async function handleMangaReading(
         attempt: prefetch ? session?.attempt : undefined,
       };
       await save(tabId!, session);
-      return { success: true, state: publicState(session) };
+      return { success: true, state: await publicState(session) };
     }
     if (!session) return { success: false, inactive: true };
     if (msg.type === "MANGA_READING_RELEASE") {
@@ -274,7 +297,7 @@ export async function handleMangaReading(
       }
 
       const settings = await getSettings();
-      const maxDepth = Math.max(1, Math.min(5, settings.manga?.prefetchDepth ?? 2));
+      const maxDepth = Math.max(1, Math.min(5, settings.manga?.prefetchDepth ?? 3));
       const activeUnclaimed = aheads.filter((a) => !a.claimed);
       if (activeUnclaimed.length >= maxDepth) {
         return { success: false, busy: true };
@@ -299,8 +322,9 @@ export async function handleMangaReading(
       }
       return {
         success: response.success,
-        queued: !!response.jobId,
+        queued: Boolean(response.jobId),
         error: response.error,
+        activeCount: session.aheads.filter((a) => !a.claimed).length,
       };
     }
     return { success: false };

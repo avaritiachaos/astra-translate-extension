@@ -3,12 +3,17 @@ export interface MangaReadingState {
   prefetch: boolean;
   scope?: string;
   expires?: number;
+  aheadCount?: number;
+  readyCount?: number;
+  workingCount?: number;
 }
 export interface MangaReadingUi extends MangaReadingState {
   busy?: boolean;
   hint?: string;
   failure?: string;
   recovery?: "retry" | "settings";
+  prefetchedCount?: number;
+  prefetchTarget?: number;
 }
 export const READING_SESSION_MS = 30 * 60_000;
 export function readingPageUrl(value: string): string | null {

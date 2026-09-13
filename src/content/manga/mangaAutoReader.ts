@@ -19,6 +19,7 @@ import {
   MangaRecoveryBudget,
   type MangaFailure,
 } from "../../shared/manga/readingRecovery";
+import { getSettings } from "../../shared/storage";
 
 export function createMangaAutoReader(actions: {
   start: (images: MangaImage[]) => Promise<void>;
@@ -61,9 +62,32 @@ export function createMangaAutoReader(actions: {
         attributeFilter: ["width", "height"],
       });
   };
+  let pollTimer: ReturnType<typeof setTimeout> | undefined;
+  const pollPrefetch = async () => {
+    clearTimeout(pollTimer);
+    if (disposed || !state.enabled || !state.prefetch) return;
+    const res = await chrome.runtime
+      .sendMessage({ type: "MANGA_READING_STATE" })
+      .catch(() => null);
+    if (disposed || !state.enabled || !res?.state) return;
+    const { aheadCount, readyCount, workingCount } = res.state;
+    if (
+      aheadCount !== state.aheadCount ||
+      readyCount !== state.readyCount ||
+      workingCount !== state.workingCount
+    ) {
+      state = { ...state, aheadCount, readyCount, workingCount };
+      publish();
+    }
+    if ((workingCount ?? 0) > 0) {
+      pollTimer = setTimeout(pollPrefetch, 1200);
+    }
+  };
   const stopTimer = () => {
     clearTimeout(timer);
     timer = undefined;
+    clearTimeout(pollTimer);
+    pollTimer = undefined;
     aheadAbort?.abort();
     observer.disconnect();
   };
@@ -174,13 +198,15 @@ export function createMangaAutoReader(actions: {
       }
       const abort = new AbortController();
       aheadAbort = abort;
-      const timeout = setTimeout(() => abort.abort(), 12000);
+      const timeout = setTimeout(() => abort.abort(), 16000);
       try {
+        const settings = await getSettings().catch(() => null);
+        const depth = Math.max(1, Math.min(5, settings?.manga?.prefetchDepth ?? 3));
         const nextItems = await nextMangaImages(
           targetImages,
           root,
           abort.signal,
-          3,
+          depth,
         );
         if (
           turnId !== sequence ||
@@ -196,21 +222,29 @@ export function createMangaAutoReader(actions: {
           return;
         }
         state.hint = "manga.prefetchLoading";
+        state.prefetchTarget = nextItems.length;
         publish();
         let anyQueued = false;
+        let queuedCount = 0;
         for (const item of nextItems) {
           if (turnId !== sequence || !state.enabled || disposed) break;
           const result = await chrome.runtime.sendMessage({
             type: "MANGA_READING_PREFETCH",
             payload: item,
           });
-          if (result?.success && result.queued) anyQueued = true;
+          if (result?.success && result.queued) {
+            anyQueued = true;
+            queuedCount++;
+          }
         }
         if (turnId !== sequence || disposed) return;
+        state.prefetchedCount = queuedCount;
+        state.prefetchTarget = nextItems.length;
         state.hint = anyQueued
           ? "manga.prefetchQueued"
           : "manga.prefetchUnavailable";
         publish();
+        void pollPrefetch();
       } catch {
         if (turnId === sequence && !disposed) {
           state.hint = "manga.prefetchUnavailable";
@@ -338,7 +372,9 @@ export function createMangaAutoReader(actions: {
     recovery.success();
     state.failure = undefined;
     state.recovery = undefined;
-    state.hint = "manga.autoWaiting";
+    if (state.hint !== "manga.prefetchQueued" && state.hint !== "manga.prefetchLoading") {
+      state.hint = "manga.autoWaiting";
+    }
     publish();
     if (
       !state.prefetch ||
@@ -434,6 +470,10 @@ export function createMangaAutoReader(actions: {
     set,
     get state(): MangaReadingState {
       return state;
+    },
+    retrigger() {
+      aheadSignature = "";
+      void tick();
     },
     dispose() {
       disposed = true;
