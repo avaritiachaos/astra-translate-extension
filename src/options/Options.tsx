@@ -26,6 +26,10 @@ export default function Options() {
     msg: string;
   } | null>(null);
   const [testing, setTesting] = useState(false);
+  const [testingSearch, setTestingSearch] = useState(false);
+  const [testSearchResult, setTestSearchResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [showSerperKey, setShowSerperKey] = useState(false);
+  const [showGoogleSearchKey, setShowGoogleSearchKey] = useState(false);
   const [toast, setToast] = useState("");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [siteStats, setSiteStats] = useState<{
@@ -329,6 +333,53 @@ export default function Options() {
       setTestResult({ ok: false, msg: t(lang, "opt.testFail") });
     } finally {
       setTesting(false);
+    }
+  }, [settings, lang]);
+
+  // Test Search connection — tests Serper / Google API and auto-saves on success
+  const handleTestSearch = useCallback(async () => {
+    const key = (settings.serperApiKey || "").trim();
+    if (!key && !(settings.googleSearchApiKey && settings.googleSearchCx)) {
+      setTestSearchResult({ ok: false, msg: t(lang, "opt.testSearchNoKey") });
+      return;
+    }
+
+    setTestingSearch(true);
+    setTestSearchResult(null);
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "TEST_SEARCH",
+        payload: {
+          serperApiKey: settings.serperApiKey,
+          googleSearchApiKey: settings.googleSearchApiKey,
+          googleSearchCx: settings.googleSearchCx,
+          lang,
+        },
+      });
+
+      if (response?.success) {
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        try {
+          await chrome.runtime.sendMessage({
+            type: "SAVE_SETTINGS",
+            payload: settings,
+          });
+        } catch {}
+        setTestSearchResult({ ok: true, msg: t(lang, "opt.testSearchSuccess") });
+      } else {
+        setTestSearchResult({
+          ok: false,
+          msg: t(lang, "opt.testSearchFail", { error: response?.error || "" }),
+        });
+      }
+    } catch (err: any) {
+      setTestSearchResult({
+        ok: false,
+        msg: t(lang, "opt.testSearchFail", { error: err?.message || String(err) }),
+      });
+    } finally {
+      setTestingSearch(false);
     }
   }, [settings, lang]);
 
@@ -1257,13 +1308,63 @@ export default function Options() {
               <div className="ast-form-hint ast-web-search-description" style={{ marginBottom: "8px" }}>
                 {t(lang, "opt.serperApiKeyHelp")}
               </div>
-              <input
-                type="password"
-                className="ast-form-input"
-                placeholder="输入 Serper API Key"
-                value={settings.serperApiKey || ""}
-                onChange={(e) => update("serperApiKey", e.target.value)}
-              />
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <div style={{ position: "relative", flex: 1 }}>
+                  <input
+                    type={showSerperKey ? "text" : "password"}
+                    autoComplete="new-password"
+                    className="ast-form-input"
+                    placeholder="输入 Serper API Key"
+                    value={settings.serperApiKey || ""}
+                    onChange={(e) => update("serperApiKey", e.target.value)}
+                    style={{ paddingRight: "36px" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSerperKey(!showSerperKey)}
+                    style={{
+                      position: "absolute",
+                      right: "8px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      opacity: 0.6,
+                      padding: "2px",
+                    }}
+                    title={showSerperKey ? "隐藏" : "显示"}
+                  >
+                    {showSerperKey ? "🙈" : "👁️"}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="ast-btn ast-btn-secondary"
+                  disabled={testingSearch}
+                  onClick={handleTestSearch}
+                  style={{ whiteSpace: "nowrap", padding: "0 14px", height: "36px" }}
+                >
+                  {testingSearch ? t(lang, "opt.testingSearch") : t(lang, "opt.testSearch")}
+                </button>
+              </div>
+
+              {testSearchResult && (
+                <div
+                  style={{
+                    marginTop: "8px",
+                    fontSize: "12px",
+                    color: testSearchResult.ok ? "var(--ast-success, #10b981)" : "var(--ast-danger, #ef4444)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                >
+                  {testSearchResult.ok ? "✓ " : "✕ "}
+                  {testSearchResult.msg}
+                </div>
+              )}
             </div>
 
             {/* Google Custom Search JSON API (Optional) */}

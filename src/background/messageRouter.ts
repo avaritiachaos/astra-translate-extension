@@ -18,6 +18,7 @@ import type {
 } from "../shared/types";
 import { t, type UiLanguage } from "../shared/i18n";
 import { getSettings, saveSettings } from "../shared/storage";
+import { webSearch } from "./webSearchClient";
 import { translateViaProvider, translateViaProviderStream } from "./providerClient";
 import { ProviderRequestError, AstraError } from "./errors";
 import { extractJson } from "../shared/utils";
@@ -133,6 +134,31 @@ export async function handleMessage(
       // Use settings from message payload if provided (draft settings from form),
       // otherwise read from storage
       return testProvider((msg as any).settings as AstraSettings | undefined);
+
+    case "TEST_SEARCH": {
+      const payload = (msg as any).payload || {};
+      const lang = payload.lang || "zh-CN";
+      try {
+        const res = await webSearch(
+          "test query",
+          lang,
+          undefined,
+          false,
+          payload.serperApiKey,
+          payload.googleSearchApiKey,
+          payload.googleSearchCx
+        );
+        if (res.sources.length > 0) {
+          return { success: true, count: res.sources.length };
+        }
+        return { success: false, error: t(lang, "chat.searchNoResults") };
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof AstraError ? err.message : err instanceof Error ? err.message : String(err),
+        };
+      }
+    }
 
     case "TRANSLATE_TEXT":
       return handleTranslateText(msg as TranslateTextMessage);

@@ -175,6 +175,7 @@ export type MessageType =
   | "GET_SETTINGS"
   | "SAVE_SETTINGS"
   | "TEST_PROVIDER"
+  | "TEST_SEARCH"
   | "TRANSLATE_TEXT"
   | "TRANSLATE_BATCH"
   | "GET_TRANSLATION_HISTORY"
@@ -265,6 +266,15 @@ export interface SaveSettingsMessage extends Message<AstraSettings> {
 
 export interface TestProviderMessage extends Message {
   type: "TEST_PROVIDER";
+}
+
+export interface TestSearchMessage extends Message<{
+  serperApiKey?: string;
+  googleSearchApiKey?: string;
+  googleSearchCx?: string;
+  lang?: UiLanguage;
+}> {
+  type: "TEST_SEARCH";
 }
 
 export interface TranslateTextMessage extends Message<{
