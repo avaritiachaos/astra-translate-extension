@@ -1260,7 +1260,7 @@ export default function Options() {
               <input
                 type="password"
                 className="ast-form-input"
-                placeholder="例如：8ac4cb21..."
+                placeholder="输入 Serper API Key"
                 value={settings.serperApiKey || ""}
                 onChange={(e) => update("serperApiKey", e.target.value)}
               />
