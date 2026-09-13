@@ -139,7 +139,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     button.type = "button";
   collapse.textContent = "−";
   orientationToggle.textContent = "⇋";
-  scaleToggle.textContent = "120%";
+  scaleToggle.textContent = "100%";
   const grip = document.createElement("button");
   grip.className = "grip";
   grip.type = "button";
@@ -180,13 +180,16 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   hint.className = "hint";
   panel.append(heading, rows, hint);
 
-  let currentScale = 1.2;
+  const BASE_SCALE_FACTOR = 1.2;
+  let userScale = 1.0;
+  let visualScale = 1.2;
   const SCALE_KEY = "astra_manga_scale";
   let drag: ReturnType<typeof makeMangaDockDraggable>;
   const applyScale = (scale: number, persist = true) => {
-    const clamped = Math.max(0.75, Math.min(1.6, Math.round(scale * 100) / 100));
-    currentScale = clamped;
-    host.style.setProperty("--ast-manga-scale", String(clamped));
+    const clamped = Math.max(0.7, Math.min(1.5, Math.round(scale * 100) / 100));
+    userScale = clamped;
+    visualScale = Math.round(clamped * BASE_SCALE_FACTOR * 100) / 100;
+    host.style.setProperty("--ast-manga-scale", String(visualScale));
     scaleToggle.textContent = Math.round(clamped * 100) + "%";
     readingPanel.reflectScale(clamped);
     if (persist) {
@@ -196,8 +199,8 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     layoutPanel();
   };
   scaleToggle.onclick = () => {
-    const nextScales = [1.2, 1.4, 1.6, 1.0];
-    const currentIndex = nextScales.findIndex((s) => Math.abs(s - currentScale) < 0.05);
+    const nextScales = [1.0, 1.15, 1.3, 0.85];
+    const currentIndex = nextScales.findIndex((s) => Math.abs(s - userScale) < 0.05);
     const next = nextScales[(currentIndex + 1) % nextScales.length];
     applyScale(next);
   };
@@ -205,14 +208,14 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     .get(SCALE_KEY)
     .then((saved) => {
       const s = Number(saved[SCALE_KEY]);
-      if (Number.isFinite(s) && s >= 0.75 && s <= 1.6) {
-        applyScale(s, false);
+      if (Number.isFinite(s) && s >= 0.7 && s <= 1.5) {
+        applyScale(Math.abs(s - 1.2) < 0.01 ? 1.0 : s, false);
       } else {
-        applyScale(1.2, false);
+        applyScale(1.0, false);
       }
     })
     .catch(() => {
-      applyScale(1.2, false);
+      applyScale(1.0, false);
     });
 
   let isVertical = false;
@@ -245,7 +248,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
       actions.reading(readingState.enabled, true, depth);
       layoutPanel();
     },
-    getScale: () => currentScale,
+    getScale: () => userScale,
     setScale: (s) => {
       applyScale(s);
     },
@@ -455,11 +458,11 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
       { width: innerWidth, height: innerHeight },
     );
     Object.assign(panel.style, {
-      left: ((box.x - bounds.x) / currentScale) + "px",
-      top: ((box.y - bounds.y) / currentScale) + "px",
+      left: ((box.x - bounds.x) / visualScale) + "px",
+      top: ((box.y - bounds.y) / visualScale) + "px",
       bottom: "auto",
       right: "auto",
-      maxHeight: (box.height / currentScale) + "px",
+      maxHeight: (box.height / visualScale) + "px",
     });
   };
   drag = makeMangaDockDraggable(host, grip, layoutPanel);

@@ -54,16 +54,16 @@ export function createMangaReadingPanel(
   zoomOutBtn.className = "scale-btn";
   zoomOutBtn.textContent = "A-";
   zoomOutBtn.onclick = () => {
-    const cur = options.getScale?.() ?? 1.2;
-    options.setScale?.(Math.max(0.75, Math.round((cur - 0.15) * 100) / 100));
+    const cur = options.getScale?.() ?? 1.0;
+    options.setScale?.(Math.max(0.7, Math.round((cur - 0.15) * 100) / 100));
   };
 
   const scaleDisplay = document.createElement("button");
   scaleDisplay.type = "button";
   scaleDisplay.className = "scale-display";
-  scaleDisplay.textContent = "120%";
+  scaleDisplay.textContent = "100%";
   scaleDisplay.onclick = () => {
-    options.setScale?.(1.2);
+    options.setScale?.(1.0);
   };
 
   const zoomInBtn = document.createElement("button");
@@ -71,8 +71,8 @@ export function createMangaReadingPanel(
   zoomInBtn.className = "scale-btn";
   zoomInBtn.textContent = "A+";
   zoomInBtn.onclick = () => {
-    const cur = options.getScale?.() ?? 1.2;
-    options.setScale?.(Math.min(1.6, Math.round((cur + 0.15) * 100) / 100));
+    const cur = options.getScale?.() ?? 1.0;
+    options.setScale?.(Math.min(1.5, Math.round((cur + 0.15) * 100) / 100));
   };
 
   scaleGroup.append(zoomOutBtn, scaleDisplay, zoomInBtn);
@@ -251,7 +251,7 @@ export function createMangaReadingPanel(
       scaleDisplay.title = t(language, "manga.scaleReset");
       closeBtn.title = t(language, "manga.closeDialog");
 
-      const currentScale = options.getScale?.() ?? 1.2;
+      const currentScale = options.getScale?.() ?? 1.0;
       scaleDisplay.textContent = Math.round(currentScale * 100) + "%";
 
       labels[0].textContent = t(language, "manga.autoTranslate");
