@@ -1812,63 +1812,7 @@ export default function Popup() {
         >
           <div className="ast-chat-list" ref={chatListRef}>
             {chatTurns.length === 0 && !chatPending && !streamText && (
-              <div className="ast-chat-empty-stage">
-                <div className="ast-chat-vignette" aria-hidden="true">
-                  <div className="ast-chat-vignette-bubble ast-chat-vignette-bubble--ai">
-                    <span className="ast-chat-vignette-dots">
-                      <span className="ast-chat-dot" />
-                      <span className="ast-chat-dot" />
-                      <span className="ast-chat-dot" />
-                    </span>
-                  </div>
-                  <div className="ast-chat-vignette-sparkle">✦</div>
-                  <div className="ast-chat-vignette-bubble ast-chat-vignette-bubble--user">
-                    <span>💭</span>
-                  </div>
-                </div>
-
-                <div className="ast-chat-empty-title">
-                  {t(lang, "chat.emptyTitle")}
-                </div>
-
-                <div className="ast-chat-empty-subtitle">
-                  <span className="ast-chat-privacy-icon" aria-hidden="true">🍃</span>
-                  <span>{t(lang, "chat.emptySubtitle")}</span>
-                </div>
-
-                <div className="ast-chat-suggestions">
-                  <button
-                    type="button"
-                    className="ast-chat-suggest-chip"
-                    onClick={() => {
-                      setChatInput(t(lang, "chat.suggestSummary"));
-                      chatInputRef.current?.focus();
-                    }}
-                  >
-                    {t(lang, "chat.suggestSummary")}
-                  </button>
-                  <button
-                    type="button"
-                    className="ast-chat-suggest-chip"
-                    onClick={() => {
-                      setChatInput(t(lang, "chat.suggestTranslate"));
-                      chatInputRef.current?.focus();
-                    }}
-                  >
-                    {t(lang, "chat.suggestTranslate")}
-                  </button>
-                  <button
-                    type="button"
-                    className="ast-chat-suggest-chip"
-                    onClick={() => {
-                      setChatInput(t(lang, "chat.suggestExtract"));
-                      chatInputRef.current?.focus();
-                    }}
-                  >
-                    {t(lang, "chat.suggestExtract")}
-                  </button>
-                </div>
-              </div>
+              <div className="ast-chat-empty">{t(lang, "chat.empty")}</div>
             )}
             {chatTurns.map((turn, i) => (
               <div
