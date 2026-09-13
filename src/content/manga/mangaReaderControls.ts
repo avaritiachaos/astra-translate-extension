@@ -32,10 +32,11 @@ export function createMangaReaderControls(
 :host{all:initial;position:fixed;inset:auto auto 16px 50%;transform:translateX(-50%);margin:0;padding:0;border:0;background:transparent;width:max-content;max-width:calc(100vw - 24px);overflow:visible;z-index:2147483645;font:13.5px "Segoe UI","Microsoft YaHei",sans-serif;color:#f3f1fb;--ast-manga-scale:1.2}
 *{box-sizing:border-box}[hidden]{display:none!important}button{font:inherit;border:0;cursor:pointer;color:inherit;white-space:nowrap;transition:background .15s,transform .1s,box-shadow .15s}button:focus-visible{outline:2px solid #a78bfa;outline-offset:2px}button:disabled{opacity:.45;cursor:default}button:active:not(:disabled){transform:scale(.97)}
 .dock,.panel,.toast,.trigger{zoom:var(--ast-manga-scale, 1)}
-.grip{cursor:grab!important;touch-action:none;user-select:none;flex:none;font-size:20px;line-height:1;padding:8px 8px!important;color:#c4b8e5;border-radius:10px}.grip:hover{color:#fff;background:#ffffff18}
+.grip{cursor:grab!important;touch-action:none;user-select:none;-webkit-user-select:none;flex:none;font-size:20px;line-height:1;padding:8px 8px!important;color:#c4b8e5;border-radius:10px}.grip:hover{color:#fff;background:#ffffff18}.grip:active,.grip.dragging{cursor:grabbing!important}
 .actions{display:flex;flex-wrap:wrap;align-items:center;gap:5px}.dock.compact .actions{display:none}
-.compact-button{min-width:54px;color:#f5f3ff;font-size:13px;font-weight:600;padding:7px 12px;border-radius:14px;transition:background .15s,color .15s;display:inline-flex;align-items:center;gap:6px;background:#ffffff14}
+.compact-button{min-width:54px;color:#f5f3ff;font-size:13px;font-weight:600;padding:7px 12px;border-radius:14px;transition:background .15s,color .15s;display:inline-flex;align-items:center;gap:6px;background:#ffffff14;touch-action:none;user-select:none;-webkit-user-select:none}
 .compact-button:hover{background:#ffffff26;color:#fff}
+.compact-button:active,.compact-button.dragging{cursor:grabbing!important}
 .compact-button[data-mode=auto]{color:#86efac;background:rgba(34,197,94,0.16);border:1px solid rgba(34,197,94,0.35)}
 .compact-button[data-mode=working]{color:#c4b5fd;background:rgba(139,92,246,0.2);border:1px solid rgba(139,92,246,0.38)}
 .compact-button[data-mode=error]{color:#fca5a5;background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.38)}
@@ -106,8 +107,10 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
 .clear{font-size:18px;line-height:1;padding:8px 10px;color:#c4b8e5}
 .clear:hover{color:#fff;background:rgba(239,68,68,0.25)}
 .collapse{font-size:12px;font-weight:600;padding:6px 12px;color:#d8d2ea;background:rgba(255,255,255,0.08);border-radius:14px;border:1px solid rgba(255,255,255,0.12);display:inline-flex;align-items:center;gap:4px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
-.trigger{background:linear-gradient(135deg,#7c3aed 0%,#6366f1 100%);color:#fff;border-radius:24px;padding:9px 18px;box-shadow:0 6px 22px rgba(124,58,237,0.4),0 0 0 1px rgba(255,255,255,0.2);font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:transform 0.15s,box-shadow 0.15s}
+.trigger{background:linear-gradient(135deg,#7c3aed 0%,#6366f1 100%);color:#fff;border-radius:24px;padding:9px 18px;box-shadow:0 6px 22px rgba(124,58,237,0.4),0 0 0 1px rgba(255,255,255,0.2);font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:transform 0.15s,box-shadow 0.15s}
 .trigger:hover{background:linear-gradient(135deg,#8b5cf6 0%,#818cf8 100%);transform:scale(1.05);box-shadow:0 8px 28px rgba(124,58,237,0.55)}
+.trigger:active{cursor:grabbing}
+.trigger.dragging{cursor:grabbing!important;transform:scale(1.03)!important;box-shadow:0 10px 30px rgba(124,58,237,0.6)!important;transition:none!important}
 .panel{position:absolute;right:0;bottom:58px;width:340px;max-width:calc(100vw - 24px);max-height:min(65vh,480px);overflow-y:auto;overflow-x:hidden;color:#292533;background:#faf9ff;border:1px solid #e5e1f1;border-radius:18px;box-shadow:0 12px 38px #17132938;padding:14px;box-sizing:border-box}
 .translation-result{border:1px solid #e6e1ee;border-radius:10px;padding:10px;margin:8px 0;background:white}.result-heading{display:flex;gap:6px;align-items:center;margin-bottom:5px}.result-badge{font-size:11px;line-height:1.5;color:#6751a3;background:#f2eefc;border-radius:5px;padding:2px 5px}.translation-result[data-translation-state=uncertain] .result-badge{color:#825915;background:#fff4df}.translation-result[data-translation-state=untranslated] .result-badge{color:#72657b;background:#efecf2}.row .result-reason{font-size:11px;color:#84748f;margin-bottom:8px}.result-translation{font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}.row .result-source{font-size:12px;color:#8c8293;border-top:1px solid #f0edf4;margin-top:9px;padding-top:7px}.row .result-counts{font-size:11px;color:#84788f}.panel.translations{width:390px}.panel.translations header{margin-bottom:8px}
 .panel header{font-size:13px;font-weight:600;margin-bottom:8px}.row{border-top:1px solid #e9e6f2;padding:10px 0}.row:first-child{border-top:0}.row p{font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 5px;color:#736b82}.row.error p{color:#8d5315}.row button{color:#66519a;background:#f0edf8;font-size:12px;padding:5px 8px;margin-right:4px}.hint{font-size:11px;color:#9690a3;line-height:1.5;margin:8px 0 0}
@@ -465,7 +468,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
       maxHeight: (box.height / visualScale) + "px",
     });
   };
-  drag = makeMangaDockDraggable(host, grip, layoutPanel);
+  drag = makeMangaDockDraggable(host, grip, layoutPanel, [trigger, compact]);
   const mount = () => {
     if (!session && !pageCount && !document.fullscreenElement) {
       host.remove();
@@ -510,8 +513,12 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     grip.setAttribute("aria-label", t(lang, "manga.dragToolbar"));
     grip.title = t(lang, "manga.dragToolbarHint");
     trigger.textContent = "📖 " + t(lang, "manga.title");
-    trigger.setAttribute("aria-label", t(lang, "manga.translateVisible"));
-    trigger.title = t(lang, "manga.translateVisible");
+    trigger.setAttribute(
+      "aria-label",
+      t(lang, "manga.translateVisible") + " · " + t(lang, "manga.dragToolbar"),
+    );
+    trigger.title =
+      t(lang, "manga.translateVisible") + " · " + t(lang, "manga.dragToolbar");
     dock.classList.toggle("compact", !expanded);
     compact.hidden = expanded;
     compact.textContent = stateText();
@@ -523,7 +530,8 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
           ? "auto"
           : "manual";
     compact.setAttribute("aria-label", t(lang, "manga.expandControls"));
-    compact.title = t(lang, "manga.pillTooltip");
+    compact.title =
+      t(lang, "manga.pillTooltip") + " · " + t(lang, "manga.dragToolbar");
     collapse.textContent = t(lang, "manga.collapseShort");
     collapse.setAttribute("aria-label", t(lang, "manga.collapseControls"));
     collapse.title = t(lang, "manga.collapseControls");

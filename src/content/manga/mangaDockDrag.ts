@@ -3,21 +3,32 @@ import {
   normalizedDockPosition,
   validDockPosition,
   type DockPosition,
-} from "../../shared/manga/dockGeometry";
+} from "../../shared/manga/dockGeometry.ts";
 
 export const MANGA_DOCK_POSITION_KEY = "astra_manga_dock_position";
-/** Drag only the grip; buttons keep their normal click behavior. */
+/** Drag grip directly; interactive buttons (trigger, compact) require movement threshold to keep normal click behavior. */
 export function makeMangaDockDraggable(
   host: HTMLElement,
   grip: HTMLButtonElement,
   moved: () => void,
+  interactiveHandles: HTMLElement[] = [],
 ) {
   let position: DockPosition | undefined;
   let touched = false,
     disposed = false,
     ignoreClickUntil = 0;
   let active:
-    { id: number; x: number; y: number; left: number; top: number } | undefined;
+    | {
+        id: number;
+        handle: HTMLElement;
+        isDedicated: boolean;
+        startX: number;
+        startY: number;
+        left: number;
+        top: number;
+        hasMoved: boolean;
+      }
+    | undefined;
   const viewport = () => ({ width: innerWidth, height: innerHeight });
   const save = () => {
     if (position)
@@ -55,37 +66,81 @@ export function makeMangaDockDraggable(
     save();
   };
   const ownsGrip = (event: Event) => event.composedPath().includes(grip);
+  const ownsHandle = (
+    event: Event,
+  ): { handle: HTMLElement; isDedicated: boolean } | null => {
+    const path = event.composedPath();
+    if (path.includes(grip)) return { handle: grip, isDedicated: true };
+    for (const h of interactiveHandles) {
+      if (path.includes(h)) return { handle: h, isDedicated: false };
+    }
+    return null;
+  };
   const stop = (event: Event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
   };
   const pointerDown = (event: PointerEvent) => {
     if (!event.isTrusted || event.button !== 0) return;
-    if (!ownsGrip(event)) {
+    const match = ownsHandle(event);
+    if (!match) {
       if (!active) ignoreClickUntil = 0;
       return;
     }
-    stop(event);
-    touched = true;
     const rect = host.getBoundingClientRect();
-    active = {
-      id: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-      left: rect.left,
-      top: rect.top,
-    };
-    grip.setPointerCapture(event.pointerId);
-    grip.style.cursor = "grabbing";
-    document.dispatchEvent(new Event("astra-manga-dock-move"));
+    if (match.isDedicated) {
+      stop(event);
+      touched = true;
+      active = {
+        id: event.pointerId,
+        handle: grip,
+        isDedicated: true,
+        startX: event.clientX,
+        startY: event.clientY,
+        left: rect.left,
+        top: rect.top,
+        hasMoved: true,
+      };
+      try {
+        grip.setPointerCapture(event.pointerId);
+      } catch {}
+      grip.style.cursor = "grabbing";
+      grip.classList.add("dragging");
+      document.dispatchEvent(new Event("astra-manga-dock-move"));
+    } else {
+      active = {
+        id: event.pointerId,
+        handle: match.handle,
+        isDedicated: false,
+        startX: event.clientX,
+        startY: event.clientY,
+        left: rect.left,
+        top: rect.top,
+        hasMoved: false,
+      };
+    }
   };
   const pointerMove = (event: PointerEvent) => {
     if (!active || event.pointerId !== active.id) return;
+    const dx = event.clientX - active.startX;
+    const dy = event.clientY - active.startY;
+    if (!active.hasMoved) {
+      const threshold = event.pointerType === "touch" ? 8 : 4;
+      if (Math.hypot(dx, dy) < threshold) return;
+      active.hasMoved = true;
+      touched = true;
+      try {
+        active.handle.setPointerCapture(event.pointerId);
+      } catch {}
+      active.handle.style.cursor = "grabbing";
+      active.handle.classList.add("dragging");
+      document.dispatchEvent(new Event("astra-manga-dock-move"));
+    }
     stop(event);
     position = normalizedDockPosition(
       {
-        x: active.left + event.clientX - active.x,
-        y: active.top + event.clientY - active.y,
+        x: active.left + dx,
+        y: active.top + dy,
       },
       host.getBoundingClientRect(),
       viewport(),
@@ -94,16 +149,36 @@ export function makeMangaDockDraggable(
   };
   const pointerUp = (event: PointerEvent) => {
     if (!active || event.pointerId !== active.id) return;
-    stop(event);
-    ignoreClickUntil = Date.now() + 500;
-    if (grip.hasPointerCapture(event.pointerId))
-      grip.releasePointerCapture(event.pointerId);
+    const wasMoved = active.hasMoved;
+    const currentHandle = active.handle;
+    const isDedicated = active.isDedicated;
+    if (wasMoved || isDedicated) {
+      stop(event);
+      ignoreClickUntil = Date.now() + 450;
+      if (wasMoved) {
+        save();
+      }
+    }
+    if (currentHandle.hasPointerCapture?.(event.pointerId)) {
+      try {
+        currentHandle.releasePointerCapture(event.pointerId);
+      } catch {}
+    }
+    currentHandle.style.cursor = "";
+    currentHandle.classList.remove("dragging");
     active = undefined;
-    grip.style.cursor = "";
-    save();
   };
   const mouse = (event: Event) => {
-    if (ownsGrip(event) || active || Date.now() < ignoreClickUntil) stop(event);
+    if (
+      (ownsGrip(event) &&
+        (event.type === "mousedown" ||
+          event.type === "mouseup" ||
+          event.type === "click")) ||
+      active?.hasMoved ||
+      Date.now() < ignoreClickUntil
+    ) {
+      stop(event);
+    }
   };
   const doubleClick = (event: MouseEvent) => {
     if (event.isTrusted && ownsGrip(event)) {
@@ -138,12 +213,18 @@ export function makeMangaDockDraggable(
     layout();
     save();
   };
+  const onDragStart = (event: DragEvent) => {
+    if (ownsHandle(event)) {
+      event.preventDefault();
+    }
+  };
   window.addEventListener("pointerdown", pointerDown, true);
   window.addEventListener("pointermove", pointerMove, true);
   window.addEventListener("pointerup", pointerUp, true);
   window.addEventListener("pointercancel", pointerUp, true);
   for (const type of ["mousedown", "mouseup", "click"])
     window.addEventListener(type, mouse, true);
+  window.addEventListener("dragstart", onDragStart, true);
   window.addEventListener("dblclick", doubleClick, true);
   window.addEventListener("keydown", key, true);
   window.addEventListener("resize", layout);
@@ -173,6 +254,7 @@ export function makeMangaDockDraggable(
       window.removeEventListener("pointercancel", pointerUp, true);
       for (const type of ["mousedown", "mouseup", "click"])
         window.removeEventListener(type, mouse, true);
+      window.removeEventListener("dragstart", onDragStart, true);
       window.removeEventListener("dblclick", doubleClick, true);
       window.removeEventListener("keydown", key, true);
       window.removeEventListener("resize", layout);
