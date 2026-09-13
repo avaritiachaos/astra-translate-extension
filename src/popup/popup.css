@@ -1101,24 +1101,71 @@ body::-webkit-scrollbar-thumb:hover {
 
 .ast-chat-empty {
   margin: auto;
-  padding: 32px 20px;
+  padding: 32px 18px;
   color: var(--ast-muted);
-  font-family: "LXGW WenKai", "霞鹜文楷", "STKaiti", "华文楷体", "KaiTi", "楷体", "Kaiti SC", "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", serif;
-  font-size: 13.5px;
-  letter-spacing: 0.6px;
   text-align: center;
   line-height: 1.6;
   user-select: none;
-  animation: ast-chat-gentle-float 4.5s ease-in-out infinite;
-  will-change: transform;
+  animation: ast-chat-organic-float 5.8s cubic-bezier(0.445, 0.05, 0.55, 0.95) infinite;
+  will-change: transform, opacity;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+  /* Universal artistic fallback stack */
+  font-family: "STXingkai", "华文行楷", "Xingkai SC", "行楷-简", "FZShuTi", "方正舒体", "STXinwei", "华文新魏", "LXGW WenKai", "霞鹜文楷", "YouYuan", "幼圆", "UD Digi Kyokasho N-R", "UD デジタル 教科書体 N-R", "BIZ UDMincho", "Segoe Print", "Ink Free", serif;
+  font-size: 15px;
+  letter-spacing: 0.8px;
 }
 
-@keyframes ast-chat-gentle-float {
-  0%, 100% {
-    transform: translateY(0);
+/* Chinese artistic calligraphy typography */
+.ast-chat-empty[data-lang="zh-CN"] {
+  font-family: "STXingkai", "华文行楷", "Xingkai SC", "行楷-简", "FZShuTi", "方正舒体", "STXinwei", "华文新魏", "LXGW WenKai", "霞鹜文楷", "YouYuan", "幼圆", "STKaiti", "华文楷体", cursive, serif;
+  font-size: 15.5px;
+  letter-spacing: 0.9px;
+  font-weight: 500;
+}
+
+/* Japanese literary / textbook artistic typography */
+.ast-chat-empty[data-lang="ja-JP"] {
+  font-family: "UD Digi Kyokasho N-R", "UD デジタル 教科書体 N-R", "BIZ UDMincho", "BIZ-UDMinchoM", "Yu Mincho", "游明朝", "Hiragino Mincho ProN", serif;
+  font-size: 13.5px;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+/* English artistic handwriting / script typography */
+.ast-chat-empty[data-lang="en-US"] {
+  font-family: "Segoe Print", "Ink Free", "Caveat", "Segoe Script", "Comic Sans MS", "Georgia", cursive, serif;
+  font-size: 13.5px;
+  letter-spacing: 0.3px;
+  font-weight: 500;
+  max-width: 380px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ast-chat-empty {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  }
+}
+
+@keyframes ast-chat-organic-float {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0.88;
+  }
+  24% {
+    transform: translate3d(1.5px, -2.8px, 0) rotate(0.4deg);
+    opacity: 0.96;
   }
   50% {
-    transform: translateY(-2.5px);
+    transform: translate3d(0, -4.2px, 0) rotate(0deg);
+    opacity: 1;
+  }
+  74% {
+    transform: translate3d(-1.5px, -2.2px, 0) rotate(-0.35deg);
+    opacity: 0.93;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0.88;
   }
 }
 
