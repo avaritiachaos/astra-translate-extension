@@ -193,6 +193,7 @@ describe("webSearch client cascading and fallback control", () => {
       "zh-CN",
       undefined,
       false,
+      undefined,
       "fake-api-key",
       "fake-cx"
     );
@@ -201,12 +202,64 @@ describe("webSearch client cascading and fallback control", () => {
     assert.equal(result.sources.length, 1);
     assert.equal(result.sources[0].title, "Official Google Result");
     assert.equal(result.sources[0].url, "https://example.com/official-google");
-    assert.equal(result.sources[0].source, "google");
     // Ensure only Google Custom Search API was queried
     assert.equal(urls.length, 1);
     assert.equal(urls[0].includes("googleapis.com/customsearch/v1"), true);
     assert.equal(urls[0].includes("key=fake-api-key"), true);
     assert.equal(urls[0].includes("cx=fake-cx"), true);
+  });
+
+  it("uses Serper API for Google search when serperApiKey is provided", async () => {
+    const urls: string[] = [];
+    let sentHeaders: HeadersInit | undefined;
+    let sentBody: string | undefined;
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      urls.push(url);
+      sentHeaders = init?.headers;
+      sentBody = init?.body as string;
+      if (url.includes("google.serper.dev/search")) {
+        return new Response(
+          JSON.stringify({
+            answerBox: {
+              title: "Weather Report",
+              answer: "Sunny 25°C",
+              snippet: "Detailed forecast for today",
+              link: "https://example.com/weather",
+            },
+            organic: [
+              {
+                title: "Organic Google Hit",
+                link: "https://example.com/organic",
+                snippet: "Organic snippet",
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      return new Response("", { status: 500 });
+    }) as typeof fetch;
+
+    const { webSearch } = await import("./webSearchClient.ts");
+    const result = await webSearch(
+      "weather query",
+      "zh-CN",
+      undefined,
+      false,
+      "test-serper-key"
+    );
+
+    assert.equal(result.noResults, false);
+    assert.equal(result.sources.length, 2);
+    assert.equal(result.sources[0].title, "Weather Report");
+    assert.equal(result.sources[0].snippet, "Sunny 25°C - Detailed forecast for today");
+    assert.equal(result.sources[1].title, "Organic Google Hit");
+    assert.equal(urls.length, 1);
+    assert.equal(urls[0], "https://google.serper.dev/search");
+    assert.equal((sentHeaders as any)["X-API-KEY"], "test-serper-key");
+    assert.match(sentBody || "", /"q":"weather query"/);
   });
 
   it("fails with captcha notice when Google scraping is blocked and fallback is false", async () => {

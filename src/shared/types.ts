@@ -116,6 +116,11 @@ export interface AstraSettings extends UserProviderSettings {
    */
   chatWebSearchFallbackEnabled: boolean;
   /**
+   * Optional Serper API Key (serper.dev, 2500 free Google searches).
+   * Direct Google web search without needing a CX or domain configuration.
+   */
+  serperApiKey: string;
+  /**
    * Optional Google Custom Search JSON API Key (100 free searches/day).
    * When provided alongside googleSearchCx, chat web search will use the official
    * Google Custom Search JSON API, completely immune to 429 and captchas.

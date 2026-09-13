@@ -426,6 +426,7 @@ function createChatService(storageKey: string) {
           lang,
           controller.signal,
           allowFallback,
+          settings.serperApiKey,
           settings.googleSearchApiKey,
           settings.googleSearchCx
         );
@@ -439,6 +440,7 @@ function createChatService(storageKey: string) {
               lang,
               controller.signal,
               allowFallback,
+              settings.serperApiKey,
               settings.googleSearchApiKey,
               settings.googleSearchCx
             );

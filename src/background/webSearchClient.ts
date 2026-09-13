@@ -96,6 +96,122 @@ interface GoogleCustomSearchResponse {
   };
 }
 
+interface SerperResponse {
+  answerBox?: {
+    title?: string;
+    answer?: string;
+    snippet?: string;
+    link?: string;
+  };
+  organic?: Array<{
+    title?: string;
+    link?: string;
+    snippet?: string;
+    date?: string;
+  }>;
+  message?: string;
+}
+
+/**
+ * Serper API client (pure Google search, 2,500 free queries, zero CX setup).
+ * 100% official Google results, completely immune to 429 and captchas.
+ */
+async function fetchSerperGoogleSearch(
+  query: string,
+  apiKey: string,
+  lang: UiLanguage,
+  signal?: AbortSignal
+): Promise<WebSearchResult> {
+  const q = query.trim();
+  if (!q) return { sources: [], noResults: true };
+
+  const gl = lang === "ja-JP" ? "jp" : lang === "en-US" ? "us" : "cn";
+  const hl = searchLocaleFor(lang).googleLanguage;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
+  const abort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener("abort", abort, { once: true });
+  }
+
+  try {
+    const response = await fetch("https://google.serper.dev/search", {
+      method: "POST",
+      headers: {
+        "X-API-KEY": apiKey.trim(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        q,
+        num: MAX_RESULTS,
+        gl,
+        hl,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      let detail = `HTTP ${response.status}`;
+      try {
+        const errJson = (await response.json()) as SerperResponse;
+        if (errJson.message) {
+          detail = `${detail}: ${errJson.message}`;
+        }
+      } catch {}
+      throw new AstraError(t(lang, "chat.searchFailed", { status: detail }), "SEARCH_HTTP");
+    }
+
+    const data = (await response.json()) as SerperResponse;
+    const sources: ChatSearchSource[] = [];
+
+    // Prioritize direct answer box (e.g. Weather, Knowledge graph)
+    if (data.answerBox) {
+      const ab = data.answerBox;
+      const title = ab.title || "Google Answer";
+      const snippet = [ab.answer, ab.snippet].filter(Boolean).join(" - ");
+      if (snippet) {
+        sources.push({
+          title: title.trim(),
+          url: (ab.link || "https://www.google.com").trim(),
+          snippet: snippet.trim(),
+        });
+      }
+    }
+
+    // Add organic Google results
+    const organic = data.organic || [];
+    for (const item of organic) {
+      if (!item.link || !item.title) continue;
+      sources.push({
+        title: item.title.trim(),
+        url: item.link.trim(),
+        snippet: (item.snippet || "").trim(),
+      });
+      if (sources.length >= MAX_RESULTS) break;
+    }
+
+    return {
+      sources,
+      noResults: sources.length === 0,
+    };
+  } catch (err) {
+    if (err instanceof AstraError) throw err;
+    if (signal?.aborted) throw err;
+    if (isTimeoutError(err) || (err instanceof Error && err.name === "AbortError")) {
+      throw new AstraError(t(lang, "chat.searchTimeout"), "SEARCH_TIMEOUT");
+    }
+    if (isNetworkError(err)) {
+      throw new AstraError(t(lang, "chat.searchNetwork"), "SEARCH_NETWORK");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
 /**
  * Official Google Custom Search JSON API client (100 free queries/day).
  * Completely immune to scraping blocks, 429 limits, and captchas.
@@ -153,8 +269,6 @@ async function fetchGoogleCustomSearch(
         title: item.title!.trim(),
         url: item.link!.trim(),
         snippet: (item.snippet || "").trim(),
-        source: "google" as const,
-        isExternal: true as const,
       }));
 
     return {
@@ -179,8 +293,8 @@ async function fetchGoogleCustomSearch(
 
 /**
  * Search the web for chat grounding.
- * When official Google Search API credentials (apiKey and cx) are configured,
- * only the official Google Custom Search API is used (100% Google, zero fallback).
+ * When official Google Search API credentials (serperApiKey or googleApiKey+googleCx) are configured,
+ * only the official Google Search API is used (100% Google, zero fallback to other engines).
  * Otherwise, cascades through public result pages until one yields parseable hits.
  */
 export async function webSearch(
@@ -188,13 +302,19 @@ export async function webSearch(
   lang: UiLanguage = "zh-CN",
   signal?: AbortSignal,
   allowFallback: boolean = true,
+  serperApiKey?: string,
   googleApiKey?: string,
   googleCx?: string
 ): Promise<WebSearchResult> {
   const q = query.trim();
   if (!q) return { sources: [], noResults: true };
 
-  // 1. If official Google API is configured, use it exclusively (no fallback to secondary engines)
+  // 1. If Serper API Key is configured, use it exclusively (pure Google search, zero fallback)
+  if (serperApiKey?.trim()) {
+    return fetchSerperGoogleSearch(q, serperApiKey, lang, signal);
+  }
+
+  // 2. If official Google Custom Search API is configured, use it exclusively (zero fallback)
   if (googleApiKey?.trim() && googleCx?.trim()) {
     return fetchGoogleCustomSearch(q, googleApiKey, googleCx, lang, signal);
   }

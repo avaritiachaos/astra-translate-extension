@@ -1239,38 +1239,70 @@ export default function Options() {
 
         {settings.chatWebSearchEnabled && (
           <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--ast-border, #e5e7eb)" }}>
-            <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "8px" }}>
-              {t(lang, "opt.googleSearchTitle")}
-            </div>
-            <div className="ast-form-hint ast-web-search-description" style={{ marginBottom: "12px" }}>
-              {t(lang, "opt.googleSearchHelp")}
-            </div>
-
-            <div className="ast-form-group" style={{ marginBottom: "12px" }}>
-              <label className="ast-form-label" style={{ fontSize: "12px", marginBottom: "4px" }}>
-                {t(lang, "opt.googleSearchApiKey")}
-              </label>
+            {/* Serper API Key (Recommended) */}
+            <div className="ast-form-group" style={{ marginBottom: "16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                <label className="ast-form-label" style={{ fontSize: "13px", fontWeight: 600, margin: 0 }}>
+                  {t(lang, "opt.serperApiKey")}
+                </label>
+                <a
+                  href="https://serper.dev"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: "12px", color: "var(--ast-primary, #3b82f6)", textDecoration: "none" }}
+                >
+                  serper.dev ↗
+                </a>
+              </div>
+              <div className="ast-form-hint ast-web-search-description" style={{ marginBottom: "8px" }}>
+                {t(lang, "opt.serperApiKeyHelp")}
+              </div>
               <input
                 type="password"
                 className="ast-form-input"
-                placeholder="AIzaSy..."
-                value={settings.googleSearchApiKey || ""}
-                onChange={(e) => update("googleSearchApiKey", e.target.value)}
+                placeholder="例如：8ac4cb21..."
+                value={settings.serperApiKey || ""}
+                onChange={(e) => update("serperApiKey", e.target.value)}
               />
             </div>
 
-            <div className="ast-form-group" style={{ marginBottom: "14px" }}>
-              <label className="ast-form-label" style={{ fontSize: "12px", marginBottom: "4px" }}>
-                {t(lang, "opt.googleSearchCx")}
-              </label>
-              <input
-                type="text"
-                className="ast-form-input"
-                placeholder="a1b2c3d4e5f6..."
-                value={settings.googleSearchCx || ""}
-                onChange={(e) => update("googleSearchCx", e.target.value)}
-              />
-            </div>
+            {/* Google Custom Search JSON API (Optional) */}
+            <details style={{ marginBottom: "14px" }}>
+              <summary style={{ fontSize: "12px", color: "var(--ast-text-secondary, #6b7280)", cursor: "pointer", userSelect: "none" }}>
+                {t(lang, "opt.googleSearchTitle")}
+              </summary>
+              <div style={{ marginTop: "10px", paddingLeft: "4px" }}>
+                <div className="ast-form-hint ast-web-search-description" style={{ marginBottom: "10px" }}>
+                  {t(lang, "opt.googleSearchHelp")}
+                </div>
+
+                <div className="ast-form-group" style={{ marginBottom: "10px" }}>
+                  <label className="ast-form-label" style={{ fontSize: "12px", marginBottom: "4px" }}>
+                    {t(lang, "opt.googleSearchApiKey")}
+                  </label>
+                  <input
+                    type="password"
+                    className="ast-form-input"
+                    placeholder="AIzaSy..."
+                    value={settings.googleSearchApiKey || ""}
+                    onChange={(e) => update("googleSearchApiKey", e.target.value)}
+                  />
+                </div>
+
+                <div className="ast-form-group">
+                  <label className="ast-form-label" style={{ fontSize: "12px", marginBottom: "4px" }}>
+                    {t(lang, "opt.googleSearchCx")}
+                  </label>
+                  <input
+                    type="text"
+                    className="ast-form-input"
+                    placeholder="a1b2c3d4e5f6..."
+                    value={settings.googleSearchCx || ""}
+                    onChange={(e) => update("googleSearchCx", e.target.value)}
+                  />
+                </div>
+              </div>
+            </details>
 
             <div className="ast-toggle-row" style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px dashed var(--ast-border, #e5e7eb)" }}>
               <span className="ast-toggle-label">{t(lang, "opt.webSearchFallback")}</span>
