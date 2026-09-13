@@ -31,6 +31,7 @@ export function createMangaReaderControls(
   style.textContent = `
 :host{all:initial;position:fixed;inset:auto auto 16px 50%;transform:translateX(-50%);margin:0;padding:0;border:0;background:transparent;width:max-content;max-width:calc(100vw - 24px);overflow:visible;z-index:2147483645;font:13.5px "Segoe UI","Microsoft YaHei",sans-serif;color:#f3f1fb}
 *{box-sizing:border-box}[hidden]{display:none!important}button{font:inherit;border:0;cursor:pointer;color:inherit;white-space:nowrap;transition:background .15s,transform .1s,box-shadow .15s}button:focus-visible{outline:2px solid #a78bfa;outline-offset:2px}button:disabled{opacity:.45;cursor:default}button:active:not(:disabled){transform:scale(.97)}
+.dock,.panel,.toast,.trigger{zoom:var(--ast-manga-scale, 1)}
 .grip{cursor:grab!important;touch-action:none;user-select:none;flex:none;font-size:20px;line-height:1;padding:8px 8px!important;color:#c4b8e5;border-radius:10px}.grip:hover{color:#fff;background:#ffffff18}
 .actions{display:flex;flex-wrap:wrap;align-items:center;gap:5px}.dock.compact .actions{display:none}
 .compact-button{min-width:54px;color:#f5f3ff;font-size:13px;font-weight:600;padding:7px 12px;border-radius:14px;transition:background .15s,color .15s;display:inline-flex;align-items:center;gap:6px;background:#ffffff14}
@@ -50,7 +51,40 @@ export function createMangaReaderControls(
 .depth-btn{font-size:11.5px;padding:4px 8px;border-radius:6px;border:1px solid #ddd7ea;background:#fff;color:#5a4e76;transition:all .15s;cursor:pointer}
 .depth-btn:hover{border-color:#8b5cf6;color:#7c3aed;background:#f8f6ff}
 .depth-btn.active{background:#7161ce;color:#fff;border-color:#7161ce;font-weight:600}
-.panel.reading{width:320px}
+.panel.reading{width:350px;background:rgba(20,18,33,0.96);color:#f3f1fb;border:1px solid rgba(255,255,255,0.16);border-radius:20px;box-shadow:0 16px 48px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.08);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);padding:14px 16px}
+.panel.reading header{display:none}
+.reading-dialog-container{display:flex;flex-direction:column;gap:10px}
+.reading-dialog-header{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.1)}
+.reading-dialog-title{font-size:13.5px;font-weight:700;color:#ede9fe;letter-spacing:0.2px}
+.reading-header-actions{display:flex;align-items:center;gap:6px}
+.reading-scale-group{display:inline-flex;align-items:center;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:2px;gap:2px}
+.reading-scale-group .scale-btn{font-size:11px;font-weight:600;padding:3px 6px;color:#c4b8e5;border-radius:8px;line-height:1}
+.reading-scale-group .scale-btn:hover{background:rgba(255,255,255,0.15);color:#fff}
+.reading-scale-group .scale-display{font-size:11px;font-weight:600;padding:3px 5px;color:#a78bfa;border-radius:6px;line-height:1;min-width:38px;text-align:center}
+.reading-scale-group .scale-display:hover{background:rgba(255,255,255,0.12);color:#c4b5fd}
+.reading-dialog-close{font-size:18px;line-height:1;padding:4px 7px;color:#9ca3af;border-radius:8px}
+.reading-dialog-close:hover{color:#fff;background:rgba(239,68,68,0.2)}
+.reading-card-section{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:10px 12px}
+.panel.reading .reading-switch{color:#e2e8f0;padding:5px 0;min-height:36px;font-size:13px;font-weight:500}
+.panel.reading .reading-switch:hover{background:rgba(255,255,255,0.05)}
+.panel.reading .reading-depth-row{border-bottom:1px dashed rgba(255,255,255,0.1);padding:5px 0 7px}
+.panel.reading .depth-label{color:#cbd5e1}
+.panel.reading .depth-btn{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.14);color:#cbd5e1}
+.panel.reading .depth-btn:hover{background:rgba(139,92,246,0.25);color:#fff;border-color:#8b5cf6}
+.panel.reading .depth-btn.active{background:#7c3aed;color:#fff;border-color:#8b5cf6}
+.panel.reading .reading-status{color:#a5b4fc}
+.panel.reading .reading-status.error{color:#fca5a5}
+.panel.reading .reading-failure{color:#fca5a5}
+.panel.reading .reading-quota{color:#94a3b8}
+.reading-tools-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.reading-tool-btn{font-size:12px;font-weight:500;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.07);color:#e2e8f0;border:1px solid rgba(255,255,255,0.1);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:all .15s}
+.reading-tool-btn:hover{background:rgba(255,255,255,0.14);color:#fff;border-color:rgba(255,255,255,0.2)}
+.reading-tool-btn.active{background:rgba(124,58,237,0.35);color:#c4b5fd;border-color:rgba(139,92,246,0.5)}
+.reading-footer-row{display:flex;gap:6px}
+.reading-footer-btn{flex:1;font-size:12px;font-weight:500;padding:7px 10px;border-radius:10px;background:rgba(255,255,255,0.06);color:#cbd5e1;border:1px solid rgba(255,255,255,0.1);text-align:center;transition:all .15s}
+.reading-footer-btn:hover{background:rgba(255,255,255,0.12);color:#fff}
+.scale-toggle{font-size:11.5px;font-weight:600;padding:7px 9px;color:#c4b8e5;border-radius:12px}
+.scale-toggle:hover{background:rgba(255,255,255,0.16);color:#fff}
 
 .dock{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:7px 10px;background:#141221f2;border:1px solid #ffffff28;border-radius:24px;box-shadow:0 8px 32px #0000004d,0 0 0 1px #ffffff12;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);max-width:calc(100vw - 24px)}
 .dock.vertical{flex-direction:column;align-items:stretch;padding:10px 7px;width:auto;min-width:52px;max-width:145px;border-radius:22px}
@@ -86,14 +120,24 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
   const compact = document.createElement("button"),
     collapse = document.createElement("button"),
     reading = document.createElement("button"),
+    scaleToggle = document.createElement("button"),
     orientationToggle = document.createElement("button");
   compact.className = "compact-button";
   collapse.className = "collapse";
   reading.className = "reading-settings";
+  scaleToggle.className = "scale-toggle";
   orientationToggle.className = "orientation-toggle";
-  for (const button of [compact, collapse, reading, orientationToggle]) button.type = "button";
+  for (const button of [
+    compact,
+    collapse,
+    reading,
+    scaleToggle,
+    orientationToggle,
+  ])
+    button.type = "button";
   collapse.textContent = "−";
   orientationToggle.textContent = "⇋";
+  scaleToggle.textContent = "100%";
   const grip = document.createElement("button");
   grip.className = "grip";
   grip.type = "button";
@@ -133,16 +177,100 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
     hint = document.createElement("p");
   hint.className = "hint";
   panel.append(heading, rows, hint);
-  const readingPanel = createMangaReadingPanel(
-    (enabled, prefetch) => actions.reading(enabled, prefetch),
-    () => {
+
+  let currentScale = 1.0;
+  const SCALE_KEY = "astra_manga_scale";
+  let drag: ReturnType<typeof makeMangaDockDraggable>;
+  const applyScale = (scale: number, persist = true) => {
+    const clamped = Math.max(0.75, Math.min(1.6, Math.round(scale * 100) / 100));
+    currentScale = clamped;
+    host.style.setProperty("--ast-manga-scale", String(clamped));
+    scaleToggle.textContent = Math.round(clamped * 100) + "%";
+    readingPanel.reflectScale(clamped);
+    if (persist) {
+      void chrome.storage.local.set({ [SCALE_KEY]: clamped }).catch(() => {});
+    }
+    drag?.layout();
+    layoutPanel();
+  };
+  scaleToggle.onclick = () => {
+    const nextScales = [1.0, 1.2, 1.4, 0.85];
+    const currentIndex = nextScales.findIndex((s) => Math.abs(s - currentScale) < 0.05);
+    const next = nextScales[(currentIndex + 1) % nextScales.length];
+    applyScale(next);
+  };
+  void chrome.storage.local
+    .get(SCALE_KEY)
+    .then((saved) => {
+      const s = Number(saved[SCALE_KEY]);
+      if (Number.isFinite(s) && s >= 0.75 && s <= 1.6) {
+        applyScale(s, false);
+      }
+    })
+    .catch(() => {});
+
+  let isVertical = false;
+  const toggleDockOrientation = () => {
+    isVertical = !isVertical;
+    dock.classList.toggle("vertical", isVertical);
+    orientationToggle.textContent = isVertical ? "⇅" : "⇋";
+    orientationToggle.setAttribute(
+      "aria-label",
+      t(language(), "manga.dockOrientationToggle"),
+    );
+    orientationToggle.title = t(language(), "manga.dockOrientationToggle");
+    void chrome.storage.local
+      .set({
+        astra_manga_dock_orientation: isVertical ? "vertical" : "horizontal",
+      })
+      .catch(() => {});
+    drag?.layout();
+    layoutPanel();
+  };
+  orientationToggle.onclick = toggleDockOrientation;
+
+  const readingPanel = createMangaReadingPanel({
+    change: (enabled, prefetch) => actions.reading(enabled, prefetch),
+    recover: () => {
       actions.translate();
       if (!readingState.enabled) actions.reading(true, false);
     },
-    () => {
+    onPrefetchDepthChange: () => {
       layoutPanel();
     },
-  );
+    getScale: () => currentScale,
+    setScale: (s) => {
+      applyScale(s);
+    },
+    toggleOriginal: () => {
+      showingOriginal = !showingOriginal;
+      actions.original(showingOriginal);
+      original.setAttribute("aria-pressed", String(showingOriginal));
+      readingPanel.reflectOriginal(showingOriginal);
+    },
+    isOriginal: () => showingOriginal,
+    pick: () => {
+      actions.pick();
+    },
+    retranslate: () => {
+      actions.translate();
+    },
+    showTranslations: () => {
+      panelMode = "translations";
+      refresh();
+    },
+    toggleOrientation: () => {
+      toggleDockOrientation();
+    },
+    isVertical: () => isVertical,
+    collapseToCapsule: () => {
+      collapseDock();
+    },
+    close: () => {
+      panel.hidden = true;
+      syncExpanded();
+    },
+  });
   actionGroup.append(
     translate,
     pick,
@@ -150,6 +278,7 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
     results,
     reading,
     summary,
+    scaleToggle,
     orientationToggle,
     collapse,
     clear,
@@ -214,6 +343,7 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
     panel.hidden = true;
     syncExpanded();
     original.setAttribute("aria-pressed", String(showingOriginal));
+    readingPanel.reflectOriginal(showingOriginal);
   };
   const collapseDock = () => {
     expanded = false;
@@ -225,19 +355,6 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
     refresh();
   };
   collapse.onclick = collapseDock;
-  let isVertical = false;
-  orientationToggle.onclick = () => {
-    isVertical = !isVertical;
-    dock.classList.toggle("vertical", isVertical);
-    orientationToggle.textContent = isVertical ? "⇅" : "⇋";
-    orientationToggle.setAttribute("aria-label", t(language(), "manga.dockOrientationToggle"));
-    orientationToggle.title = t(language(), "manga.dockOrientationToggle");
-    void chrome.storage.local
-      .set({ astra_manga_dock_orientation: isVertical ? "vertical" : "horizontal" })
-      .catch(() => {});
-    drag.layout();
-    layoutPanel();
-  };
   void chrome.storage.local
     .get("astra_manga_dock_orientation")
     .then((saved) => {
@@ -245,7 +362,7 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
         isVertical = true;
         dock.classList.add("vertical");
         orientationToggle.textContent = "⇅";
-        drag.layout();
+        drag?.layout();
         layoutPanel();
       }
     })
@@ -277,7 +394,7 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
         panelMode === "translations"
           ? 390
           : panelMode === "reading"
-            ? 320
+            ? 350
             : 340,
         innerWidth - 24,
       ) + "px";
@@ -291,14 +408,14 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
       { width: innerWidth, height: innerHeight },
     );
     Object.assign(panel.style, {
-      left: box.x - bounds.x + "px",
-      top: box.y - bounds.y + "px",
+      left: ((box.x - bounds.x) / currentScale) + "px",
+      top: ((box.y - bounds.y) / currentScale) + "px",
       bottom: "auto",
       right: "auto",
-      maxHeight: box.height + "px",
+      maxHeight: (box.height / currentScale) + "px",
     });
   };
-  const drag = makeMangaDockDraggable(host, grip, layoutPanel);
+  drag = makeMangaDockDraggable(host, grip, layoutPanel);
   const mount = () => {
     if (!session && !(document.fullscreenElement && pageCount)) {
       host.remove();
@@ -355,9 +472,13 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
     orientationToggle.title = t(lang, "manga.dockOrientationToggle");
     reading.textContent = t(
       lang,
-      readingState.enabled ? "manga.autoOn" : "manga.autoSettings",
+      readingState.enabled
+        ? "manga.readingSettingsBtnActive"
+        : "manga.readingSettingsBtn",
     );
-    reading.title = t(lang, "manga.autoSettings");
+    reading.title = t(lang, "manga.readingSettingsTitle");
+    scaleToggle.title = t(lang, "manga.uiScale");
+    scaleToggle.setAttribute("aria-label", t(lang, "manga.uiScale"));
     trigger.hidden = session;
     dock.hidden = !session;
     if (!session) panel.hidden = true;
@@ -402,6 +523,7 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
     panel.classList.toggle("translations", panelMode === "translations");
     panel.classList.toggle("reading", panelMode === "reading");
     hint.hidden = panelMode === "reading";
+    heading.hidden = panelMode === "reading";
     const titleKey =
       panelMode === "reading"
         ? "manga.autoSettings"
@@ -557,6 +679,7 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
     reflectOriginal(value: boolean) {
       showingOriginal = value;
       original.setAttribute("aria-pressed", String(value));
+      readingPanel.reflectOriginal(value);
     },
     setReading(value: MangaReadingUi) {
       readingState = value;
