@@ -1103,23 +1103,9 @@ body::-webkit-scrollbar-thumb:hover {
   margin: auto;
   padding: 32px 20px;
   color: var(--ast-muted);
-  font-family: "LXGW WenKai", "霞鹜文楷", "STKaiti", "华文楷体", "KaiTi", "楷体", "Kaiti SC", "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", serif;
-  font-size: 13.5px;
-  letter-spacing: 0.6px;
+  font-size: 12.5px;
   text-align: center;
   line-height: 1.6;
-  user-select: none;
-  animation: ast-chat-gentle-float 4.5s ease-in-out infinite;
-  will-change: transform;
-}
-
-@keyframes ast-chat-gentle-float {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-2.5px);
-  }
 }
 
 /* Chat Bubbles */
