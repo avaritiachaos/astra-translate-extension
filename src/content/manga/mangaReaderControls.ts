@@ -52,7 +52,11 @@ export function createMangaReaderControls(
 .depth-btn{font-size:11.5px;padding:4px 8px;border-radius:6px;border:1px solid #ddd7ea;background:#fff;color:#5a4e76;transition:all .15s;cursor:pointer}
 .depth-btn:hover{border-color:#8b5cf6;color:#7c3aed;background:#f8f6ff}
 .depth-btn.active{background:#7161ce;color:#fff;border-color:#7161ce;font-weight:600}
-.panel.reading{width:350px;background:rgba(20,18,33,0.96);color:#f3f1fb;border:1px solid rgba(255,255,255,0.16);border-radius:20px;box-shadow:0 16px 48px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.08);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);padding:14px 16px}
+.panel.reading{width:350px;background:rgba(20,18,33,0.96);color:#f3f1fb;border:1px solid rgba(255,255,255,0.16);border-radius:20px;box-shadow:0 16px 48px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.08);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);padding:14px 16px;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.2) transparent}
+.panel.reading::-webkit-scrollbar{width:5px}
+.panel.reading::-webkit-scrollbar-track{background:transparent}
+.panel.reading::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:10px}
+.panel.reading::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.35)}
 .panel.reading header{display:none}
 .reading-dialog-container{display:flex;flex-direction:column;gap:10px}
 .reading-dialog-header{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.1)}
@@ -111,7 +115,11 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
 .trigger:hover{background:linear-gradient(135deg,#8b5cf6 0%,#818cf8 100%);transform:scale(1.05);box-shadow:0 8px 28px rgba(124,58,237,0.55)}
 .trigger:active{cursor:grabbing}
 .trigger.dragging{cursor:grabbing!important;transform:scale(1.03)!important;box-shadow:0 10px 30px rgba(124,58,237,0.6)!important;transition:none!important}
-.panel{position:absolute;right:0;bottom:58px;width:340px;max-width:calc(100vw - 24px);max-height:min(65vh,480px);overflow-y:auto;overflow-x:hidden;color:#292533;background:#faf9ff;border:1px solid #e5e1f1;border-radius:18px;box-shadow:0 12px 38px #17132938;padding:14px;box-sizing:border-box}
+.panel{position:absolute;right:0;bottom:58px;width:340px;max-width:calc(100vw - 24px);max-height:min(65vh,480px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(120,110,150,0.3) transparent;color:#292533;background:#faf9ff;border:1px solid #e5e1f1;border-radius:18px;box-shadow:0 12px 38px #17132938;padding:14px;box-sizing:border-box}
+.panel::-webkit-scrollbar{width:5px}
+.panel::-webkit-scrollbar-track{background:transparent}
+.panel::-webkit-scrollbar-thumb{background:rgba(120,110,150,0.3);border-radius:10px}
+.panel::-webkit-scrollbar-thumb:hover{background:rgba(120,110,150,0.5)}
 .translation-result{border:1px solid #e6e1ee;border-radius:10px;padding:10px;margin:8px 0;background:white}.result-heading{display:flex;gap:6px;align-items:center;margin-bottom:5px}.result-badge{font-size:11px;line-height:1.5;color:#6751a3;background:#f2eefc;border-radius:5px;padding:2px 5px}.translation-result[data-translation-state=uncertain] .result-badge{color:#825915;background:#fff4df}.translation-result[data-translation-state=untranslated] .result-badge{color:#72657b;background:#efecf2}.row .result-reason{font-size:11px;color:#84748f;margin-bottom:8px}.result-translation{font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}.row .result-source{font-size:12px;color:#8c8293;border-top:1px solid #f0edf4;margin-top:9px;padding-top:7px}.row .result-counts{font-size:11px;color:#84788f}.panel.translations{width:390px}.panel.translations header{margin-bottom:8px}
 .panel header{font-size:13px;font-weight:600;margin-bottom:8px}.row{border-top:1px solid #e9e6f2;padding:10px 0}.row:first-child{border-top:0}.row p{font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 5px;color:#736b82}.row.error p{color:#8d5315}.row button{color:#66519a;background:#f0edf8;font-size:12px;padding:5px 8px;margin-right:4px}.hint{font-size:11px;color:#9690a3;line-height:1.5;margin:8px 0 0}
 @media(max-width:620px){.summary{max-width:140px}.dock{gap:3px;padding:4px 6px}button{padding:6px 8px}}
@@ -442,21 +450,26 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   const layoutPanel = () => {
     if (panel.hidden || !host.isConnected) return;
     const bounds = host.getBoundingClientRect();
-    panel.style.width =
-      Math.min(
-        panelMode === "translations"
-          ? 390
-          : panelMode === "reading"
-            ? 350
-            : 340,
-        innerWidth - 24,
-      ) + "px";
-    panel.style.maxHeight = Math.min(innerHeight * 0.65, 520) + "px";
+    const isReading = panelMode === "reading";
+    const targetWidth =
+      panelMode === "translations"
+        ? 390
+        : isReading
+          ? 350
+          : 340;
+    panel.style.width = Math.min(targetWidth, innerWidth - 24) + "px";
+    panel.style.maxHeight = "none";
+    const naturalHeight = panel.scrollHeight;
+    const naturalWidth = panel.offsetWidth;
+    const maxScreenHeight = Math.min(
+      innerHeight * 0.85,
+      isReading ? 640 : 520,
+    );
     const box = panelAtDock(
       bounds,
       {
-        width: panel.offsetWidth,
-        height: Math.min(panel.scrollHeight + 16, innerHeight * 0.65, 520),
+        width: Math.min(naturalWidth * visualScale, innerWidth - 24),
+        height: Math.min(naturalHeight * visualScale + 12, maxScreenHeight),
       },
       { width: innerWidth, height: innerHeight },
     );
@@ -465,7 +478,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
       top: ((box.y - bounds.y) / visualScale) + "px",
       bottom: "auto",
       right: "auto",
-      maxHeight: (box.height / visualScale) + "px",
+      maxHeight: (box.height / visualScale + 4) + "px",
     });
   };
   drag = makeMangaDockDraggable(host, grip, layoutPanel, [trigger, compact]);

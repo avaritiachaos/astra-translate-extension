@@ -124,6 +124,8 @@ function restoreAll(disableReading = true) {
 let frame = 0;
 let visibilityCheck: ReturnType<typeof setTimeout> | undefined;
 let documentObserver: MutationObserver | undefined;
+let isScrolling = false;
+let scrollDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 const pageKey = () => location.origin + location.pathname + location.search;
 const currentSource = mangaImageSource;
 function scheduleLayout() {
@@ -150,7 +152,9 @@ function scheduleLayout() {
       }
     }
     if (Number.isFinite(recheck)) visibilityCheck = setTimeout(scheduleLayout, Math.max(1, recheck));
-    refreshReader();
+    if (!isScrolling) {
+      refreshReader();
+    }
   });
 }
 function cancel(id: string) {
@@ -629,14 +633,27 @@ export function initMangaController(repair = false) {
       }
     }
   };
+  const onScroll = () => {
+    isScrolling = true;
+    clearTimeout(scrollDebounceTimer);
+    scrollDebounceTimer = setTimeout(() => {
+      isScrolling = false;
+      scrollDebounceTimer = undefined;
+      refreshReader();
+    }, 150);
+    scheduleLayout();
+  };
   const pagehide = () => {
+    clearTimeout(scrollDebounceTimer);
+    scrollDebounceTimer = undefined;
+    isScrolling = false;
     autoReader?.dispose();
     stopPicking?.();
     restoreAll(false);
   };
   document.addEventListener("contextmenu", contextmenu, true);
   runtime.onMessage.addListener(onMessage);
-  addEventListener("scroll", scheduleLayout, { passive: true, capture: true });
+  addEventListener("scroll", onScroll, { passive: true, capture: true });
   addEventListener("resize", scheduleLayout);
   document.addEventListener("fullscreenchange", scheduleLayout);
   documentObserver = new MutationObserver((records) => {
@@ -743,7 +760,7 @@ export function initMangaController(repair = false) {
       clearTimeout(visibilityCheck);visibilityCheck = undefined;
       frame = 0;
       document.removeEventListener("contextmenu", contextmenu, true);
-      removeEventListener("scroll", scheduleLayout, true);
+      removeEventListener("scroll", onScroll, true);
       removeEventListener("resize", scheduleLayout);
       document.removeEventListener("fullscreenchange", scheduleLayout);
       removeEventListener("pagehide", pagehide);
