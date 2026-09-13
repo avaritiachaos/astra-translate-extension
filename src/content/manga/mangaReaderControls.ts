@@ -86,11 +86,11 @@ export function createMangaReaderControls(
 .scale-toggle{font-size:11.5px;font-weight:600;padding:7px 9px;color:#c4b8e5;border-radius:12px}
 .scale-toggle:hover{background:rgba(255,255,255,0.16);color:#fff}
 
-.dock{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:7px 10px;background:#141221f2;border:1px solid #ffffff28;border-radius:24px;box-shadow:0 8px 32px #0000004d,0 0 0 1px #ffffff12;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);max-width:calc(100vw - 24px)}
+.dock{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;padding:6px 10px;background:#141221f2;border:1px solid #ffffff28;border-radius:24px;box-shadow:0 8px 32px #0000004d,0 0 0 1px #ffffff12;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);max-width:calc(100vw - 24px);transition:all .2s ease}
 .dock.vertical{flex-direction:column;align-items:stretch;padding:10px 7px;width:auto;min-width:52px;max-width:145px;border-radius:22px}
 .dock.vertical .actions{flex-direction:column;align-items:stretch;gap:6px}
 .dock.vertical .summary{text-align:center;max-width:none}
-button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{background:#ffffff1c}
+button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{background:#ffffff1c}
 .primary{background:linear-gradient(135deg,#7c3aed 0%,#6366f1 100%);color:#fff;font-weight:600;box-shadow:0 2px 10px rgba(124,58,237,0.35)}
 .primary:hover{background:linear-gradient(135deg,#8b5cf6 0%,#818cf8 100%);box-shadow:0 4px 14px rgba(124,58,237,0.5)}
 .original[aria-pressed=true]{background:#352c5df5;color:#ddd6fe;border:1px solid #7c6fd688}
@@ -100,16 +100,18 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
 .reading-settings[aria-expanded=true]{background:#ffffff24}
 .orientation-toggle{font-size:14px;padding:8px 9px;color:#c4b8e5}
 .orientation-toggle:hover{color:#fff;background:#ffffff1c}
-.summary{max-width:115px;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;color:#d8d2ea;font-weight:500}
+.summary{max-width:280px;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;color:#d8d2ea;font-weight:500;padding:5px 8px;border-radius:10px;cursor:pointer;white-space:nowrap}
+.summary:hover{background:rgba(255,255,255,0.08);color:#fff}
 .summary.error{color:#fca5a5}
 .clear{font-size:18px;line-height:1;padding:8px 10px;color:#c4b8e5}
 .clear:hover{color:#fff;background:rgba(239,68,68,0.25)}
-.collapse{font-size:18px;line-height:1;padding:8px 9px;color:#c4b8e5}
+.collapse{font-size:12px;font-weight:600;padding:6px 12px;color:#d8d2ea;background:rgba(255,255,255,0.08);border-radius:14px;border:1px solid rgba(255,255,255,0.12);display:inline-flex;align-items:center;gap:4px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.collapse:hover{background:rgba(255,255,255,0.18);color:#fff;border-color:rgba(255,255,255,0.25)}
 .trigger{background:#7161dc;color:#fff;border-radius:24px;padding:11px 18px;box-shadow:0 4px 20px #17132940;font-weight:600}
 .panel{position:absolute;right:0;bottom:58px;width:340px;max-width:calc(100vw - 24px);max-height:min(65vh,480px);overflow-y:auto;overflow-x:hidden;color:#292533;background:#faf9ff;border:1px solid #e5e1f1;border-radius:18px;box-shadow:0 12px 38px #17132938;padding:14px;box-sizing:border-box}
 .translation-result{border:1px solid #e6e1ee;border-radius:10px;padding:10px;margin:8px 0;background:white}.result-heading{display:flex;gap:6px;align-items:center;margin-bottom:5px}.result-badge{font-size:11px;line-height:1.5;color:#6751a3;background:#f2eefc;border-radius:5px;padding:2px 5px}.translation-result[data-translation-state=uncertain] .result-badge{color:#825915;background:#fff4df}.translation-result[data-translation-state=untranslated] .result-badge{color:#72657b;background:#efecf2}.row .result-reason{font-size:11px;color:#84748f;margin-bottom:8px}.result-translation{font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}.row .result-source{font-size:12px;color:#8c8293;border-top:1px solid #f0edf4;margin-top:9px;padding-top:7px}.row .result-counts{font-size:11px;color:#84788f}.panel.translations{width:390px}.panel.translations header{margin-bottom:8px}
 .panel header{font-size:13px;font-weight:600;margin-bottom:8px}.row{border-top:1px solid #e9e6f2;padding:10px 0}.row:first-child{border-top:0}.row p{font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 5px;color:#736b82}.row.error p{color:#8d5315}.row button{color:#66519a;background:#f0edf8;font-size:12px;padding:5px 8px;margin-right:4px}.hint{font-size:11px;color:#9690a3;line-height:1.5;margin:8px 0 0}
-@media(max-width:620px){.summary{max-width:80px}.dock{gap:2px}button{padding:8px 7px}}
+@media(max-width:620px){.summary{max-width:140px}.dock{gap:3px;padding:4px 6px}button{padding:6px 8px}}
 `;
   const dock = document.createElement("div");
   dock.className = "dock";
@@ -278,13 +280,9 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
   });
   actionGroup.append(
     translate,
-    pick,
     original,
-    results,
-    reading,
     summary,
-    scaleToggle,
-    orientationToggle,
+    reading,
     collapse,
     clear,
   );
@@ -350,7 +348,33 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
     original.setAttribute("aria-pressed", String(showingOriginal));
     readingPanel.reflectOriginal(showingOriginal);
   };
+  let autoCollapseTimer: ReturnType<typeof setTimeout> | undefined;
+  let isHovered = false;
+
+  const scheduleAutoCollapse = (delayMs = 3500) => {
+    clearTimeout(autoCollapseTimer);
+    if (!readingState.enabled || !expanded || !panel.hidden || isHovered || showingOriginal) return;
+    const hasError = items.some((item) => item.phase === "error");
+    if (hasError) return;
+    const isWorking = items.some((item) => item.phase === "working");
+    if (isWorking) return;
+
+    autoCollapseTimer = setTimeout(() => {
+      if (
+        panel.hidden &&
+        readingState.enabled &&
+        !isHovered &&
+        !showingOriginal &&
+        !root.activeElement?.matches(":focus-visible")
+      ) {
+        collapseDock();
+      }
+    }, delayMs);
+  };
+
   const collapseDock = () => {
+    clearTimeout(autoCollapseTimer);
+    clearTimeout(collapseTimer);
     expanded = false;
     panel.hidden = true;
     refresh();
@@ -358,6 +382,9 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
   compact.onclick = () => {
     expanded = true;
     refresh();
+    if (readingState.enabled) {
+      scheduleAutoCollapse(4000);
+    }
   };
   collapse.onclick = collapseDock;
   void chrome.storage.local
@@ -372,14 +399,29 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
       }
     })
     .catch(() => {});
-  dock.addEventListener("pointerenter", () => clearTimeout(collapseTimer));
-  dock.addEventListener("pointerleave", () => {
+  dock.addEventListener("pointerenter", () => {
+    isHovered = true;
+    clearTimeout(autoCollapseTimer);
     clearTimeout(collapseTimer);
-    collapseTimer = setTimeout(() => {
-      if (panel.hidden && !root.activeElement?.matches(":focus-visible"))
-        collapseDock();
-    }, 6000);
   });
+  dock.addEventListener("pointerleave", () => {
+    isHovered = false;
+    clearTimeout(collapseTimer);
+    if (readingState.enabled) {
+      scheduleAutoCollapse(3000);
+    } else {
+      collapseTimer = setTimeout(() => {
+        if (panel.hidden && !root.activeElement?.matches(":focus-visible"))
+          collapseDock();
+      }, 6000);
+    }
+  });
+  const onUserScroll = () => {
+    if (expanded && readingState.enabled && panel.hidden && !isHovered) {
+      scheduleAutoCollapse(1200);
+    }
+  };
+  window.addEventListener("scroll", onUserScroll, { passive: true });
   const togglePanel = (mode: "progress" | "translations" | "reading") => {
     panel.hidden = !panel.hidden && panelMode === mode;
     panelMode = mode;
@@ -478,6 +520,7 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
           : "manual";
     compact.setAttribute("aria-label", t(lang, "manga.expandControls"));
     compact.title = t(lang, "manga.pillTooltip");
+    collapse.textContent = t(lang, "manga.collapseShort");
     collapse.setAttribute("aria-label", t(lang, "manga.collapseControls"));
     collapse.title = t(lang, "manga.collapseControls");
     orientationToggle.setAttribute("aria-label", t(lang, "manga.dockOrientationToggle"));
@@ -646,6 +689,9 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
     }
     syncExpanded();
     mount();
+    if (readingState.enabled && expanded && panel.hidden) {
+      scheduleAutoCollapse(3500);
+    }
   };
   const outside = (event: Event) => {
     if (!event.composedPath().includes(host)) {
@@ -701,7 +747,9 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
       session = active;
       canTranslate = pending;
       if (!wasActive && active) {
-        expanded = true;
+        if (!readingState.enabled) {
+          expanded = true;
+        }
         showToast(t(language(), "manga.toastReady"));
       }
       refresh();
@@ -713,7 +761,11 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
       readingPanel.reflectOriginal(value);
     },
     setReading(value: MangaReadingUi) {
+      const wasEnabled = readingState.enabled;
       readingState = value;
+      if (!wasEnabled && value.enabled) {
+        scheduleAutoCollapse(2500);
+      }
       refresh();
     },
     setPicking(value: boolean) {
@@ -727,7 +779,9 @@ button{background:transparent;padding:8px 11px;border-radius:12px}button:hover{b
     raise,
     dispose() {
       clearTimeout(collapseTimer);
+      clearTimeout(autoCollapseTimer);
       clearTimeout(toastTimer);
+      window.removeEventListener("scroll", onUserScroll);
       stopControls();
       drag.dispose();
       document.removeEventListener("fullscreenchange", fullscreenChanged);
