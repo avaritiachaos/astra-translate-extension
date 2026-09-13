@@ -1309,42 +1309,30 @@ export default function Options() {
                 {t(lang, "opt.serperApiKeyHelp")}
               </div>
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <div style={{ position: "relative", flex: 1 }}>
-                  <input
-                    type={showSerperKey ? "text" : "password"}
-                    autoComplete="new-password"
-                    className="ast-form-input"
-                    placeholder="输入 Serper API Key"
-                    value={settings.serperApiKey || ""}
-                    onChange={(e) => update("serperApiKey", e.target.value)}
-                    style={{ paddingRight: "36px" }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowSerperKey(!showSerperKey)}
-                    style={{
-                      position: "absolute",
-                      right: "8px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: "14px",
-                      opacity: 0.6,
-                      padding: "2px",
-                    }}
-                    title={showSerperKey ? "隐藏" : "显示"}
-                  >
-                    {showSerperKey ? "🙈" : "👁️"}
-                  </button>
-                </div>
+                <input
+                  type={showSerperKey ? "text" : "password"}
+                  autoComplete="new-password"
+                  className="ast-form-input"
+                  placeholder="输入 Serper API Key"
+                  value={settings.serperApiKey || ""}
+                  onChange={(e) => update("serperApiKey", e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="ast-toggle-visibility"
+                  onClick={() => setShowSerperKey(!showSerperKey)}
+                  title={showSerperKey ? t(lang, "opt.hideKey") : t(lang, "opt.showKey")}
+                >
+                  {showSerperKey ? (
+                    <img src={chrome.runtime.getURL("icons/key-girl.png")} alt="hide" className="ast-key-icon" />
+                  ) : "👁"}
+                </button>
                 <button
                   type="button"
                   className="ast-btn ast-btn-secondary"
                   disabled={testingSearch}
                   onClick={handleTestSearch}
-                  style={{ whiteSpace: "nowrap", padding: "0 14px", height: "36px" }}
+                  style={{ whiteSpace: "nowrap", padding: "0 14px", height: "40px" }}
                 >
                   {testingSearch ? t(lang, "opt.testingSearch") : t(lang, "opt.testSearch")}
                 </button>
@@ -1381,13 +1369,26 @@ export default function Options() {
                   <label className="ast-form-label" style={{ fontSize: "12px", marginBottom: "4px" }}>
                     {t(lang, "opt.googleSearchApiKey")}
                   </label>
-                  <input
-                    type="password"
-                    className="ast-form-input"
-                    placeholder="AIzaSy..."
-                    value={settings.googleSearchApiKey || ""}
-                    onChange={(e) => update("googleSearchApiKey", e.target.value)}
-                  />
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <input
+                      type={showGoogleSearchKey ? "text" : "password"}
+                      autoComplete="new-password"
+                      className="ast-form-input"
+                      placeholder="AIzaSy..."
+                      value={settings.googleSearchApiKey || ""}
+                      onChange={(e) => update("googleSearchApiKey", e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="ast-toggle-visibility"
+                      onClick={() => setShowGoogleSearchKey(!showGoogleSearchKey)}
+                      title={showGoogleSearchKey ? t(lang, "opt.hideKey") : t(lang, "opt.showKey")}
+                    >
+                      {showGoogleSearchKey ? (
+                        <img src={chrome.runtime.getURL("icons/key-girl.png")} alt="hide" className="ast-key-icon" />
+                      ) : "👁"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="ast-form-group">
