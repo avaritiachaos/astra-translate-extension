@@ -1812,9 +1812,7 @@ export default function Popup() {
         >
           <div className="ast-chat-list" ref={chatListRef}>
             {chatTurns.length === 0 && !chatPending && !streamText && (
-              <div className="ast-chat-empty" data-lang={lang} lang={lang}>
-                {t(lang, "chat.empty")}
-              </div>
+              <div className="ast-chat-empty">{t(lang, "chat.empty")}</div>
             )}
             {chatTurns.map((turn, i) => (
               <div
