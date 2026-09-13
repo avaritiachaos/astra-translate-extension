@@ -43,9 +43,30 @@ hold you hostage; it just translates well.**
 - **Full-page translation** — translate the whole page in one click; interrupt and restore anytime
 - **Manual translation** — open the popup and paste any text
 
-### Manga image translation (initial version)
+### Manga Translation (Auto Continuous Reading & Pipeline Prefetch)
 
-Translate one image from its context menu or select it from the popup. Includes an independent vision model, translated overlays, source comparison, restore, cancellation, caching, and tiling for long strips. No model ID is assumed by default; load the provider model list and select the exact ID of an image-capable model. See the [setup guide (Chinese)](docs/manga-translation.md).
+Right-click any manga image, press `Alt+M` for freeform selection, or open the immersive manga toolbar on web reader sites:
+
+- **Smart Frame Detection & Two-Page Spreads** — Intelligently handles single pages, two-page double spreads, and vertical webtoons, slicing and filtering out external banner ads for a seamless reading experience.
+- **Auto Continuous Reading Mode** — As you turn pages or scroll down, Astra automatically detects and translates upcoming or viewport-entering pages in the background without repetitive manual clicking.
+- **High-Concurrency Multi-Thread Prefetch Pipeline** — Background prefetching for **1 to 5 pages** ahead (default: 2 pages, adjustable across 1–6 concurrent threads). Translations are ready in advance, giving you instant, zero-wait reading when turning pages.
+- **Reader Hub Modal (⚙ Adjust)** — Click "⚙ Adjust" on the toolbar to pop up a dark frosted-glass control card:
+  - Header embedded with `[ A- ] [ 100% ] [ A+ ]` fine UI scaling and close buttons;
+  - Quick prefetch depth selector `[ 1 Page ] [ 2 Pages (Recommended) ] [ 3 Pages (Fast) ]` with real-time status monitoring;
+  - Essential reading actions: `[ 👁 Original Compare ]`, `[ ✂ Selection Alt+M ]`, `[ ↺ Re-translate ]`, `[ ≡ Compare All ]`;
+  - `[ ⇋ Dock Toggle ]`: Seamlessly switch between bottom horizontal floating island and side vertical bar to avoid obstructing panels;
+  - `[ 💊 Minimize to Edge Capsule ]`: Collapse into a compact edge capsule (`⚡ Auto · 2P`) during focused reading to free up maximum screen real estate.
+- **Stepless UI Scaling (0.75x ~ 1.6x)** — Permanent `[ 100% ]` button on the toolbar cycles through `100% → 120% → 140% → 85%`, solving tiny buttons/fonts on 2K/4K high-DPI displays with persistent memory.
+- **Adaptive Typesetting & Bubble Collapse** — Automatically adapts between horizontal and vertical text layouts based on balloon shapes; complex backgrounds or long texts generate collapsible cards with hover previews for source vs. multiple translation comparisons.
+
+[Manga Translation Setup Guide (Chinese)](docs/manga-translation.md) · [Architecture Document](docs/manga-translation-architecture.md)
+
+### Live Subtitles HUD (Speech Simultaneous Interpretation)
+Switch to the "Simul" tab in the popup to transcribe audio via the Web Speech API and stream real-time bilingual translations.
+- **Floating Subtitle HUD** — Translucent draggable subtitle window floating over web pages, ideal for foreign-language streams, raw video watching, or conference talks.
+- **Real-Time Streaming** — Speech turns to text as it's spoken, auto-scrolling with dual source/target subtitle views.
+- **Export & Copy** — One-click session copying; automatically clears on browser close for privacy.
+
 
 ### Smart & automatic (on by default)
 - **Smart target language** — English selection → Chinese, Chinese selection → English; no manual direction switching
@@ -147,6 +168,11 @@ The build output is in `dist/`. Load the `dist` folder following steps 2–4 abo
 | Switch model | Click the model pill in popup/in-page chat bar anytime |
 | Full-page translation | Popup → "Translate Current Page"; "Restore" brings back the original |
 | Look up a word | Select a word; the popup shows part of speech / meanings / examples / pronunciation |
+| Manga translation | Right-click image to translate, or `Alt+M` for free selection |
+| Manga auto prefetch | Turn on "Auto Continuous" on the toolbar for zero-wait page turning |
+| Reader Hub & Capsule | Click "⚙ Adjust" for the full control hub; "💊" to collapse to an edge capsule |
+| Manga Scale & Orientation | Click "100%" to cycle UI scaling; click "⇋" to switch horizontal/vertical dock |
+| Live Subtitles | Popup → "Simul" tab to launch the floating bilingual subtitle HUD |
 
 ---
 
@@ -156,6 +182,7 @@ The build output is in `dist/`. Load the `dist` folder following steps 2–4 abo
 |-------|---------|---------|-------|
 | Provider | Preset / Base URL / Endpoint / Model / API Key | DeepSeek · `deepseek-v4-flash` / Gemini · `gemini-3.7-flash` | Isolated per preset |
 | Provider | Disable thinking | On | Speeds up / saves cost on thinking-capable models |
+| Search | Serper API Key | Empty | Web search supplement with connection test & visibility toggle |
 | Translation | Default / Page / Selection target language | Simplified Chinese | Three independent settings |
 | Translation | Temperature | 0.2 | Lower is more stable |
 | Translation | Smart target language | On | Auto-detects direction |
@@ -164,6 +191,12 @@ The build output is in `dist/`. Load the `dist` folder following steps 2–4 abo
 | Translation | Dictionary mode | On | Shows POS / meanings / examples for short words |
 | Translation | Timeout / batch size / concurrency | 30s / 4000 / 2 | Full-page performance tuning |
 | Translation | Real-time translation | On | Keeps up with dynamic / lazy content |
+| Manga | Vision Model / Target Language | Custom / Simplified Chinese | Independent vision model configuration |
+| Manga | Default Auto Continuous Reading | On | Automatically triggers translation on page turn or scroll |
+| Manga | Default Prefetch Pages | On | Pre-translates upcoming pages in background before turning |
+| Manga | Prefetch Depth | 2 pages | Number of pages to pre-fetch (adjustable 1–5 pages) |
+| Manga | Concurrency Threads | 2 | Pipeline concurrent threads (adjustable 1–6 threads) |
+| Manga | Toolbar Orientation / UI Scale | Horizontal / 100% | Supports side vertical bar & persistent 0.75x–1.6x scale |
 | Floating ball | Enable / size / opacity | On / 48px / 80% | |
 | Floating ball | Popup scale | 100% | 80%–180% |
 | Prompts | Selection / page prompt | Built-in defaults | Customize style; supports the `{{targetLang}}` placeholder |
@@ -209,6 +242,8 @@ src/
 - [x] Google Gemini (AI Studio) preset & native reasoning efforts
 - [x] Translation history & recovery
 - [x] iOS 18 Liquid Glass design language
+- [x] Manga image translation (Auto Continuous reading, multi-thread prefetch pipeline, Reader Hub modal, horizontal/vertical docks, and 2K/4K UI scaling)
+- [x] Live subtitles & in-page floating subtitle HUD
 - [ ] More provider presets
 - [ ] Translation favorites
 
