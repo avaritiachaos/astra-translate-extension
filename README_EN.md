@@ -43,9 +43,9 @@ hold you hostage; it just translates well.**
 - **Full-page translation** — translate the whole page in one click; interrupt and restore anytime
 - **Manual translation** — open the popup and paste any text
 
-### Manga Translation (Auto Continuous Reading & Pipeline Prefetch)
+### Immersive Manga & Comic AI Translation (v6.0 Flagship Feature)
 
-Right-click any manga image, press `Alt+M` for freeform selection, or open the immersive manga toolbar on web reader sites:
+Brand-new in v6.0, Astra introduces an end-to-end visual AI translation system for manga, comics, and webtoons. Right-click any manga image, press `Alt+M` for freeform selection, or open the immersive manga toolbar on reader sites:
 
 - **Smart Frame Detection & Two-Page Spreads** — Intelligently handles single pages, two-page double spreads, and vertical webtoons, slicing and filtering out external banner ads for a seamless reading experience.
 - **Auto Continuous Reading Mode** — As you turn pages or scroll down, Astra automatically detects and translates upcoming or viewport-entering pages in the background without repetitive manual clicking.
