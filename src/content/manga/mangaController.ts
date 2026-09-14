@@ -2,6 +2,7 @@ import { MangaOverlay, imageBox } from "./mangaOverlay";
 import { createMangaPicker } from "./mangaPicker";
 import { createMangaReaderControls } from "./mangaReaderControls";
 import { createMangaAutoReader } from "./mangaAutoReader";
+import { isLikelyMangaPage } from "./mangaDetection";
 import {
   isCanvasImage,
   mangaImageSize,
@@ -73,6 +74,7 @@ function refreshReader() {
         a.image.getBoundingClientRect().x - b.image.getBoundingClientRect().x,
     );
   const spread = visibleMangaSpread(document, anchor);
+  const eligible = isLikelyMangaPage(document, spread);
   readerControls.update(
     visible.map((entry) => ({
       id: entry.token,
@@ -87,6 +89,7 @@ function refreshReader() {
         !currentEntry(image) ||
         currentEntry(image)?.view.state.phase === "error",
     ),
+    eligible,
   );
 }
 async function startImages(images: MangaImage[], automatic = false) {

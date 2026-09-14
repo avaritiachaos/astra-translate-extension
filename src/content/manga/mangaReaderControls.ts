@@ -31,7 +31,7 @@ export function createMangaReaderControls(
   style.textContent = `
 :host{all:initial;position:fixed;inset:auto auto 16px 50%;transform:translateX(-50%);margin:0;padding:0;border:0;background:transparent;width:max-content;max-width:calc(100vw - 24px);overflow:visible;z-index:2147483645;font:13.5px "Segoe UI","Microsoft YaHei",sans-serif;color:#f3f1fb;--ast-manga-scale:1.2}
 *{box-sizing:border-box}[hidden]{display:none!important}button{font:inherit;border:0;cursor:pointer;color:inherit;white-space:nowrap;transition:background .15s,transform .1s,box-shadow .15s}button:focus-visible{outline:2px solid #a78bfa;outline-offset:2px}button:disabled{opacity:.45;cursor:default}button:active:not(:disabled){transform:scale(.97)}
-.dock,.panel,.toast,.trigger{zoom:var(--ast-manga-scale, 1)}
+.dock,.panel,.toast,.trigger-wrap{zoom:var(--ast-manga-scale, 1)}
 .grip{cursor:grab!important;touch-action:none;user-select:none;-webkit-user-select:none;flex:none;font-size:20px;line-height:1;padding:8px 8px!important;color:#c4b8e5;border-radius:10px}.grip:hover{color:#fff;background:#ffffff18}.grip:active,.grip.dragging{cursor:grabbing!important}
 .actions{display:flex;flex-wrap:wrap;align-items:center;gap:5px}.dock.compact .actions{display:none}
 .compact-button{min-width:54px;color:#f5f3ff;font-size:13px;font-weight:600;padding:7px 12px;border-radius:14px;transition:background .15s,color .15s;display:inline-flex;align-items:center;gap:6px;background:#ffffff14;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -111,10 +111,14 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
 .clear{font-size:18px;line-height:1;padding:8px 10px;color:#c4b8e5}
 .clear:hover{color:#fff;background:rgba(239,68,68,0.25)}
 .collapse{font-size:12px;font-weight:600;padding:6px 12px;color:#d8d2ea;background:rgba(255,255,255,0.08);border-radius:14px;border:1px solid rgba(255,255,255,0.12);display:inline-flex;align-items:center;gap:4px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
-.trigger{background:linear-gradient(135deg,#7c3aed 0%,#6366f1 100%);color:#fff;border-radius:24px;padding:9px 18px;box-shadow:0 6px 22px rgba(124,58,237,0.4),0 0 0 1px rgba(255,255,255,0.2);font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:transform 0.15s,box-shadow 0.15s}
-.trigger:hover{background:linear-gradient(135deg,#8b5cf6 0%,#818cf8 100%);transform:scale(1.05);box-shadow:0 8px 28px rgba(124,58,237,0.55)}
+.trigger-wrap{display:inline-flex;align-items:center;background:linear-gradient(135deg,#7c3aed 0%,#6366f1 100%);border-radius:24px;padding:2px 4px 2px 3px;box-shadow:0 6px 22px rgba(124,58,237,0.4),0 0 0 1px rgba(255,255,255,0.2);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:transform 0.15s,box-shadow 0.15s;touch-action:none;user-select:none;-webkit-user-select:none}
+.trigger-wrap:hover{box-shadow:0 8px 28px rgba(124,58,237,0.55)}
+.trigger{background:transparent;color:#fff;border-radius:20px;padding:7px 10px 7px 13px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;transition:background 0.15s}
+.trigger:hover{background:rgba(255,255,255,0.14)}
 .trigger:active{cursor:grabbing}
-.trigger.dragging{cursor:grabbing!important;transform:scale(1.03)!important;box-shadow:0 10px 30px rgba(124,58,237,0.6)!important;transition:none!important}
+.trigger.dragging{cursor:grabbing!important}
+.trigger-close{font-size:16px;line-height:1;padding:4px 7px;color:#ddd6fe;border-radius:12px;background:transparent;cursor:pointer;opacity:0.8;transition:all 0.15s}
+.trigger-close:hover{opacity:1;color:#fff;background:rgba(255,255,255,0.22)}
 .panel{position:absolute;right:0;bottom:58px;width:340px;max-width:calc(100vw - 24px);max-height:min(65vh,480px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(120,110,150,0.3) transparent;color:#292533;background:#faf9ff;border:1px solid #e5e1f1;border-radius:18px;box-shadow:0 12px 38px #17132938;padding:14px;box-sizing:border-box}
 .panel::-webkit-scrollbar{width:5px}
 .panel::-webkit-scrollbar-track{background:transparent}
@@ -155,7 +159,10 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   grip.className = "grip";
   grip.type = "button";
   grip.textContent = "⠿";
+  const triggerWrap = document.createElement("div");
+  triggerWrap.className = "trigger-wrap";
   const trigger = document.createElement("button"),
+    triggerClose = document.createElement("button"),
     translate = document.createElement("button"),
     pick = document.createElement("button"),
     original = document.createElement("button"),
@@ -163,6 +170,9 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     results = document.createElement("button"),
     clear = document.createElement("button");
   trigger.className = "trigger";
+  triggerClose.className = "trigger-close";
+  triggerClose.textContent = "×";
+  triggerWrap.append(trigger, triggerClose);
   translate.className = "primary";
   original.className = "original";
   summary.className = "summary";
@@ -170,6 +180,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   clear.className = "clear";
   for (const button of [
     trigger,
+    triggerClose,
     translate,
     pick,
     original,
@@ -317,7 +328,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     }, 3800);
   };
   dock.append(grip, compact, actionGroup);
-  root.append(style, toast, trigger, dock, panel);
+  root.append(style, toast, triggerWrap, dock, panel);
   let session = false,
     picking = false,
     captures = 0,
@@ -325,6 +336,9 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     items: ReaderItem[] = [],
     pageCount = 0,
     canTranslate = false,
+    eligible = true,
+    triggerDismissed = false,
+    lastPageUrl = typeof location !== "undefined" ? location.href : "",
     signature = "";
   let errorSignature = "";
   let panelMode: "progress" | "translations" | "reading" = "progress";
@@ -346,6 +360,11 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     );
   };
   trigger.onclick = actions.translate;
+  triggerClose.onclick = (e) => {
+    e.stopPropagation();
+    triggerDismissed = true;
+    mount();
+  };
   pick.onclick = actions.pick;
   translate.onclick = actions.translate;
   clear.textContent = "×";
@@ -483,7 +502,11 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   };
   drag = makeMangaDockDraggable(host, grip, layoutPanel, [trigger, compact]);
   const mount = () => {
-    if (!session && !pageCount && !document.fullscreenElement) {
+    if (
+      !session &&
+      !document.fullscreenElement &&
+      (!eligible || !pageCount || triggerDismissed)
+    ) {
       host.remove();
       return;
     }
@@ -557,9 +580,9 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
         : "manga.readingSettingsBtn",
     );
     reading.title = t(lang, "manga.readingSettingsTitle");
-    scaleToggle.title = t(lang, "manga.uiScale");
-    scaleToggle.setAttribute("aria-label", t(lang, "manga.uiScale"));
-    trigger.hidden = session;
+    triggerClose.setAttribute("aria-label", t(lang, "manga.dismissTrigger"));
+    triggerClose.title = t(lang, "manga.dismissTrigger");
+    triggerWrap.hidden = session || triggerDismissed;
     dock.hidden = !session;
     if (!session) panel.hidden = true;
     const currentLabel =
@@ -765,12 +788,18 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
       pages: number,
       active: boolean,
       pending: boolean,
+      isEligible = true,
     ) {
       const wasActive = session;
+      if (typeof location !== "undefined" && location.href !== lastPageUrl) {
+        lastPageUrl = location.href;
+        triggerDismissed = false;
+      }
       items = next;
       pageCount = pages;
       session = active;
       canTranslate = pending;
+      eligible = isEligible;
       if (!wasActive && active) {
         if (!readingState.enabled) {
           expanded = true;
