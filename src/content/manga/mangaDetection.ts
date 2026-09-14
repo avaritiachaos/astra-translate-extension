@@ -1,32 +1,28 @@
 import type { MangaImage } from "./mangaImage";
 import {
   MANGA_HOST_KEYWORDS,
-  NON_MANGA_HOSTS,
+  isLocalOrPrivateHost,
   isMangaReaderUrl,
 } from "../../shared/manga/mangaDetection.ts";
 
-export { MANGA_HOST_KEYWORDS, NON_MANGA_HOSTS, isMangaReaderUrl };
+export { MANGA_HOST_KEYWORDS, isLocalOrPrivateHost, isMangaReaderUrl };
 
-const READER_SELECTORS = [
+// Strict, unambiguous manga/comic reader containers for unknown domains
+const EXPLICIT_READER_SELECTORS = [
+  "#manga-reader",
+  "#comic-reader",
+  "#manga-viewer",
+  "#comic-viewer",
   "#reader-area",
   "#comic-wrap",
   "#comic-container",
-  "#manga-viewer",
-  "#manga-reader",
-  "#comic-viewer",
-  "#comic-reader",
-  "#viewcontainer",
-  "#cp_img",
   ".reader-container",
   ".comic-container",
   ".manga-container",
   ".comic-page",
   ".manga-page",
   ".scan-page",
-  ".comic-wrap",
-  ".manga-wrap",
   ".webtoon-image",
-  ".comic-view",
   "[data-reader]",
   "[data-comic]",
 ].join(",");
@@ -47,49 +43,17 @@ export function isMangaReaderDom(
 
   const first = spread[0];
 
-  // 1. Reader container matching known reader IDs, classes, or data attributes
+  // 1. Container positively matches dedicated manga reader ID/class/data-attribute
   for (
     let el = first.parentElement, depth = 0;
     el && depth < 6;
     el = el.parentElement, depth++
   ) {
     if (el === doc.body || el === doc.documentElement) break;
-    if (el.matches?.(READER_SELECTORS)) return true;
+    if (el.matches?.(EXPLICIT_READER_SELECTORS)) return true;
   }
 
-  // 2. Two-page spread: 2 side-by-side portrait images
-  if (spread.length >= 2) {
-    const a = spread[0].getBoundingClientRect();
-    const b = spread[1].getBoundingClientRect();
-    const isPortraitA = a.height >= a.width * 1.05;
-    const isPortraitB = b.height >= b.width * 1.05;
-    const similarHeight =
-      Math.abs(a.height - b.height) / Math.max(a.height, b.height) < 0.2;
-    if (isPortraitA && isPortraitB && similarHeight) return true;
-  }
-
-  // 3. Multi-page vertical strip reader (webtoon or vertical scroll)
-  const parent = first.parentElement;
-  if (parent && parent !== doc.body && parent !== doc.documentElement) {
-    const siblingImages = Array.from(
-      parent.querySelectorAll<HTMLImageElement | HTMLCanvasElement>(
-        "img, canvas",
-      ),
-    ).filter((img) => {
-      const r = img.getBoundingClientRect();
-      return r.width >= 160 && r.height >= 220;
-    });
-    if (siblingImages.length >= 3) {
-      const baseWidth = siblingImages[0].getBoundingClientRect().width;
-      const similarCount = siblingImages.filter((img) => {
-        const w = img.getBoundingClientRect().width;
-        return Math.abs(w - baseWidth) / Math.max(w, baseWidth) < 0.25;
-      }).length;
-      if (similarCount >= 3) return true;
-    }
-  }
-
-  // 4. Page numbering attributes on the image or its parent
+  // 2. Comic page numbering attributes explicitly placed on the element or parent
   if (
     PAGE_ATTRS.some(
       (attr) =>
@@ -100,14 +64,14 @@ export function isMangaReaderDom(
     return true;
   }
 
-  // 5. Chapter navigation elements on the page combined with a portrait image
+  // 3. Dedicated manga/comic navigation elements specifically on the page
   const firstBounds = first.getBoundingClientRect();
   const isPortrait = firstBounds.height >= firstBounds.width * 1.05;
   if (isPortrait) {
-    const hasNav = doc.querySelector?.(
-      '.next-chapter, .prev-chapter, .next-page, .prev-page, [class*="chapter-nav"], [id*="chapter-nav"], [class*="comic-nav"], [id*="comic-nav"]',
+    const hasMangaNav = doc.querySelector?.(
+      '.next-chapter, .prev-chapter, [class*="chapter-nav"], [id*="chapter-nav"], [class*="comic-nav"], [id*="comic-nav"]',
     );
-    if (hasNav) return true;
+    if (hasMangaNav) return true;
   }
 
   return false;
@@ -117,6 +81,8 @@ export function isLikelyMangaPage(
   doc: Document = document,
   spread: MangaImage[] = [],
 ): boolean {
+  if (!spread.length) return false;
+
   const url =
     doc.location?.href ||
     (typeof location !== "undefined" ? location.href : "");
@@ -125,22 +91,20 @@ export function isLikelyMangaPage(
   try {
     const parsed = new URL(url);
     const host = parsed.hostname.toLowerCase();
-    if (
-      NON_MANGA_HOSTS.some(
-        (blocked) => host === blocked || host.endsWith("." + blocked),
-      )
-    ) {
+
+    // 1. Localhost, 127.0.0.1, private IPs are never public manga sites
+    if (isLocalOrPrivateHost(host)) {
       return false;
     }
   } catch {
     return false;
   }
 
+  // 2. Positive URL pattern / domain match
   if (isMangaReaderUrl(url)) {
     return true;
   }
 
-  if (!spread.length) return false;
-
+  // 3. Fallback only if DOM exhibits unambiguous manga reader markup
   return isMangaReaderDom(doc, spread);
 }

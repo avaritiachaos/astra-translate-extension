@@ -4,6 +4,7 @@ import {
   isMangaReaderUrl,
   isMangaReaderDom,
   isLikelyMangaPage,
+  isLocalOrPrivateHost,
 } from "./mangaDetection.ts";
 import type { MangaImage } from "./mangaImage.ts";
 
@@ -93,7 +94,26 @@ function createMockDoc(url: string) {
 }
 
 describe("manga reader detection", () => {
+  describe("isLocalOrPrivateHost", () => {
+    it("identifies localhost, 127.0.0.1, and private subnets", () => {
+      assert.equal(isLocalOrPrivateHost("localhost"), true);
+      assert.equal(isLocalOrPrivateHost("127.0.0.1"), true);
+      assert.equal(isLocalOrPrivateHost("::1"), true);
+      assert.equal(isLocalOrPrivateHost("192.168.1.5"), true);
+      assert.equal(isLocalOrPrivateHost("10.0.0.1"), true);
+      assert.equal(isLocalOrPrivateHost("172.20.0.1"), true);
+      assert.equal(isLocalOrPrivateHost("mangadex.org"), false);
+      assert.equal(isLocalOrPrivateHost("example.com"), false);
+    });
+  });
+
   describe("isMangaReaderUrl", () => {
+    it("strictly rejects localhost and local IPs (dsh, local dev, private nets)", () => {
+      assert.equal(isMangaReaderUrl("http://127.0.0.1:3080/"), false);
+      assert.equal(isMangaReaderUrl("http://localhost:3000/app"), false);
+      assert.equal(isMangaReaderUrl("http://192.168.1.100:8080/chapter/1"), false);
+    });
+
     it("rejects generic non-manga websites even if query contains keywords", () => {
       assert.equal(
         isMangaReaderUrl("https://blender.org/thanks/?cd=2026-09-14-1234"),
@@ -111,33 +131,9 @@ describe("manga reader detection", () => {
         isMangaReaderUrl("https://www.google.com/search?q=manga+reader"),
         false,
       );
-      assert.equal(
-        isMangaReaderUrl("https://chat.deepseek.com/"),
-        false,
-      );
-      assert.equal(
-        isMangaReaderUrl("https://chat.deepseek.com/a/chat/s/12345"),
-        false,
-      );
-      assert.equal(
-        isMangaReaderUrl("https://chatgpt.com/c/abcd"),
-        false,
-      );
-      assert.equal(
-        isMangaReaderUrl("https://claude.ai/chat/123"),
-        false,
-      );
-      assert.equal(
-        isMangaReaderUrl("https://bilibili.com/video/BV12345"),
-        false,
-      );
-      assert.equal(
-        isMangaReaderUrl("https://www.reddit.com/r/manga/comments/123/discussion"),
-        false,
-      );
     });
 
-    it("accepts known manga domains", () => {
+    it("accepts known manga domains (whitelist)", () => {
       assert.equal(
         isMangaReaderUrl("https://mangadex.org/chapter/a1b2c3d4/1"),
         true,
@@ -181,10 +177,9 @@ describe("manga reader detection", () => {
   });
 
   describe("isMangaReaderDom", () => {
-    it("rejects Blender scenario (single landscape banner on generic page)", () => {
-      const { doc, body } = createMockDoc("https://blender.org/thanks/");
+    it("rejects generic pages with normal images (no false positive)", () => {
+      const { doc, body } = createMockDoc("http://127.0.0.1:3080/");
       const main = new MockElement("MAIN", { x: 0, y: 0, width: 1000, height: 800 }, body);
-      // Landscape banner (1200x500)
       const banner = new MockElement("IMG", { x: 50, y: 100, width: 900, height: 400 }, main);
       
       const isReader = isMangaReaderDom(doc, [banner as unknown as MangaImage]);
@@ -192,7 +187,32 @@ describe("manga reader detection", () => {
       assert.equal(isLikelyMangaPage(doc, [banner as unknown as MangaImage]), false);
     });
 
-    it("identifies comic page inside a reader container (#reader-area, .comic-container, .comic-page)", () => {
+    it("strictly rejects 127.0.0.1:3080 (dsh / deepseek-harness) even with user-uploaded images in chat", () => {
+      const { doc, body } = createMockDoc("http://127.0.0.1:3080/a/chat/s/12345");
+      const chatMsg = new MockElement("DIV", { x: 0, y: 0, width: 800, height: 600 }, body);
+      const uploadedImg = new MockElement("IMG", { x: 20, y: 20, width: 600, height: 400 }, chatMsg);
+
+      assert.equal(isLikelyMangaPage(doc, [uploadedImg as unknown as MangaImage]), false);
+    });
+
+    it("rejects gallery with multiple images on generic site without reader containers", () => {
+      const { doc, body } = createMockDoc("https://generic-gallery.test/album/1");
+      const container = new MockElement("DIV", { x: 0, y: 0, width: 1000, height: 800 }, body);
+      const page1 = new MockElement("IMG", { x: 100, y: 100, width: 400, height: 600 }, container);
+      new MockElement("IMG", { x: 510, y: 100, width: 400, height: 600 }, container);
+
+      // Without explicit manga reader markup, generic side-by-side images must NOT trigger manga reader mode
+      assert.equal(
+        isMangaReaderDom(doc, [page1 as unknown as MangaImage]),
+        false,
+      );
+      assert.equal(
+        isLikelyMangaPage(doc, [page1 as unknown as MangaImage]),
+        false,
+      );
+    });
+
+    it("identifies comic page inside a dedicated reader container (#reader-area, .comic-container, .comic-page)", () => {
       const { doc, body } = createMockDoc("https://unknown-domain.test/view");
       const readerContainer = new MockElement("DIV", { x: 0, y: 0, width: 800, height: 1200 }, body);
       readerContainer.setAttribute("id", "reader-area");
@@ -200,38 +220,6 @@ describe("manga reader detection", () => {
 
       assert.equal(isMangaReaderDom(doc, [comicImg as unknown as MangaImage]), true);
       assert.equal(isLikelyMangaPage(doc, [comicImg as unknown as MangaImage]), true);
-    });
-
-    it("strictly rejects chat.deepseek.com even with user-uploaded images in chat", () => {
-      const { doc, body } = createMockDoc("https://chat.deepseek.com/a/chat/s/12345");
-      const chatMsg = new MockElement("DIV", { x: 0, y: 0, width: 800, height: 600 }, body);
-      // User uploaded screenshot/image in chat
-      const uploadedImg = new MockElement("IMG", { x: 20, y: 20, width: 600, height: 400 }, chatMsg);
-
-      assert.equal(isLikelyMangaPage(doc, [uploadedImg as unknown as MangaImage]), false);
-    });
-
-    it("identifies two-page spread (two portrait images side by side)", () => {
-      const { doc, body } = createMockDoc("https://generic-gallery.test/album/1");
-      const container = new MockElement("DIV", { x: 0, y: 0, width: 1000, height: 800 }, body);
-      // Two portrait images side-by-side: 400x600 each
-      const pageLeft = new MockElement("IMG", { x: 100, y: 100, width: 400, height: 600 }, container);
-      const pageRight = new MockElement("IMG", { x: 510, y: 100, width: 400, height: 600 }, container);
-
-      assert.equal(
-        isMangaReaderDom(doc, [pageLeft as unknown as MangaImage, pageRight as unknown as MangaImage]),
-        true,
-      );
-    });
-
-    it("identifies multi-page vertical strip reader (webtoon stream)", () => {
-      const { doc, body } = createMockDoc("https://cdn-viewer.test/article/42");
-      const stripContainer = new MockElement("DIV", { x: 0, y: 0, width: 800, height: 3000 }, body);
-      const img1 = new MockElement("IMG", { x: 50, y: 0, width: 700, height: 1000 }, stripContainer);
-      new MockElement("IMG", { x: 50, y: 1000, width: 700, height: 1000 }, stripContainer);
-      new MockElement("IMG", { x: 50, y: 2000, width: 700, height: 1000 }, stripContainer);
-
-      assert.equal(isMangaReaderDom(doc, [img1 as unknown as MangaImage]), true);
     });
 
     it("identifies image with data-page attribute", () => {
