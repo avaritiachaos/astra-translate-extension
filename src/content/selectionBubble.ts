@@ -124,7 +124,7 @@ export function injectThemeVars(): void {
     .${BUBBLE_PREFIX}-bubble--chat {
       display: flex;
       flex-direction: column;
-      width: min(380px, calc(100vw - 16px));
+      width: min(410px, calc(100vw - 16px));
       height: min(520px, calc(100vh - 16px));
       min-width: 0;
       min-height: 0;

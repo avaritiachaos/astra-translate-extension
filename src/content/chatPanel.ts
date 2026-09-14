@@ -179,33 +179,38 @@ function injectStyles(): void {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 10px 12px;
-      background: #eef2ff;
-      border-bottom: 1px solid #e5e7eb;
+      padding: 10px 14px;
+      background: rgba(248, 249, 252, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
       cursor: move;
       user-select: none;
       flex-shrink: 0;
     }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-header { background: #1e1b4b; border-bottom-color: #2d2d44; }
+      .${P}-cp-header {
+        background: rgba(22, 23, 34, 0.88);
+        border-bottom-color: rgba(255, 255, 255, 0.08);
+      }
     }
     .${P}-cp-title {
       flex: 1;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
-      color: #6366f1;
-      letter-spacing: 0.02em;
+      color: #1f2937;
+      letter-spacing: -0.01em;
     }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-title { color: #818cf8; }
+      .${P}-cp-title { color: #f3f4f6; }
     }
     .${P}-cp-hbtn {
-      width: 24px;
-      height: 24px;
+      width: 26px;
+      height: 26px;
       border: none;
       background: transparent;
       color: #6b7280;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -213,10 +218,10 @@ function injectStyles(): void {
       transition: background 120ms, color 120ms;
       flex-shrink: 0;
     }
-    .${P}-cp-hbtn:hover { background: #e5e7eb; color: #1a1a2e; }
+    .${P}-cp-hbtn:hover { background: rgba(0, 0, 0, 0.06); color: #1a1a2e; }
     @media (prefers-color-scheme: dark) {
       .${P}-cp-hbtn { color: #9ca3af; }
-      .${P}-cp-hbtn:hover { background: #2d2d44; color: #e5e7eb; }
+      .${P}-cp-hbtn:hover { background: rgba(255, 255, 255, 0.08); color: #e5e7eb; }
     }
     .${P}-cp-list {
       flex: 1;
@@ -246,17 +251,20 @@ function injectStyles(): void {
     .${P}-cp-bubble {
       position: relative;
       max-width: 88%;
-      padding: 8px 11px;
-      border-radius: 12px;
+      padding: 9px 12px;
+      border-radius: 14px;
       white-space: pre-wrap;
       word-break: break-word;
       user-select: text;
+      font-size: 13px;
+      line-height: 1.55;
     }
     .${P}-cp-bubble--user {
       align-self: flex-end;
-      background: #6366f1;
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
       color: #fff;
       border-bottom-right-radius: 4px;
+      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.22);
     }
     .${P}-cp-img-grid {
       display: flex;
@@ -408,12 +416,19 @@ function injectStyles(): void {
     }
     .${P}-cp-bubble--assistant {
       align-self: flex-start;
-      background: #f7f7fa;
-      border: 1px solid #e5e7eb;
+      background: #ffffff;
+      border: 1px solid rgba(0, 0, 0, 0.07);
       border-bottom-left-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+      color: #1f2937;
     }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-bubble--assistant { background: #0f0f1a; border-color: #2d2d44; }
+      .${P}-cp-bubble--assistant {
+        background: #181926;
+        border-color: rgba(255, 255, 255, 0.08);
+        color: #f3f4f6;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      }
     }
     .${P}-cp-bubble--error {
       align-self: flex-start;
@@ -531,10 +546,14 @@ function injectStyles(): void {
     .${P}-cp-foot {
       flex-shrink: 0;
       padding: 8px 12px 10px;
-      border-top: 1px solid #e5e7eb;
+      background: rgba(255, 255, 255, 0.45);
+      border-top: 1px solid rgba(0, 0, 0, 0.05);
     }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-foot { border-top-color: #2d2d44; }
+      .${P}-cp-foot {
+        background: rgba(22, 23, 34, 0.45);
+        border-top-color: rgba(255, 255, 255, 0.06);
+      }
     }
     .${P}-cp-err {
       margin-bottom: 6px;
@@ -550,13 +569,18 @@ function injectStyles(): void {
       gap: 6px;
       margin-bottom: 6px;
       padding: 5px 9px;
-      border: 1px dashed #e5e7eb;
+      border: 1px dashed rgba(99, 102, 241, 0.35);
       border-radius: 8px;
-      color: #6b7280;
+      background: rgba(99, 102, 241, 0.06);
+      color: #4f46e5;
       font-size: 11px;
     }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-attach { border-color: #2d2d44; color: #9ca3af; }
+      .${P}-cp-attach {
+        border-color: rgba(129, 140, 248, 0.4);
+        background: rgba(129, 140, 248, 0.1);
+        color: #c7d2fe;
+      }
     }
     .${P}-cp-attach-label {
       flex: 1;
@@ -574,14 +598,36 @@ function injectStyles(): void {
       flex-shrink: 0;
     }
     .${P}-cp-attach-x:hover { color: #ef4444; }
+    .${P}-cp-composer {
+      background: #f4f5f8;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 16px;
+      padding: 8px 10px 7px;
+      transition: background 140ms, border-color 140ms, box-shadow 140ms;
+    }
+    .${P}-cp-composer:focus-within {
+      background: #ffffff;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+    @media (prefers-color-scheme: dark) {
+      .${P}-cp-composer {
+        background: #1c1d2c;
+        border-color: rgba(255, 255, 255, 0.09);
+      }
+      .${P}-cp-composer:focus-within {
+        background: #222336;
+        border-color: #818cf8;
+        box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.18), 0 2px 10px rgba(0, 0, 0, 0.3);
+      }
+    }
     .${P}-cp-input {
       width: 100%;
-      min-height: 38px;
-      max-height: 110px;
-      padding: 8px 10px;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      background: #ffffff;
+      min-height: 36px;
+      max-height: 120px;
+      padding: 2px 4px;
+      border: none;
+      background: transparent;
       color: #1a1a2e;
       font-family: inherit;
       font-size: 13px;
@@ -590,21 +636,26 @@ function injectStyles(): void {
       outline: none;
       overflow-y: auto;
       box-sizing: border-box;
-      transition: border-color 120ms;
     }
-    .${P}-cp-input:focus { border-color: #6366f1; }
+    .${P}-cp-input::placeholder { color: #9ca3af; }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-input { background: #0f0f1a; color: #e5e7eb; border-color: #2d2d44; }
+      .${P}-cp-input { color: #f3f4f6; }
+      .${P}-cp-input::placeholder { color: #6b7280; }
     }
     .${P}-cp-row {
       display: flex;
       align-items: center;
-      gap: 6px;
-      margin-top: 7px;
+      gap: 5px;
+      margin-top: 6px;
+      padding-top: 5px;
+      border-top: 1px solid rgba(0, 0, 0, 0.04);
+    }
+    @media (prefers-color-scheme: dark) {
+      .${P}-cp-row { border-top-color: rgba(255, 255, 255, 0.05); }
     }
     .${P}-cp-send {
-      width: 26px;
-      height: 26px;
+      width: 28px;
+      height: 28px;
       padding: 0;
       border: none;
       border-radius: 50%;
@@ -615,59 +666,88 @@ function injectStyles(): void {
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
-      transition: background 120ms, transform 120ms;
+      transition: all 120ms ease-out;
+      box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
     }
-    .${P}-cp-send:hover { background: #4f46e5; transform: scale(1.05); }
-    .${P}-cp-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-    /* Pills and icon buttons share one 28px height so the row reads as a
-       single band rather than a pile of differently-shaped controls. */
+    .${P}-cp-send:hover:not(:disabled) {
+      background: #4f46e5;
+      transform: scale(1.06);
+      box-shadow: 0 3px 10px rgba(99, 102, 241, 0.45);
+    }
+    .${P}-cp-send:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+    .${P}-cp-send:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+    /* Pills and icon buttons share one 26px height */
     .${P}-cp-toggle {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      height: 28px;
-      padding: 0 10px;
-      border: 1px solid #e5e7eb;
-      border-radius: 14px;
-      background: transparent;
-      color: #6b7280;
+      height: 26px;
+      padding: 0 8px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 8px;
+      background: #ffffff;
+      color: #52525b;
       font-family: inherit;
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 500;
       line-height: 1;
       white-space: nowrap;
       cursor: pointer;
-      transition: color 120ms, border-color 120ms, background 120ms;
+      transition: all 120ms ease-out;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
     }
-    .${P}-cp-toggle:hover { border-color: #6366f1; color: #6366f1; }
-    .${P}-cp-toggle--on, .${P}-cp-toggle--on:hover {
+    .${P}-cp-toggle:hover {
       border-color: #6366f1;
-      background: #eef2ff;
       color: #6366f1;
+      background: #fafafa;
     }
-    .${P}-cp-toggle--locked { opacity: 0.45; }
+    .${P}-cp-toggle--on, .${P}-cp-toggle--on:hover {
+      border-color: rgba(99, 102, 241, 0.4);
+      background: #eef2ff;
+      color: #4f46e5;
+    }
+    .${P}-cp-toggle--locked { opacity: 0.45; cursor: not-allowed; }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-toggle { border-color: #2d2d44; color: #9ca3af; }
+      .${P}-cp-toggle {
+        background: #2a2b3d;
+        border-color: rgba(255, 255, 255, 0.08);
+        color: #a1a1aa;
+        box-shadow: none;
+      }
+      .${P}-cp-toggle:hover {
+        border-color: #818cf8;
+        color: #818cf8;
+        background: #313248;
+      }
       .${P}-cp-toggle--on, .${P}-cp-toggle--on:hover {
-        background: #1e1b4b; border-color: #818cf8; color: #818cf8;
+        background: #2e3052;
+        border-color: rgba(129, 140, 248, 0.45);
+        color: #c7d2fe;
       }
     }
     .${P}-cp-model-wrap { position: relative; flex-shrink: 0; }
     .${P}-cp-model {
       max-width: 140px;
-      padding: 0 8px 0 9px;
+      padding: 0 7px 0 8px;
       gap: 4px;
-      background: rgba(99, 102, 241, 0.08);
-      border-color: rgba(99, 102, 241, 0.28);
-      color: #4338ca;
+      background: #ffffff;
+      border-color: rgba(99, 102, 241, 0.3);
+      color: #4f46e5;
       font-weight: 600;
-      line-height: 1;
+      box-shadow: 0 1px 2px rgba(99, 102, 241, 0.06);
       display: inline-flex;
       align-items: center;
     }
     @media (prefers-color-scheme: dark) {
       .${P}-cp-model {
-        background: rgba(129, 140, 248, 0.16);
+        background: #2a2b3d;
         border-color: rgba(129, 140, 248, 0.35);
         color: #c7d2fe;
       }
@@ -879,7 +959,84 @@ function injectStyles(): void {
       .${P}-cp-iconbtn { color: #9ca3af; }
       .${P}-cp-iconbtn:hover { border-color: #2d2d44; background: #0f0f1a; }
     }
-    .${P}-cp-rowend { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+    .${P}-cp-rowend { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+    .${P}-cp-media-wrap { position: relative; }
+    .${P}-cp-plus-btn {
+      width: 26px;
+      height: 26px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 8px;
+      background: #ffffff;
+      color: #6b7280;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 120ms;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+    .${P}-cp-plus-btn:hover, .${P}-cp-plus-btn--open {
+      border-color: #6366f1;
+      color: #6366f1;
+      background: #eef2ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${P}-cp-plus-btn {
+        background: #2a2b3d;
+        border-color: rgba(255, 255, 255, 0.08);
+        color: #a1a1aa;
+        box-shadow: none;
+      }
+      .${P}-cp-plus-btn:hover, .${P}-cp-plus-btn--open {
+        background: #2e3052;
+        border-color: #818cf8;
+        color: #c7d2fe;
+      }
+    }
+    .${P}-cp-media-menu {
+      position: absolute;
+      right: 0;
+      bottom: calc(100% + 8px);
+      z-index: 25;
+      min-width: 155px;
+      padding: 5px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      animation: ${P}-effort-menu-in 120ms ease-out;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${P}-cp-media-menu {
+        border-color: #2d2d44;
+        background: #1a1a2e;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+      }
+    }
+    .${P}-cp-media-option {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      width: 100%;
+      padding: 6px 8px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: #1a1a2e;
+      font-family: inherit;
+      font-size: 11px;
+      text-align: left;
+      cursor: pointer;
+      transition: background 100ms, color 100ms;
+    }
+    .${P}-cp-media-option:hover {
+      background: #eef2ff;
+      color: #6366f1;
+    }
+    @media (prefers-color-scheme: dark) {
+      .${P}-cp-media-option { color: #e5e7eb; }
+      .${P}-cp-media-option:hover { background: #1e1b4b; color: #818cf8; }
+    }
     .${P}-cp-pre {
       margin: 4px 0;
       padding: 8px 10px;
@@ -1216,6 +1373,7 @@ function createModelMenu(): HTMLElement {
   cleanupFns.push(() => document.removeEventListener("mousedown", onOutside));
 
   wrap.append(trigger, menu);
+  renderMenu();
   return wrap;
 }
 
@@ -1313,6 +1471,92 @@ function createEffortMenu(): HTMLElement {
 
   wrap.append(trigger, menu);
   renderMenu();
+  return wrap;
+}
+
+/** Media and attachment menu. */
+function createMediaMenu(
+  onAttachPage: () => void,
+  onUploadImage: () => void,
+  onScreenshot: () => void
+): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = `${P}-cp-media-wrap`;
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = `${P}-cp-plus-btn`;
+  trigger.title = t(lang, "chat.uploadImage");
+  trigger.setAttribute("aria-haspopup", "menu");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+
+  const menu = document.createElement("div");
+  menu.className = `${P}-cp-media-menu`;
+  menu.style.display = "none";
+
+  const renderItems = () => {
+    menu.innerHTML = "";
+
+    const screenshotOpt = document.createElement("button");
+    screenshotOpt.type = "button";
+    screenshotOpt.className = `${P}-cp-media-option`;
+    screenshotOpt.innerHTML = `${ICON_CAMERA}<span>${t(lang, "chat.screenshot")}</span>`;
+    screenshotOpt.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setOpen(false);
+      onScreenshot();
+    });
+
+    const uploadOpt = document.createElement("button");
+    uploadOpt.type = "button";
+    uploadOpt.className = `${P}-cp-media-option`;
+    uploadOpt.innerHTML = `${ICON_IMAGE}<span>${t(lang, "chat.uploadImage")}</span>`;
+    uploadOpt.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setOpen(false);
+      onUploadImage();
+    });
+
+    menu.appendChild(screenshotOpt);
+    menu.appendChild(uploadOpt);
+
+    if (!attachment) {
+      const attachOpt = document.createElement("button");
+      attachOpt.type = "button";
+      attachOpt.className = `${P}-cp-media-option`;
+      attachOpt.innerHTML = `<span>📎</span><span>${t(lang, "chat.attach")}</span>`;
+      attachOpt.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(false);
+        onAttachPage();
+      });
+      menu.appendChild(attachOpt);
+    }
+  };
+
+  const setOpen = (open: boolean) => {
+    menu.style.display = open ? "block" : "none";
+    trigger.classList.toggle(`${P}-cp-plus-btn--open`, open);
+    if (open) renderItems();
+  };
+
+  trigger.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setOpen(menu.style.display === "none");
+  });
+
+  const onOutside = (e: MouseEvent) => {
+    if (!wrap.contains(e.target as Node)) setOpen(false);
+  };
+  document.addEventListener("mousedown", onOutside);
+  cleanupFns.push(() => document.removeEventListener("mousedown", onOutside));
+
+  wrap.append(trigger, menu);
   return wrap;
 }
 
@@ -1557,9 +1801,6 @@ function renderFooter(): void {
       notice.style.display = "none";
     }
   }
-
-  const attachBtn = panel.querySelector(`.${P}-cp-rowend`) as HTMLElement | null;
-  if (attachBtn) attachBtn.style.display = attachment ? "none" : "flex";
 
   const supplement = panel.querySelector(
     `.${P}-cp-supplement`
@@ -2179,6 +2420,9 @@ function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
   noticeBox.style.display = "none";
   foot.appendChild(noticeBox);
 
+  const composer = document.createElement("div");
+  composer.className = `${P}-cp-composer`;
+
   const input = document.createElement("textarea");
   input.className = `${P}-cp-input`;
   input.rows = 1;
@@ -2213,7 +2457,7 @@ function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
     // The panel is a text surface; never let the page act on these keys.
     e.stopPropagation();
   });
-  foot.appendChild(input);
+  composer.appendChild(input);
 
   const row = document.createElement("div");
   row.className = `${P}-cp-row`;
@@ -2267,51 +2511,37 @@ function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
   });
   foot.appendChild(fileInput);
 
-  const attachBtn = button(
-    `${P}-cp-iconbtn`,
-    "📎",
-    t(lang, "chat.attach"),
-    () => {
-      try {
-        const ctx = extractPageContext();
-        if (!ctx.text.trim()) throw new Error("empty");
-        attachment = ctx;
-        errorText = "";
-      } catch {
-        errorText = t(lang, "chat.attachFailed");
-      }
-      renderFooter();
-      input.focus();
+  const onAttachPage = () => {
+    try {
+      const ctx = extractPageContext();
+      if (!ctx.text.trim()) throw new Error("empty");
+      attachment = ctx;
+      errorText = "";
+    } catch {
+      errorText = t(lang, "chat.attachFailed");
     }
-  );
-
-  const imgBtn = button(
-    `${P}-cp-iconbtn`,
-    ICON_IMAGE,
-    t(lang, "chat.uploadImage"),
-    () => fileInput.click()
-  );
-
-  const screenshotBtn = button(
-    `${P}-cp-iconbtn`,
-    ICON_CAMERA,
-    t(lang, "chat.screenshot"),
-    () => void handleCaptureScreenshot()
-  );
+    renderFooter();
+    input.focus();
+  };
 
   const sendBtn = button(`${P}-cp-send`, ICON_SEND, t(lang, "chat.send"), () =>
     void send()
   );
 
+  const mediaMenu = createMediaMenu(
+    onAttachPage,
+    () => fileInput.click(),
+    () => void handleCaptureScreenshot()
+  );
+
   const end = document.createElement("div");
   end.className = `${P}-cp-rowend`;
-  end.appendChild(attachBtn);
-  end.appendChild(imgBtn);
-  end.appendChild(screenshotBtn);
+  end.appendChild(mediaMenu);
   end.appendChild(sendBtn);
   row.appendChild(end);
 
-  foot.appendChild(row);
+  composer.appendChild(row);
+  foot.appendChild(composer);
   el.appendChild(foot);
 
   el.addEventListener("dragover", (e) => {
