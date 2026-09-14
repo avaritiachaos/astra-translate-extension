@@ -1,4 +1,4 @@
-﻿import { describe, it } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   isMangaReaderUrl,
@@ -112,6 +112,26 @@ describe("manga reader detection", () => {
         false,
       );
       assert.equal(
+        isMangaReaderUrl("https://chat.deepseek.com/"),
+        false,
+      );
+      assert.equal(
+        isMangaReaderUrl("https://chat.deepseek.com/a/chat/s/12345"),
+        false,
+      );
+      assert.equal(
+        isMangaReaderUrl("https://chatgpt.com/c/abcd"),
+        false,
+      );
+      assert.equal(
+        isMangaReaderUrl("https://claude.ai/chat/123"),
+        false,
+      );
+      assert.equal(
+        isMangaReaderUrl("https://bilibili.com/video/BV12345"),
+        false,
+      );
+      assert.equal(
         isMangaReaderUrl("https://www.reddit.com/r/manga/comments/123/discussion"),
         false,
       );
@@ -172,14 +192,23 @@ describe("manga reader detection", () => {
       assert.equal(isLikelyMangaPage(doc, [banner as unknown as MangaImage]), false);
     });
 
-    it("identifies comic page inside a reader container (#reader, .viewer, .comic-page)", () => {
+    it("identifies comic page inside a reader container (#reader-area, .comic-container, .comic-page)", () => {
       const { doc, body } = createMockDoc("https://unknown-domain.test/view");
       const readerContainer = new MockElement("DIV", { x: 0, y: 0, width: 800, height: 1200 }, body);
-      readerContainer.setAttribute("id", "reader");
+      readerContainer.setAttribute("id", "reader-area");
       const comicImg = new MockElement("IMG", { x: 50, y: 50, width: 700, height: 1050 }, readerContainer);
 
       assert.equal(isMangaReaderDom(doc, [comicImg as unknown as MangaImage]), true);
       assert.equal(isLikelyMangaPage(doc, [comicImg as unknown as MangaImage]), true);
+    });
+
+    it("strictly rejects chat.deepseek.com even with user-uploaded images in chat", () => {
+      const { doc, body } = createMockDoc("https://chat.deepseek.com/a/chat/s/12345");
+      const chatMsg = new MockElement("DIV", { x: 0, y: 0, width: 800, height: 600 }, body);
+      // User uploaded screenshot/image in chat
+      const uploadedImg = new MockElement("IMG", { x: 20, y: 20, width: 600, height: 400 }, chatMsg);
+
+      assert.equal(isLikelyMangaPage(doc, [uploadedImg as unknown as MangaImage]), false);
     });
 
     it("identifies two-page spread (two portrait images side by side)", () => {

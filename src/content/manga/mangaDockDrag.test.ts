@@ -88,6 +88,9 @@ class MockEvent {
   get button() {
     return this.init.button ?? 0;
   }
+  get buttons() {
+    return this.init.buttons ?? 1;
+  }
   get isTrusted() {
     return this.init.isTrusted ?? true;
   }
@@ -270,6 +273,127 @@ describe("makeMangaDockDraggable handles", () => {
     assert.equal(downEvt.immediatePropagationStopped, true, "grip stops pointerdown immediately");
     assert.equal(grip.capturedPointerId, 1, "grip captures pointer immediately");
     assert.equal(grip.style.cursor, "grabbing");
+
+    drag.dispose();
+  });
+
+  it("terminates drag immediately if pointermove occurs with buttons === 0 (mouse released outside window)", () => {
+    const host = new MockElement() as any;
+    const grip = new MockElement() as any;
+    let movedCalls = 0;
+
+    const drag = makeMangaDockDraggable(host, grip, () => movedCalls++);
+
+    // Start drag
+    fire(
+      "pointerdown",
+      new MockEvent("pointerdown", {
+        clientX: 500,
+        clientY: 500,
+        composedPath: [grip, host],
+      }),
+    );
+    assert.equal(grip.style.cursor, "grabbing");
+
+    // Move with buttons: 0 (simulates mouse released outside window)
+    const zeroButtonsMove = new MockEvent("pointermove", {
+      clientX: 510,
+      clientY: 510,
+      buttons: 0,
+      pointerType: "mouse",
+      composedPath: [grip, host],
+    });
+    fire("pointermove", zeroButtonsMove);
+
+    // Should have terminated drag
+    assert.equal(grip.style.cursor, "");
+    assert.equal(grip.capturedPointerId, null);
+
+    drag.dispose();
+  });
+
+  it("terminates drag and clears grabbing cursor on lostpointercapture", () => {
+    const host = new MockElement() as any;
+    const grip = new MockElement() as any;
+    let movedCalls = 0;
+
+    const drag = makeMangaDockDraggable(host, grip, () => movedCalls++);
+
+    fire(
+      "pointerdown",
+      new MockEvent("pointerdown", {
+        clientX: 500,
+        clientY: 500,
+        composedPath: [grip, host],
+      }),
+    );
+    assert.equal(grip.style.cursor, "grabbing");
+
+    fire(
+      "lostpointercapture",
+      new MockEvent("lostpointercapture", {
+        pointerId: 1,
+        composedPath: [grip, host],
+      }),
+    );
+
+    assert.equal(grip.style.cursor, "");
+    assert.equal(grip.capturedPointerId, null);
+
+    drag.dispose();
+  });
+
+  it("terminates drag and clears grabbing cursor on window blur", () => {
+    const host = new MockElement() as any;
+    const grip = new MockElement() as any;
+    let movedCalls = 0;
+
+    const drag = makeMangaDockDraggable(host, grip, () => movedCalls++);
+
+    fire(
+      "pointerdown",
+      new MockEvent("pointerdown", {
+        clientX: 500,
+        clientY: 500,
+        composedPath: [grip, host],
+      }),
+    );
+    assert.equal(grip.style.cursor, "grabbing");
+
+    fire("blur", new MockEvent("blur"));
+
+    assert.equal(grip.style.cursor, "");
+    assert.equal(grip.capturedPointerId, null);
+
+    drag.dispose();
+  });
+
+  it("mouseup event terminates active drag and restores cursor", () => {
+    const host = new MockElement() as any;
+    const grip = new MockElement() as any;
+    let movedCalls = 0;
+
+    const drag = makeMangaDockDraggable(host, grip, () => movedCalls++);
+
+    fire(
+      "pointerdown",
+      new MockEvent("pointerdown", {
+        clientX: 500,
+        clientY: 500,
+        composedPath: [grip, host],
+      }),
+    );
+    assert.equal(grip.style.cursor, "grabbing");
+
+    fire(
+      "mouseup",
+      new MockEvent("mouseup", {
+        composedPath: [grip, host],
+      }),
+    );
+
+    assert.equal(grip.style.cursor, "");
+    assert.equal(grip.capturedPointerId, null);
 
     drag.dispose();
   });

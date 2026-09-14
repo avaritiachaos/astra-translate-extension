@@ -1,121 +1,34 @@
-﻿import type { MangaImage } from "./mangaImage";
+import type { MangaImage } from "./mangaImage";
+import {
+  MANGA_HOST_KEYWORDS,
+  NON_MANGA_HOSTS,
+  isMangaReaderUrl,
+} from "../../shared/manga/mangaDetection.ts";
 
-const MANGA_HOST_KEYWORDS = [
-  "manga",
-  "comic",
-  "manhua",
-  "manhwa",
-  "webtoon",
-  "nhentai",
-  "e-hentai",
-  "exhentai",
-  "hitomi",
-  "copymanga",
-  "kuaikan",
-  "dm5",
-  "18comic",
-  "rawdevart",
-  "asurascans",
-  "flamecomics",
-  "reaperscans",
-  "dynasty-scans",
-  "piccoma",
-  "cmoa",
-  "mechacomic",
-  "renta",
-  "bookwalker",
-  "alphapolis",
-  "shonenjump",
-  "tonarinoyj",
-  "sunday-webry",
-  "magapoke",
-  "mangafox",
-  "mangahere",
-  "mangapark",
-  "bilibilicomics",
-  "manhuagui",
-];
-
-const NON_MANGA_HOSTS = [
-  "blender.org",
-  "wikipedia.org",
-  "github.com",
-  "google.com",
-  "youtube.com",
-  "twitter.com",
-  "x.com",
-  "reddit.com",
-  "facebook.com",
-  "instagram.com",
-  "amazon.com",
-  "apple.com",
-  "microsoft.com",
-  "stackoverflow.com",
-];
-
-export function isMangaReaderUrl(rawUrl: string): boolean {
-  try {
-    const parsed = new URL(rawUrl);
-    if (!/^https?:$/.test(parsed.protocol)) return false;
-
-    const host = parsed.hostname.toLowerCase();
-    const path = parsed.pathname.toLowerCase();
-
-    // Check non-manga major domains
-    if (NON_MANGA_HOSTS.some((blocked) => host === blocked || host.endsWith("." + blocked))) {
-      return false;
-    }
-
-    // 1. Hostname hints: known manga/comic domains
-    if (MANGA_HOST_KEYWORDS.some((kw) => host.includes(kw))) {
-      return true;
-    }
-
-    // 2. Path patterns: reading a chapter or comic viewer
-    if (
-      /\/chapter[s]?[-_/]?\d+/i.test(path) ||
-      /\/(ch|ep|episode)[-_/]?\d+/i.test(path) ||
-      /\/(read|reader|viewer)\b/i.test(path) ||
-      /\/(manga|comic|comics|manhua|manhwa|webtoon|doujin|hentai)\//i.test(path) ||
-      /\/g\/\d+/i.test(path)
-    ) {
-      return true;
-    }
-
-    return false;
-  } catch {
-    return false;
-  }
-}
+export { MANGA_HOST_KEYWORDS, NON_MANGA_HOSTS, isMangaReaderUrl };
 
 const READER_SELECTORS = [
-  "#reader",
-  "#viewer",
-  "#image-container",
-  "#comic-wrap",
-  "#manga-viewer",
   "#reader-area",
+  "#comic-wrap",
   "#comic-container",
+  "#manga-viewer",
+  "#manga-reader",
+  "#comic-viewer",
+  "#comic-reader",
   "#viewcontainer",
   "#cp_img",
-  ".reader",
-  ".viewer",
   ".reader-container",
   ".comic-container",
   ".manga-container",
   ".comic-page",
   ".manga-page",
-  ".page-image",
   ".scan-page",
-  ".reading-content",
-  ".viewer-cnt",
   ".comic-wrap",
   ".manga-wrap",
   ".webtoon-image",
   ".comic-view",
   "[data-reader]",
   "[data-comic]",
-  "[data-viewer]",
 ].join(",");
 
 const PAGE_ATTRS = [
@@ -192,7 +105,7 @@ export function isMangaReaderDom(
   const isPortrait = firstBounds.height >= firstBounds.width * 1.05;
   if (isPortrait) {
     const hasNav = doc.querySelector?.(
-      'a[rel~=next], a[rel~=prev], .next-chapter, .prev-chapter, .next-page, .prev-page, [class*="chapter-nav"], [id*="chapter-nav"]',
+      '.next-chapter, .prev-chapter, .next-page, .prev-page, [class*="chapter-nav"], [id*="chapter-nav"], [class*="comic-nav"], [id*="comic-nav"]',
     );
     if (hasNav) return true;
   }
@@ -204,14 +117,30 @@ export function isLikelyMangaPage(
   doc: Document = document,
   spread: MangaImage[] = [],
 ): boolean {
-  if (!spread.length) return false;
-
   const url =
     doc.location?.href ||
     (typeof location !== "undefined" ? location.href : "");
-  if (url && isMangaReaderUrl(url)) {
+  if (!url) return false;
+
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (
+      NON_MANGA_HOSTS.some(
+        (blocked) => host === blocked || host.endsWith("." + blocked),
+      )
+    ) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+
+  if (isMangaReaderUrl(url)) {
     return true;
   }
+
+  if (!spread.length) return false;
 
   return isMangaReaderDom(doc, spread);
 }

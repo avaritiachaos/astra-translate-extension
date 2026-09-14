@@ -116,8 +116,8 @@ async function startImages(images: MangaImage[], automatic = false) {
   refreshReader();
 }
 function restoreAll(disableReading = true) {
-  if (disableReading && autoReader?.state.enabled)
-    void autoReader.set(false, false);
+  if (disableReading)
+    void autoReader?.set(false, false);
   batchGeneration++;
   readingSession = false;
   showOriginal = false;
@@ -539,7 +539,8 @@ function translateCurrent(forceAuto?: boolean) {
   readerControls?.reflectOriginal(false);
   for (const entry of entries.values()) entry.view.setOriginal(false);
   void startImages(images);
-  if (forceAuto ?? autoReadingDefault) {
+  const eligible = isLikelyMangaPage(document, images);
+  if (eligible && (forceAuto ?? autoReadingDefault)) {
     if (!autoReader?.state.enabled) {
       void autoReader?.set(true, prefetchDefault);
     }
@@ -729,7 +730,7 @@ export function initMangaController(repair = false) {
           restore(entry);
     },
     changed: (state) => {
-      if (state.enabled) readingSession = true;
+      readingSession = state.enabled;
       readerControls?.setReading(state);
       refreshReader();
     },

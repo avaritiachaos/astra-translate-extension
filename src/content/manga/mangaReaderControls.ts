@@ -363,15 +363,21 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   triggerClose.onclick = (e) => {
     e.stopPropagation();
     triggerDismissed = true;
-    mount();
+    session = false;
+    host.remove();
   };
   pick.onclick = actions.pick;
   translate.onclick = actions.translate;
   clear.textContent = "×";
-  clear.onclick = () => {
+  clear.onclick = (e) => {
+    e.stopPropagation();
     showingOriginal = false;
     actions.original(false);
     actions.restore();
+    triggerDismissed = true;
+    session = false;
+    panel.hidden = true;
+    host.remove();
   };
   original.onclick = () => {
     showingOriginal = !showingOriginal;
@@ -502,10 +508,17 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   };
   drag = makeMangaDockDraggable(host, grip, layoutPanel, [trigger, compact]);
   const mount = () => {
+    const isFullscreen = Boolean(document.fullscreenElement && pageCount);
+    const hasActiveTranslations = items.length > 0;
+    const isMangaSession = session && eligible;
+    const isMangaTrigger =
+      !session && eligible && pageCount > 0 && !triggerDismissed;
+
     if (
-      !session &&
-      !document.fullscreenElement &&
-      (!eligible || !pageCount || triggerDismissed)
+      !isFullscreen &&
+      !hasActiveTranslations &&
+      !isMangaSession &&
+      !isMangaTrigger
     ) {
       host.remove();
       return;
@@ -581,8 +594,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     );
     reading.title = t(lang, "manga.readingSettingsTitle");
     triggerClose.setAttribute("aria-label", t(lang, "manga.dismissTrigger"));
-    triggerClose.title = t(lang, "manga.dismissTrigger");
-    triggerWrap.hidden = session || triggerDismissed;
+    triggerWrap.hidden = session || triggerDismissed || !eligible;
     dock.hidden = !session;
     if (!session) panel.hidden = true;
     const currentLabel =

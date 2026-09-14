@@ -10,6 +10,7 @@ import {
   visibleMangaSpread,
   type MangaImage,
 } from "./mangaImage";
+import { isLikelyMangaPage } from "./mangaDetection";
 import { mangaReaderRoot, nextMangaImages, nextMangaImage } from "./mangaNextPage";
 import {
   changeMangaReading,
@@ -127,7 +128,10 @@ export function createMangaAutoReader(actions: {
   };
   const run = async () => {
     if (disposed || !state.enabled) return;
-    if (!readingSessionAllows(state, location.href)) {
+    if (
+      !isLikelyMangaPage(document, visibleMangaSpread()) ||
+      !readingSessionAllows(state, location.href)
+    ) {
       await set(false, false, "manga.autoScopeEnded");
       return;
     }
@@ -461,6 +465,10 @@ export function createMangaAutoReader(actions: {
     .sendMessage({ type: "MANGA_READING_STATE" })
     .then((response) => {
       if (disposed || sequence !== init || !response?.state?.enabled) return;
+      if (!isLikelyMangaPage(document, visibleMangaSpread())) {
+        void set(false, false, "manga.autoScopeEnded");
+        return;
+      }
       state = { ...response.state, hint: "manga.autoWaiting" };
       launch();
       publish();

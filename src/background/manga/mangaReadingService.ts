@@ -8,6 +8,7 @@ import {
   readingSessionAllows,
   type MangaReadingState,
 } from "../../shared/manga/readingPolicy";
+import { isMangaReaderUrl } from "../../shared/manga/mangaDetection.ts";
 import { resolveReadingPage } from "../../shared/manga/readingContext";
 import { imageSourceAllowed } from "../../shared/manga/imageGeometry";
 import { loadMangaJob } from "../../shared/manga/store";
@@ -49,16 +50,7 @@ async function load(tabId: number): Promise<ReadingSession | undefined> {
   const inSession = (await chrome.storage.session.get(PREFIX + tabId))[PREFIX + tabId];
   if (inSession) return inSession;
   try {
-    const inLocal = (await chrome.storage.local.get(PREFIX + tabId))[PREFIX + tabId];
-    if (inLocal && typeof inLocal === "object") {
-      const expires = inLocal.expires ?? 0;
-      if (expires > Date.now()) {
-        await chrome.storage.session.set({ [PREFIX + tabId]: inLocal });
-        return inLocal;
-      } else {
-        await chrome.storage.local.remove(PREFIX + tabId);
-      }
-    }
+    await chrome.storage.local.remove(PREFIX + tabId);
   } catch {}
   return undefined;
 }
@@ -76,7 +68,7 @@ export async function automaticMangaAllowed(
   return serial(tabId!, async () => {
     const tab = await chrome.tabs.get(tabId!);
     const page = resolveReadingPage(sender, tab);
-    if (!page || !tab.active) return false;
+    if (!page || !tab.active || !isMangaReaderUrl(page)) return false;
     const session = await load(tabId!);
     if (!session || !readingSessionAllows(session, page)) return false;
     const aheads = allAheads(session);
@@ -98,7 +90,7 @@ export async function automaticMangaAllowed(
 async function save(tabId: number, session: ReadingSession) {
   await chrome.storage.session.set({ [PREFIX + tabId]: session });
   try {
-    await chrome.storage.local.set({ [PREFIX + tabId]: session });
+    await chrome.storage.local.remove(PREFIX + tabId);
   } catch {}
 }
 async function removeSession(tabId: number) {
@@ -227,16 +219,19 @@ export async function handleMangaReading(
     const tab = await chrome.tabs.get(tabId!);
     const page = resolveReadingPage(sender, tab);
     if (!page) return { success: false, errorCode: "READING_PAGE_CHANGED" };
+    const isManga = isMangaReaderUrl(page);
     let session = await load(tabId!);
-    if (session && !readingSessionAllows(session, page)) {
+    if (session && (!isManga || !readingSessionAllows(session, page))) {
       await cancelAhead(session);
       await removeSession(tabId!);
       session = undefined;
     }
-    if (msg.type === "MANGA_READING_STATE")
+    if (msg.type === "MANGA_READING_STATE") {
+      if (!isManga) return { success: true, state: await publicState() };
       return { success: true, state: await publicState(session) };
+    }
     if (msg.type === "MANGA_READING_SET") {
-      if (msg.payload?.enabled !== true) {
+      if (msg.payload?.enabled !== true || !isManga) {
         await removeSession(tabId!);
         await cancelAhead(session);
         return { success: true, state: await publicState() };
