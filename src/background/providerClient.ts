@@ -2,13 +2,13 @@
 // Astra Translate – Unified Provider Client
 // ============================================================
 
-import type { UserProviderSettings, UnifiedChatMessage as ChatMessage } from "../shared/types";
-import { t, type UiLanguage } from "../shared/i18n";
+import type { UserProviderSettings, UnifiedChatMessage as ChatMessage } from "../shared/types.ts";
+import { t, type UiLanguage } from "../shared/i18n.ts";
 import {
   openAIChat,
   openAIChatStream,
   type ExtraRequestOptions,
-} from "./openAICompatibleClient";
+} from "./openAICompatibleClient.ts";
 
 export type { ChatMessage, ExtraRequestOptions };
 

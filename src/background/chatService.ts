@@ -33,7 +33,8 @@ import {
   type ChatContextTurn,
 } from "../shared/chatContext";
 import { isVisionCapable } from "../shared/modelCapability";
-import { buildChatSearchQuery } from "../shared/chatSearch";
+import { buildChatSearchQuery, cleanChatSearchFallback } from "../shared/chatSearch";
+import { resolveSearchQuery } from "./chatQueryRewriter";
 import {
   buildEffortBody,
   normalizeChatEffort,
@@ -300,10 +301,6 @@ function createChatService(storageKey: string) {
     return prompt;
   }
 
-  /** Build the search query from the question and a small page-title hint. */
-  function searchQueryFor(text: string, attachment?: ChatAttachment): string {
-    return buildChatSearchQuery(text, attachment?.title);
-  }
 
   interface RunOpts {
     rawText: string;
@@ -417,37 +414,52 @@ function createChatService(storageKey: string) {
     try {
       if (wantSearch) {
         opts.onPhase?.("searching");
-        // Search transport/HTTP failures stay explicit. A completed search with
-        // no sources is different: answer normally, but label it as ungrounded.
-        const allowFallback = settings.chatWebSearchFallbackEnabled ?? true;
-        const primary = searchQueryFor(question.content, claim.attachment);
-        let search = await webSearch(
-          primary,
+        const historyTurns = claim.turns.slice(0, claim.turns.length - 1);
+        const resolved = await resolveSearchQuery(
+          settings,
+          historyTurns,
+          question,
           lang,
           controller.signal,
-          allowFallback,
-          settings.serperApiKey,
-          settings.googleSearchApiKey,
-          settings.googleSearchCx
         );
-        // The page-title hint can over-constrain the query; retry once with the
-        // bare question before giving up on grounding.
-        if (search.noResults) {
-          const bare = buildChatSearchQuery(question.content);
-          if (bare !== primary) {
-            search = await webSearch(
-              bare,
-              lang,
-              controller.signal,
-              allowFallback,
-              settings.serperApiKey,
-              settings.googleSearchApiKey,
-              settings.googleSearchCx
+
+        if (resolved.shouldSearch && resolved.query) {
+          const allowFallback = settings.chatWebSearchFallbackEnabled ?? true;
+          let search = await webSearch(
+            resolved.query,
+            lang,
+            controller.signal,
+            allowFallback,
+            settings.serperApiKey,
+            settings.googleSearchApiKey,
+            settings.googleSearchCx,
+          );
+          // If the model-generated query returned no results and wasn't a fallback,
+          // retry once with the rule-cleaned query before giving up.
+          if (search.noResults && !resolved.isFallback) {
+            const fallbackQuery = cleanChatSearchFallback(
+              question.content,
+              claim.attachment?.title,
             );
+            if (fallbackQuery && fallbackQuery !== resolved.query) {
+              search = await webSearch(
+                fallbackQuery,
+                lang,
+                controller.signal,
+                allowFallback,
+                settings.serperApiKey,
+                settings.googleSearchApiKey,
+                settings.googleSearchCx,
+              );
+            }
           }
+          sources = search.sources;
+          ungroundedSearchFallback = search.noResults;
+        } else {
+          // Explicitly decided no external search is needed (pure chitchat/internal task)
+          sources = [];
+          ungroundedSearchFallback = false;
         }
-        sources = search.sources;
-        ungroundedSearchFallback = search.noResults;
       }
 
       opts.onPhase?.("answering");

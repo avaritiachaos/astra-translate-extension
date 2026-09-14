@@ -6,7 +6,7 @@ import {
   googleSearchUrl,
   searchLocaleFor,
 } from "./searchLocale.ts";
-import { buildChatSearchQuery } from "./chatSearch.ts";
+import { buildChatSearchQuery, cleanChatSearchFallback } from "./chatSearch.ts";
 
 describe("search locale", () => {
   it("maps each UI language to matching search preferences", () => {
@@ -62,3 +62,27 @@ describe("buildChatSearchQuery", () => {
     assert.equal(buildChatSearchQuery(input, "Release notes"), "q".repeat(400));
   });
 });
+
+describe("cleanChatSearchFallback", () => {
+  it("strips emotional words, filler commands, and punctuation", () => {
+    const res = cleanChatSearchFallback("你自己去查一下看看是不是官方tmd？？？");
+    assert.equal(res, "官方");
+  });
+
+  it("handles complaints about search by retrying previous user topic", () => {
+    const prevTurn = "你自己去查一下看看是不是官方tmd";
+    const res = cleanChatSearchFallback(
+      "我不是给你开联网了吗？你查的什么玩意儿啊",
+      undefined,
+      prevTurn
+    );
+    assert.equal(res, "官方");
+  });
+
+  it("returns null for pure chitchat or pure confirmation", () => {
+    assert.equal(cleanChatSearchFallback("你好呀！"), null);
+    assert.equal(cleanChatSearchFallback("谢谢！"), null);
+    assert.equal(cleanChatSearchFallback("好的收到"), null);
+  });
+});
+
