@@ -205,19 +205,25 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if ((info.menuItemId === "ast-translate-image" || info.menuItemId === "ast-pick-manga") && tab?.id) {
     const tabId = tab.id, frameId = info.frameId ?? 0;
     const message = { type: "MANGA_TRANSLATE_IMAGE", payload: { srcUrl: info.srcUrl } };
-    const send = async (fId: number) => {
+    const send = async (fId: number): Promise<boolean> => {
       try {
-        await chrome.tabs.sendMessage(tabId, message, { frameId: fId });
+        const res = await chrome.tabs.sendMessage(tabId, message, { frameId: fId });
+        return (res as any)?.success === true;
       } catch {
         await chrome.scripting.executeScript({
           target: { tabId, frameIds: [fId] },
-          files: ["content.js"],
+          files: ["manga-content.js"],
         }).catch(() => {});
-        await chrome.tabs.sendMessage(tabId, message, { frameId: fId }).catch(() => {});
+        try {
+          const res = await chrome.tabs.sendMessage(tabId, message, { frameId: fId });
+          return (res as any)?.success === true;
+        } catch {
+          return false;
+        }
       }
     };
-    void send(frameId).then(async () => {
-      if (frameId !== 0) await send(0);
+    void send(frameId).then(async (handled) => {
+      if (!handled && frameId !== 0) await send(0);
     });
     return;
   }

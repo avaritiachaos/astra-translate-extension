@@ -43,13 +43,24 @@ export function initFloatingBall(opts: {
 
   if (isEnabled) {
     show();
+  } else {
+    hide();
   }
 }
 
 /** Recreate injected floating-ball UI if the page removed it during navigation. */
 export function ensureFloatingBallMounted(): void {
   if (!hasInitialized) return;
-  if (!isEnabled) return;
+  if (!isEnabled) {
+    hide();
+    return;
+  }
+  const existingBalls = document.querySelectorAll(`.${BALL_PREFIX}-container`);
+  if (existingBalls.length > 1) {
+    for (let i = 1; i < existingBalls.length; i++) {
+      existingBalls[i].remove();
+    }
+  }
   if (!ball || !ball.isConnected || ball.ownerDocument !== document) {
     ball = null;
     closeSettingsPanel();
@@ -107,6 +118,28 @@ function applyBallStyles(el: HTMLElement): void {
 }
 
 function show(): void {
+  // Purge duplicate/stale ball elements from the DOM
+  const existingBalls = Array.from(
+    document.querySelectorAll<HTMLElement>(`.${BALL_PREFIX}-container`)
+  );
+  if (existingBalls.length > 0) {
+    // If the active ball instance already holds the first element and it's connected,
+    // prune extra duplicates and refresh styles
+    if (ball && ball.isConnected && ball === existingBalls[0]) {
+      for (let i = 1; i < existingBalls.length; i++) {
+        existingBalls[i].remove();
+      }
+      applyBallStyles(ball);
+      return;
+    }
+    // Otherwise, existing ball elements were left behind in the DOM by a prior script injection
+    // or previous extension lifecycle. Remove them all so we mount a fresh one with active listeners.
+    for (const el of existingBalls) {
+      el.remove();
+    }
+    ball = null;
+  }
+
   if (ball && (!ball.isConnected || ball.ownerDocument !== document)) {
     ball = null;
   }
@@ -117,11 +150,14 @@ function show(): void {
 
 function hide(): void {
   closeSettingsPanel();
-  ball?.remove();
+  document.querySelectorAll(`.${BALL_PREFIX}-container`).forEach((el) => el.remove());
   ball = null;
 }
 
 function createBall(): void {
+  // Enforce DOM singleton before appending
+  document.querySelectorAll(`.${BALL_PREFIX}-container`).forEach((el) => el.remove());
+
   const el = document.createElement("div");
   el.className = `${BALL_PREFIX}-container`;
 

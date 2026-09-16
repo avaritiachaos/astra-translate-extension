@@ -301,9 +301,29 @@ async function startPageTranslation(): Promise<void> {
 
 // ---- Initialize ----
 
+const astraGlobal = globalThis as typeof globalThis & {
+  __astraContentTeardown?: () => void;
+};
+astraGlobal.__astraContentTeardown?.();
+
 prefetchLang();
 initBubbleClose();
 monitorTimer = window.setInterval(monitorPageState, 500);
+
+astraGlobal.__astraContentTeardown = () => {
+  if (monitorTimer !== null) {
+    clearInterval(monitorTimer);
+    monitorTimer = null;
+  }
+  if (pageTranslator) {
+    pageTranslator.restore();
+    pageTranslator = null;
+  }
+  if (liveHud) {
+    liveHud.hide();
+    liveHud = null;
+  }
+};
 
 // Initialize floating ball
 if (isExtensionContextAlive()) {
