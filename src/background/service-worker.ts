@@ -202,17 +202,23 @@ chrome.contextMenus.removeAll(() => {
   });
 });
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === "ast-pick-manga" && tab?.id !== undefined) {
-    void openMangaPicker(tab).catch(error => console.warn("Manga picker unavailable", error));
-    return;
-  }
-  if (info.menuItemId === "ast-translate-image" && tab?.id) {
+  if ((info.menuItemId === "ast-translate-image" || info.menuItemId === "ast-pick-manga") && tab?.id) {
     const tabId = tab.id, frameId = info.frameId ?? 0;
-    const message = {type:"MANGA_TRANSLATE_IMAGE",payload:{srcUrl:info.srcUrl}};
-    void chrome.tabs.sendMessage(tabId,message,{frameId}).catch(async () => {
-      await chrome.scripting.executeScript({target:{tabId,frameIds:[frameId]},files:["content.js"]});
-      await chrome.tabs.sendMessage(tabId,message,{frameId});
-    }).catch(() => {});
+    const message = { type: "MANGA_TRANSLATE_IMAGE", payload: { srcUrl: info.srcUrl } };
+    const send = async (fId: number) => {
+      try {
+        await chrome.tabs.sendMessage(tabId, message, { frameId: fId });
+      } catch {
+        await chrome.scripting.executeScript({
+          target: { tabId, frameIds: [fId] },
+          files: ["content.js"],
+        }).catch(() => {});
+        await chrome.tabs.sendMessage(tabId, message, { frameId: fId }).catch(() => {});
+      }
+    };
+    void send(frameId).then(async () => {
+      if (frameId !== 0) await send(0);
+    });
     return;
   }
   if (info.menuItemId !== "ast-translate-selection" || !info.selectionText || !tab?.id) {

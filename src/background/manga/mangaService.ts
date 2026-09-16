@@ -43,11 +43,26 @@ export async function handleMangaMessage(
     return { success: false, inactive: true };
   const saved = await getSettings();
   const lang = saved.uiLanguage;
+  if (msg.type === "MANGA_CONTEXT_MENU_STATE") {
+    let title = t(lang, "menu.translateImage");
+    if (msg.payload?.isOriginal === false) {
+      title = lang === "zh-CN" ? "显示原图" : lang === "ja-JP" ? "原画像を表示" : "Show original image";
+    } else if (msg.payload?.isOriginal === true) {
+      title = lang === "zh-CN" ? "显示译文" : lang === "ja-JP" ? "翻訳を表示" : "Show translation";
+    }
+    chrome.contextMenus?.update?.("ast-translate-image", { title }, () => {
+      if (chrome.runtime.lastError) { /* ignore */ }
+    });
+    return { success: true };
+  }
   if (msg.type === "MANGA_PREFERENCES")
     return {
       success: true,
       language: lang,
       targetLanguage: saved.manga.targetLanguage,
+      secondaryTargetLanguage: saved.secondaryTargetLang || "English",
+      sameLanguageToSecondaryEnabled:
+        saved.smartTargetEnabled !== false && saved.sameLanguageToSecondaryEnabled !== false,
       configuration: resolveMangaConfiguration(saved).status,
       autoReadingDefault: saved.manga.autoReadingDefault !== false,
       prefetchDefault: saved.manga.prefetchDefault !== false,
@@ -175,6 +190,12 @@ export async function handleMangaMessage(
         timeoutMs: 60_000,
       },
       targetLanguage: manga.targetLanguage,
+      secondaryTargetLanguage:
+        settings.smartTargetEnabled !== false && settings.sameLanguageToSecondaryEnabled !== false
+          ? settings.secondaryTargetLang || "English"
+          : undefined,
+      sameLanguageToSecondaryEnabled:
+        settings.smartTargetEnabled !== false && settings.sameLanguageToSecondaryEnabled !== false,
       thinkingEffort: manga.thinkingEffort ?? "low",
       glossary: String(settings.customGlossary ?? "").slice(0, 8000),
       language: lang,

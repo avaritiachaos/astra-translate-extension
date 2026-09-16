@@ -38,6 +38,7 @@ export function intersectRects(a: Rect, b: Rect): Rect | null {
 export function visibleMangaImageRect(image: MangaImage): Rect | null {
   const view = image.ownerDocument.defaultView;
   if (!view || !image.isConnected) return null;
+  const doc = image.ownerDocument;
   const viewport = view.visualViewport;
   let visible = intersectRects(image.getBoundingClientRect(), {
     x: viewport?.offsetLeft ?? 0,
@@ -46,9 +47,15 @@ export function visibleMangaImageRect(image: MangaImage): Rect | null {
     height: viewport?.height ?? view.innerHeight,
   });
   if (!visible) return null;
+  let isFixed = false;
+  let isAbsolute = false;
+  const initialStyle = view.getComputedStyle(image);
+  if (initialStyle.position === "fixed") isFixed = true;
+  else if (initialStyle.position === "absolute") isAbsolute = true;
+
   for (
     let element: Element | null = image;
-    element;
+    element && element !== doc.body && element !== doc.documentElement;
     element = element.parentElement
   ) {
     const style = view.getComputedStyle(element);
@@ -61,20 +68,46 @@ export function visibleMangaImageRect(image: MangaImage): Rect | null {
     )
       return null;
     if (element === image) continue;
+
+    const createsFixedContainingBlock =
+      (style.transform && style.transform !== "none") ||
+      Boolean(style.contain && /paint|layout|strict|content/.test(style.contain)) ||
+      Boolean(style.willChange && /transform|perspective|filter/.test(style.willChange));
+    const createsContainingBlock =
+      style.position !== "static" || createsFixedContainingBlock;
+
+    if (isFixed) {
+      if (!createsFixedContainingBlock) continue;
+      isFixed = false;
+      if (style.position === "fixed") isFixed = true;
+      else if (style.position === "absolute") isAbsolute = true;
+    } else if (isAbsolute) {
+      if (!createsContainingBlock) continue;
+      isAbsolute = false;
+      if (style.position === "fixed") isFixed = true;
+      else if (style.position === "absolute") isAbsolute = true;
+    } else {
+      if (style.position === "fixed") isFixed = true;
+      else if (style.position === "absolute") isAbsolute = true;
+    }
+
     const clipX = /^(hidden|clip|scroll|auto)$/.test(style.overflowX);
     const clipY = /^(hidden|clip|scroll|auto)$/.test(style.overflowY);
     if (!clipX && !clipY) continue;
+    if (element.clientWidth <= 0 || element.clientHeight <= 0) continue;
     const bounds = element.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) continue;
     const box = element as HTMLElement;
     const sx = box.offsetWidth ? bounds.width / box.offsetWidth : 1;
     const sy = box.offsetHeight ? bounds.height / box.offsetHeight : 1;
-    visible = intersectRects(visible, {
+    const clipped = intersectRects(visible, {
       x: clipX ? bounds.x + element.clientLeft * sx : visible.x,
       y: clipY ? bounds.y + element.clientTop * sy : visible.y,
       width: clipX ? element.clientWidth * sx : visible.width,
       height: clipY ? element.clientHeight * sy : visible.height,
     });
-    if (!visible) return null;
+    if (!clipped) return null;
+    visible = clipped;
   }
   return visible;
 }

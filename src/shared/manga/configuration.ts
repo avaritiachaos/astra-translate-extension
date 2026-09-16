@@ -1,11 +1,13 @@
 import type { AstraSettings, UserProviderSettings } from "../types";
 import { DEFAULT_PROVIDER_PRESETS } from "../constants.ts";
 import { switchProviderSettings } from "../storage.ts";
+import { isVisionCapable } from "../modelCapability.ts";
 import { t } from "../i18n.ts";
 
 export interface MangaConfigurationStatus {
   ready: boolean;
   followsCurrent: boolean;
+  isModelInherited?: boolean;
   providerId: string;
   providerName: string;
   modelId: string;
@@ -34,12 +36,24 @@ export function resolveMangaConfiguration(settings: AstraSettings, options: { re
     const url = new URL(provider.baseUrl.trim());
     if (/^https?:$/.test(url.protocol) && !url.username && !url.password) origin = url.origin;
   } catch { /* Report invalid/missing endpoint below. */ }
+
+  const explicitModel = typeof manga?.modelId === "string" ? manga.modelId.trim() : "";
+  const fallbackModel =
+    followsCurrent &&
+    !explicitModel &&
+    typeof provider.model === "string" &&
+    isVisionCapable(provider.providerId, provider.model)
+      ? provider.model.trim()
+      : "";
+  const modelId = explicitModel || fallbackModel;
+
   const status: MangaConfigurationStatus = {
     ready: false,
     followsCurrent,
+    isModelInherited: Boolean(!explicitModel && fallbackModel),
     providerId: targetId,
     providerName,
-    modelId: typeof manga?.modelId === "string" ? manga.modelId.trim() : "",
+    modelId,
     origin,
     hasApiKey: typeof provider.apiKey === "string" && Boolean(provider.apiKey.trim()),
   };

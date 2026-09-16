@@ -149,6 +149,8 @@ async function execute(entry: RunningJob) {
         request.provider.endpoint,
         request.provider.model,
         request.targetLanguage,
+        request.secondaryTargetLanguage ?? "",
+        request.sameLanguageToSecondaryEnabled ?? false,
         request.glossary,
         authHash,
       ]),
@@ -193,6 +195,8 @@ async function execute(entry: RunningJob) {
         request.language,
         signal,
         request.thinkingEffort,
+        request.secondaryTargetLanguage,
+        request.sameLanguageToSecondaryEnabled,
       );
       check();
       const positioned = result.regions.map((region) => {

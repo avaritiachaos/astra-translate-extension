@@ -85,6 +85,8 @@ export interface MangaExecution {
   provider: UserProviderSettings;
   language: UiLanguage;
   targetLanguage: string;
+  secondaryTargetLanguage?: string;
+  sameLanguageToSecondaryEnabled?: boolean;
   thinkingEffort?: MangaThinkingEffort;
   glossary: string;
   force: boolean;

@@ -23,6 +23,30 @@ import {
   type MangaTranslationResult,
 } from "../../shared/manga/translationPresentation";
 import { t, type UiLanguage } from "../../shared/i18n";
+function isAxisAligned2D(matrix: DOMMatrixReadOnly): boolean {
+  if (matrix.is2D) {
+    return (
+      Math.abs(matrix.b) <= 0.001 &&
+      Math.abs(matrix.c) <= 0.001 &&
+      matrix.a > 0 &&
+      matrix.d > 0
+    );
+  }
+  return (
+    Math.abs(matrix.m12) <= 0.001 &&
+    Math.abs(matrix.m13) <= 0.001 &&
+    Math.abs(matrix.m14) <= 0.001 &&
+    Math.abs(matrix.m21) <= 0.001 &&
+    Math.abs(matrix.m23) <= 0.001 &&
+    Math.abs(matrix.m24) <= 0.001 &&
+    Math.abs(matrix.m31) <= 0.001 &&
+    Math.abs(matrix.m32) <= 0.001 &&
+    Math.abs(matrix.m34) <= 0.001 &&
+    matrix.m11 > 0 &&
+    matrix.m22 > 0
+  );
+}
+
 export function imageBox(image: MangaImage) {
   const rect = image.getBoundingClientRect(),
     style = getComputedStyle(image);
@@ -30,19 +54,13 @@ export function imageBox(image: MangaImage) {
     const transform = getComputedStyle(el).transform;
     if (transform !== "none") {
       const matrix = new DOMMatrix(transform);
-      if (
-        !matrix.is2D ||
-        Math.abs(matrix.b) > 0.001 ||
-        Math.abs(matrix.c) > 0.001 ||
-        matrix.a <= 0 ||
-        matrix.d <= 0
-      )
+      if (!isAxisAligned2D(matrix))
         throw new Error("MANGA_LAYOUT_UNSUPPORTED");
     }
   }
   const number = (value: string) => parseFloat(value) || 0;
-  const sx = rect.width / Math.max(1, image.offsetWidth),
-    sy = rect.height / Math.max(1, image.offsetHeight);
+  const sx = image.offsetWidth > 0 ? rect.width / image.offsetWidth : 1,
+    sy = image.offsetHeight > 0 ? rect.height / image.offsetHeight : 1;
   const content = {
     x:
       rect.left +
@@ -51,17 +69,21 @@ export function imageBox(image: MangaImage) {
       rect.top + (number(style.borderTopWidth) + number(style.paddingTop)) * sy,
     width: Math.max(
       1,
-      (image.clientWidth -
-        number(style.paddingLeft) -
-        number(style.paddingRight)) *
-        sx,
+      image.offsetWidth > 0 && image.clientWidth > 0
+        ? (image.clientWidth -
+            number(style.paddingLeft) -
+            number(style.paddingRight)) *
+            sx
+        : rect.width,
     ),
     height: Math.max(
       1,
-      (image.clientHeight -
-        number(style.paddingTop) -
-        number(style.paddingBottom)) *
-        sy,
+      image.offsetHeight > 0 && image.clientHeight > 0
+        ? (image.clientHeight -
+            number(style.paddingTop) -
+            number(style.paddingBottom)) *
+            sy
+        : rect.height,
     ),
   };
   const size = mangaImageSize(image);
@@ -81,6 +103,7 @@ const css = `
 *{box-sizing:border-box}button{font:inherit;cursor:pointer;border:0}button:focus-visible{outline:3px solid #7771f5;outline-offset:2px}[hidden]{display:none!important}
 .status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 .frame{position:absolute;overflow:hidden;pointer-events:none}
+.frame.original-mode .region{display:none!important}
 .region{position:absolute;display:flex;align-items:center;justify-content:center;padding:4px;margin:0;border-radius:5px;pointer-events:auto;overflow:hidden;background:#fff;color:#24242a;text-align:center;box-shadow:none;white-space:normal;line-height:1.35}
 .region.uncertain:not(.marker){box-shadow:inset 0 0 0 1px #b1833855}.region.uncertain:not(.marker)::after{content:"?";position:absolute;top:1px;right:2px;color:#95681d;font-size:10px;line-height:1}
 .region:hover{outline:1px dashed #7771f580;outline-offset:1px}.region .text{display:block;max-width:100%;max-height:100%;overflow:hidden;overflow-wrap:anywhere;word-break:normal}
@@ -90,6 +113,16 @@ const css = `
 .compare{position:absolute;pointer-events:auto;width:400px;max-width:calc(100vw - 24px);max-height:calc(100vh - 32px);overflow:auto;background:#fff;border:1px solid #e8e6f3;border-radius:16px;box-shadow:0 12px 45px #17132930;padding:16px;color:#24242a;font-size:16px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
 .compare header{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;color:#85808f;margin-bottom:8px}.compare header button{background:#f1f0f7;color:#645b7a;border-radius:50%;width:26px;height:26px;line-height:1;font-size:18px}.card-reason{font-size:12px;line-height:1.5;color:#746989;background:#f6f3ff;border-radius:8px;padding:8px 10px;margin:0 0 10px}.card-reason[data-state=uncertain]{color:#825915;background:#fff6e5}.card-reason[data-state=untranslated]{color:#706477;background:#f0edf3}.preview-hint{font-size:11px;line-height:1.4;color:#90889a;margin-top:10px}.translation{margin:0 0 14px;font-size:18px}.source-label{font-size:11px;color:#8c8696;border-top:1px solid #eeedf5;padding-top:10px}.source{margin-top:4px;color:#75717e;font-size:14px}
 .frame.fallback{left:auto!important;top:20px!important;right:16px;width:320px!important;height:auto!important;max-height:65vh;overflow:auto;padding:8px;pointer-events:auto;background:#f7f7fb;border:1px solid #eeedf5;border-radius:14px}.fallback .region{position:relative;left:auto!important;top:auto!important;width:100%!important;height:auto!important;min-height:40px;display:block;margin:4px 0;padding:10px;text-align:left;font-size:14px!important;line-height:1.5;opacity:1}.fallback .region .text{writing-mode:horizontal-tb;height:auto;max-height:none}
+.loading-container{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:100;transition:opacity .3s ease}
+.loading-container.hidden{opacity:0;display:none!important}
+.loading-beam{position:absolute;left:0;right:0;top:-80px;height:70px;background:linear-gradient(180deg,transparent 0%,rgba(139,92,246,0.12) 65%,rgba(167,139,250,0.38) 100%);border-bottom:2px solid rgba(196,181,253,0.9);box-shadow:0 4px 18px rgba(139,92,246,0.45);animation:ast-scan-beam 2.2s cubic-bezier(0.4,0,0.2,1) infinite}
+@keyframes ast-scan-beam{0%{transform:translateY(0);opacity:0}15%{opacity:1}85%{opacity:1}100%{transform:translateY(calc(100% + 80px));opacity:0}}
+.loading-badge{position:absolute!important;left:50%!important;top:20px!important;transform:translateX(-50%)!important;display:inline-flex;align-items:center;gap:8px;padding:7px 16px;background:rgba(18,16,28,0.85);color:#ede9fe;font-size:13px;font-weight:600;border-radius:20px;border:1px solid rgba(255,255,255,0.2);box-shadow:0 6px 20px rgba(0,0,0,0.4),0 0 0 1px rgba(139,92,246,0.35);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);animation:ast-badge-pulse 1.8s ease-in-out infinite alternate;pointer-events:none}
+.loading-spinner{width:14px;height:14px;border:2px solid rgba(167,139,250,0.3);border-top-color:#c4b5fd;border-radius:50%;animation:ast-spin .8s linear infinite;flex:none}
+@keyframes ast-spin{to{transform:rotate(360deg)}}
+@keyframes ast-badge-pulse{from{opacity:.92;transform:translateX(-50%) scale(.98)}to{opacity:1;transform:translateX(-50%) scale(1.02)}}
+.flash-badge{position:absolute!important;left:50%!important;top:20px!important;transform:translateX(-50%)!important;display:inline-flex;align-items:center;gap:8px;padding:7px 16px;background:rgba(18,16,28,0.88);color:#ede9fe;font-size:13px;font-weight:600;border-radius:20px;border:1px solid rgba(255,255,255,0.2);box-shadow:0 6px 20px rgba(0,0,0,0.4),0 0 0 1px rgba(139,92,246,0.35);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);pointer-events:none;z-index:110;transition:opacity .25s ease,transform .25s ease}
+.flash-badge.fading{opacity:0;transform:translateX(-50%) translateY(-6px)}
 `;
 export interface MangaViewState {
   status: string;
@@ -119,6 +152,13 @@ export class MangaOverlay {
   private cardReason = document.createElement("div");
   private cardHint = document.createElement("div");
   private cardSource = document.createElement("div");
+  private loading = document.createElement("div");
+  private loadingBeam = document.createElement("div");
+  private loadingBadge = document.createElement("div");
+  private loadingSpinner = document.createElement("span");
+  private loadingText = document.createElement("span");
+  private flashBadgeEl?: HTMLDivElement;
+  private flashBadgeTimer?: ReturnType<typeof setTimeout>;
   private nodes: RegionNode[] = [];
   private job?: MangaJob;
   private crop?: Rect;
@@ -191,7 +231,15 @@ export class MangaOverlay {
     this.card.addEventListener("pointerenter", () =>
       clearTimeout(this.dismissTimer),
     );
-    this.card.addEventListener("pointerleave", () => this.dismissPreview());
+    this.loading.className = "loading-container";
+    this.loadingBeam.className = "loading-beam";
+    this.loadingBadge.className = "loading-badge";
+    this.loadingSpinner.className = "loading-spinner";
+    this.loadingText.className = "loading-text";
+    this.loadingText.textContent = t(lang, "manga.translatingShort");
+    this.loadingBadge.append(this.loadingSpinner, this.loadingText);
+    this.loading.append(this.loadingBeam, this.loadingBadge);
+    this.frame.append(this.loading);
     this.root.append(style, this.status, this.frame, this.card);
     this.host.setAttribute("popover", "manual");
     this.stopFollowing = followMangaFullscreen(this.host, () => this.layout());
@@ -214,7 +262,10 @@ export class MangaOverlay {
   error(value: string, code?: string) {
     this.state.phase = "error";
     this.state.errorCode = code;
+    this.loading.classList.add("hidden");
+    this.loading.remove();
     this.message(value);
+    this.changed();
   }
   configurationError(value: string) {
     this.state.needsSetup = true;
@@ -231,10 +282,36 @@ export class MangaOverlay {
     }
     this.host.style.visibility = hidden ? "hidden" : "visible";
   }
+  get isOriginal(): boolean {
+    return this.original;
+  }
   setOriginal(original: boolean) {
     this.original = original;
-    this.frame.style.visibility = original ? "hidden" : "";
+    this.frame.classList.toggle("original-mode", original);
     if (original) this.closeCard();
+  }
+  flashBadge(text: string, icon = "") {
+    if (this.disposed) return;
+    if (this.flashBadgeTimer) {
+      clearTimeout(this.flashBadgeTimer);
+      this.flashBadgeTimer = undefined;
+    }
+    if (!this.flashBadgeEl) {
+      this.flashBadgeEl = document.createElement("div");
+      this.flashBadgeEl.className = "flash-badge";
+    }
+    this.flashBadgeEl.textContent = icon ? `${icon} ${text}` : text;
+    this.flashBadgeEl.classList.remove("fading");
+    if (this.flashBadgeEl.parentElement !== this.frame) {
+      this.frame.append(this.flashBadgeEl);
+    }
+    this.flashBadgeTimer = setTimeout(() => {
+      this.flashBadgeEl?.classList.add("fading");
+      this.flashBadgeTimer = setTimeout(() => {
+        this.flashBadgeEl?.remove();
+        this.flashBadgeTimer = undefined;
+      }, 250);
+    }, 1200);
   }
   update(job: MangaJob) {
     this.state.errorCode = job.errorCode;
@@ -255,6 +332,18 @@ export class MangaOverlay {
           : t(this.lang, phaseKey) + progress) +
           (this.crop ? " · " + t(this.lang, "manga.visiblePart") : ""),
     );
+    if (this.state.phase === "working") {
+      if (this.loading.parentElement !== this.frame) {
+        this.frame.prepend(this.loading);
+      }
+      this.loading.classList.remove("hidden");
+      this.loadingText.textContent = job.total
+        ? `${t(this.lang, "manga.translatingShort")} ${job.completed}/${job.total}`
+        : t(this.lang, "manga.translatingShort");
+    } else {
+      this.loading.classList.add("hidden");
+      this.loading.remove();
+    }
     if (job.revision !== this.revision) {
       this.revision = job.revision;
       this.closeCard();
@@ -480,7 +569,7 @@ export class MangaOverlay {
     try {
       const { content, drawn } = imageBox(this.image),
         visible = visibleMangaImageRect(this.image);
-      const frameBox = visible && intersectRects(content, visible);
+      const frameBox = (visible && intersectRects(content, visible)) || visible || content;
       this.host.style.display = frameBox ? "block" : "none";
       if (!frameBox) {
         this.closeCard();
@@ -651,6 +740,11 @@ export class MangaOverlay {
   }
   dispose() {
     this.disposed = true;
+    if (this.flashBadgeTimer) {
+      clearTimeout(this.flashBadgeTimer);
+      this.flashBadgeTimer = undefined;
+    }
+    this.flashBadgeEl?.remove();
     this.closeCard();
     this.stopControls();
     this.stopFollowing();

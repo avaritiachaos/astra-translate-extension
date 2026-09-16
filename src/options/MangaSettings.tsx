@@ -169,7 +169,11 @@ export function MangaSettingsCard({
             id="manga-model"
             className="ast-form-input"
             value={settings.manga.modelId}
-            placeholder={t(lang, "manga.modelPlaceholder")}
+            placeholder={
+              configuration.isModelInherited
+                ? `${configuration.modelId} (${t(lang, "manga.currentProvider")})`
+                : t(lang, "manga.modelPlaceholder")
+            }
             maxLength={200}
             onChange={(e) =>
               onChange({ ...settings.manga, modelId: e.target.value })

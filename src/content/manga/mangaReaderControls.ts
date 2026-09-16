@@ -29,7 +29,7 @@ export function createMangaReaderControls(
   host.setAttribute("popover", "manual");
   const style = document.createElement("style");
   style.textContent = `
-:host{all:initial;position:fixed;inset:auto auto 16px 50%;transform:translateX(-50%);margin:0;padding:0;border:0;background:transparent;width:max-content;max-width:calc(100vw - 24px);overflow:visible;z-index:2147483645;font:13.5px "Segoe UI","Microsoft YaHei",sans-serif;color:#f3f1fb;--ast-manga-scale:1.2}
+:host{all:initial;position:fixed;inset:auto auto 16px 50%;transform:translateX(-50%);margin:0;padding:0;border:0;background:transparent;width:max-content;max-width:calc(100vw - 24px);overflow:visible;z-index:2147483645;font:13.5px "Segoe UI","Microsoft YaHei",sans-serif;color:#f3f1fb;--ast-manga-scale:1}
 *{box-sizing:border-box}[hidden]{display:none!important}button{font:inherit;border:0;cursor:pointer;color:inherit;white-space:nowrap;transition:background .15s,transform .1s,box-shadow .15s}button:focus-visible{outline:2px solid #a78bfa;outline-offset:2px}button:disabled{opacity:.45;cursor:default}button:active:not(:disabled){transform:scale(.97)}
 .dock,.panel,.toast,.trigger-wrap{zoom:var(--ast-manga-scale, 1)}
 .grip{cursor:grab!important;touch-action:none;user-select:none;-webkit-user-select:none;flex:none;font-size:20px;line-height:1;padding:8px 8px!important;color:#c4b8e5;border-radius:10px}.grip:hover{color:#fff;background:#ffffff18}.grip:active,.grip.dragging{cursor:grabbing!important}
@@ -45,6 +45,8 @@ export function createMangaReaderControls(
 .dock.compact[data-status=working]{animation:ast-dock-pulse 2s ease-in-out infinite;border-color:#8c78ecaa}
 .toast{position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);background:#181624f5;color:#f5f3ff;font-size:12.5px;padding:8px 16px;border-radius:22px;white-space:nowrap;pointer-events:none;border:1px solid #7c6fd688;box-shadow:0 6px 24px #00000066;backdrop-filter:blur(12px);transition:opacity .3s,transform .3s;opacity:1;z-index:2147483646}
 .toast.fade-out{opacity:0;transform:translateX(-50%) translateY(6px)}
+.toast-spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(167,139,250,0.3);border-top-color:#c4b5fd;border-radius:50%;animation:ast-spin .8s linear infinite;vertical-align:-1px;margin-right:7px}
+@keyframes ast-spin{to{transform:rotate(360deg)}}
 .reading-switch{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;min-height:42px;padding:7px 0;color:#302b3a;border-radius:6px;font-size:14px}.reading-switch:hover{background:#f3f0fa}.reading-switch:focus-visible{outline-color:#8978bd}.switch-track{display:block;width:34px;height:20px;flex:none;border-radius:12px;background:#d5cedf;padding:3px;transition:background .12s}.switch-track::after{content:"";display:block;width:14px;height:14px;border-radius:50%;background:white;box-shadow:0 1px 3px #0002;transition:transform .12s}.reading-switch[aria-checked=true] .switch-track{background:#7161ce}.reading-switch[aria-checked=true] .switch-track::after{transform:translateX(14px)}.reading-switch:disabled{opacity:.5;cursor:default}.reading-status{font-size:12px;line-height:1.5;color:#7b7189;margin-top:6px;min-height:18px}.reading-status.error{color:#a55c32}.reading-failure{font-size:12px;line-height:1.5;color:#8c6f67;white-space:normal;overflow-wrap:anywhere;margin:5px 0 8px}.reading-recover{display:block;text-align:left;color:#6f54a2!important;background:#f1edf8!important;font-size:12px;border:1px solid #e6e0f0!important;padding:6px 10px!important;border-radius:8px;margin:4px 0 8px}.reading-quota{font-size:11px;color:#9a91a6;line-height:1.5;margin:7px 0 0}
 .reading-depth-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0 8px;border-bottom:1px dashed #e8e3f2;margin-bottom:6px}
 .depth-label{font-size:12px;color:#635b75;font-weight:600}
@@ -111,14 +113,17 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
 .clear{font-size:18px;line-height:1;padding:8px 10px;color:#c4b8e5}
 .clear:hover{color:#fff;background:rgba(239,68,68,0.25)}
 .collapse{font-size:12px;font-weight:600;padding:6px 12px;color:#d8d2ea;background:rgba(255,255,255,0.08);border-radius:14px;border:1px solid rgba(255,255,255,0.12);display:inline-flex;align-items:center;gap:4px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
-.trigger-wrap{display:inline-flex;align-items:center;background:linear-gradient(135deg,#7c3aed 0%,#6366f1 100%);border-radius:24px;padding:2px 4px 2px 3px;box-shadow:0 6px 22px rgba(124,58,237,0.4),0 0 0 1px rgba(255,255,255,0.2);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:transform 0.15s,box-shadow 0.15s;touch-action:none;user-select:none;-webkit-user-select:none}
-.trigger-wrap:hover{box-shadow:0 8px 28px rgba(124,58,237,0.55)}
-.trigger{background:transparent;color:#fff;border-radius:20px;padding:7px 10px 7px 13px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;transition:background 0.15s}
-.trigger:hover{background:rgba(255,255,255,0.14)}
+.trigger-wrap{display:inline-flex;align-items:center;background:rgba(18,16,28,0.86);border:1px solid rgba(255,255,255,0.18);border-radius:20px;padding:3px 5px 3px 4px;box-shadow:0 6px 24px rgba(0,0,0,0.5),0 0 0 1px rgba(139,92,246,0.3);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:transform 0.15s,box-shadow 0.2s,background 0.2s,border-color 0.2s;touch-action:none;user-select:none;-webkit-user-select:none}
+.trigger-wrap:hover{background:rgba(26,22,40,0.94);border-color:rgba(167,139,250,0.45);box-shadow:0 8px 30px rgba(0,0,0,0.6),0 0 0 1px rgba(139,92,246,0.5)}
+.trigger{background:transparent;color:#ede9fe;border-radius:16px;padding:5px 7px 5px 8px;font-weight:600;font-size:12.5px;letter-spacing:0.5px;display:inline-flex;align-items:center;gap:6px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;transition:background 0.15s,color 0.15s}
+.trigger:hover{background:rgba(255,255,255,0.1);color:#fff}
 .trigger:active{cursor:grabbing}
 .trigger.dragging{cursor:grabbing!important}
-.trigger-close{font-size:16px;line-height:1;padding:4px 7px;color:#ddd6fe;border-radius:12px;background:transparent;cursor:pointer;opacity:0.8;transition:all 0.15s}
-.trigger-close:hover{opacity:1;color:#fff;background:rgba(255,255,255,0.22)}
+.trigger-icon{display:inline-flex;align-items:center;color:#c4b5fd;flex:none}
+.trigger-text{line-height:1}
+.trigger-divider{width:1px;height:12px;background:rgba(255,255,255,0.18);margin:0 2px;flex:none}
+.trigger-close{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;padding:0;color:#a78bfa;border-radius:50%;background:transparent;cursor:pointer;opacity:0.75;transition:all 0.15s;flex:none}
+.trigger-close:hover{opacity:1;color:#fff;background:rgba(239,68,68,0.28)}
 .panel{position:absolute;right:0;bottom:58px;width:340px;max-width:calc(100vw - 24px);max-height:min(65vh,480px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(120,110,150,0.3) transparent;color:#292533;background:#faf9ff;border:1px solid #e5e1f1;border-radius:18px;box-shadow:0 12px 38px #17132938;padding:14px;box-sizing:border-box}
 .panel::-webkit-scrollbar{width:5px}
 .panel::-webkit-scrollbar-track{background:transparent}
@@ -163,6 +168,9 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   triggerWrap.className = "trigger-wrap";
   const trigger = document.createElement("button"),
     triggerClose = document.createElement("button"),
+    triggerDivider = document.createElement("span"),
+    triggerIcon = document.createElement("span"),
+    triggerText = document.createElement("span"),
     translate = document.createElement("button"),
     pick = document.createElement("button"),
     original = document.createElement("button"),
@@ -170,9 +178,15 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     results = document.createElement("button"),
     clear = document.createElement("button");
   trigger.className = "trigger";
+  triggerIcon.className = "trigger-icon";
+  triggerIcon.innerHTML = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`;
+  triggerText.className = "trigger-text";
+  triggerText.textContent = "マンガ翻訳";
+  trigger.append(triggerIcon, triggerText);
+  triggerDivider.className = "trigger-divider";
   triggerClose.className = "trigger-close";
-  triggerClose.textContent = "×";
-  triggerWrap.append(trigger, triggerClose);
+  triggerClose.innerHTML = `<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+  triggerWrap.append(trigger, triggerDivider, triggerClose);
   translate.className = "primary";
   original.className = "original";
   summary.className = "summary";
@@ -210,7 +224,10 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   const applyScale = (scale: number, persist = true) => {
     const clamped = Math.max(0.7, Math.min(1.5, Math.round(scale * 100) / 100));
     userScale = clamped;
-    visualScale = Math.round(clamped * BASE_SCALE_FACTOR * 100) / 100;
+    const isSingle =
+      !readingState.enabled && (!eligible || pageCount <= 1 || items.length <= 1);
+    const factor = isSingle ? 1.0 : BASE_SCALE_FACTOR;
+    visualScale = Math.round(clamped * factor * 100) / 100;
     host.style.setProperty("--ast-manga-scale", String(visualScale));
     scaleToggle.textContent = Math.round(clamped * 100) + "%";
     readingPanel.reflectScale(clamped);
@@ -317,15 +334,31 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
   const showToast = (text: string) => {
     clearTimeout(toastTimer);
-    toast.textContent = text;
+    toast.textContent = "";
+    if (text.startsWith("⏳")) {
+      const spinner = document.createElement("span");
+      spinner.className = "toast-spinner";
+      toast.append(spinner, document.createTextNode(text.replace(/^⏳\s*/, "")));
+    } else {
+      toast.textContent = text;
+    }
     toast.classList.remove("fade-out");
     toast.hidden = false;
+    const parent =
+      document.fullscreenElement ?? document.body ?? document.documentElement;
+    if (host.parentElement !== parent) parent.append(host);
+    host.showPopover?.();
     toastTimer = setTimeout(() => {
       toast.classList.add("fade-out");
       setTimeout(() => {
         toast.hidden = true;
+        const isSingle =
+          !readingState.enabled && (!eligible || pageCount <= 1 || items.length <= 1);
+        if (isSingle || (!session && !items.length && !eligible)) {
+          host.remove();
+        }
       }, 350);
-    }, 3800);
+    }, 2500);
   };
   dock.append(grip, compact, actionGroup);
   root.append(style, toast, triggerWrap, dock, panel);
@@ -392,7 +425,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
 
   const scheduleAutoCollapse = (delayMs = 3500) => {
     clearTimeout(autoCollapseTimer);
-    if (!readingState.enabled || !expanded || !panel.hidden || isHovered || showingOriginal) return;
+    if (!expanded || !panel.hidden || isHovered || showingOriginal) return;
     const hasError = items.some((item) => item.phase === "error");
     if (hasError) return;
     const isWorking = items.some((item) => item.phase === "working");
@@ -401,7 +434,6 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     autoCollapseTimer = setTimeout(() => {
       if (
         panel.hidden &&
-        readingState.enabled &&
         !isHovered &&
         !showingOriginal &&
         !root.activeElement?.matches(":focus-visible")
@@ -423,6 +455,8 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     refresh();
     if (readingState.enabled) {
       scheduleAutoCollapse(4000);
+    } else if (!eligible || pageCount <= 1) {
+      scheduleAutoCollapse(5000);
     }
   };
   collapse.onclick = collapseDock;
@@ -448,6 +482,8 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     clearTimeout(collapseTimer);
     if (readingState.enabled) {
       scheduleAutoCollapse(3000);
+    } else if (!eligible || pageCount <= 1) {
+      scheduleAutoCollapse(2500);
     } else {
       collapseTimer = setTimeout(() => {
         if (panel.hidden && !root.activeElement?.matches(":focus-visible"))
@@ -508,19 +544,23 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   };
   drag = makeMangaDockDraggable(host, grip, layoutPanel, [trigger, compact]);
   const mount = () => {
+    const isSingleImage =
+      !readingState.enabled && (!eligible || pageCount <= 1 || items.length <= 1);
     const isFullscreen = Boolean(document.fullscreenElement && pageCount);
-    const hasActiveTranslations = items.length > 0;
-    const isMangaSession = session && eligible;
+    const hasActiveTranslations = items.length > 0 && !isSingleImage;
+    const hasActiveSession = session && !isSingleImage;
     const isMangaTrigger =
       !session && eligible && pageCount > 0 && !triggerDismissed;
 
     if (
       !isFullscreen &&
       !hasActiveTranslations &&
-      !isMangaSession &&
+      !hasActiveSession &&
       !isMangaTrigger
     ) {
-      host.remove();
+      if (toast.hidden) {
+        host.remove();
+      }
       return;
     }
     const parent =
@@ -561,7 +601,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     dock.dataset.status = working ? "working" : errors.length ? "error" : "idle";
     grip.setAttribute("aria-label", t(lang, "manga.dragToolbar"));
     grip.title = t(lang, "manga.dragToolbarHint");
-    trigger.textContent = "📖 " + t(lang, "manga.title");
+    triggerText.textContent = "マンガ翻訳";
     trigger.setAttribute(
       "aria-label",
       t(lang, "manga.translateVisible") + " · " + t(lang, "manga.dragToolbar"),
@@ -594,22 +634,35 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     );
     reading.title = t(lang, "manga.readingSettingsTitle");
     triggerClose.setAttribute("aria-label", t(lang, "manga.dismissTrigger"));
-    triggerWrap.hidden = session || triggerDismissed || !eligible;
-    dock.hidden = !session;
-    if (!session) panel.hidden = true;
-    const currentLabel =
-      pageCount === 0 || canTranslate
-        ? errors.length
-          ? "manga.retryPage"
-          : pageCount === 2
-            ? "manga.translateCurrentSpread"
-            : "manga.translateCurrentPage"
-        : items.some((item) => item.phase === "working")
-          ? "manga.translatingShort"
-          : "manga.doneShort";
-    translate.textContent = t(lang, currentLabel);
-    translate.disabled = pageCount > 0 && !canTranslate;
-    translate.title = t(lang, "manga.visibleOnlyHint");
+    const isSingleImage =
+      !readingState.enabled && (!eligible || pageCount <= 1 || items.length <= 1);
+    applyScale(userScale, false);
+    dock.hidden = !session || isSingleImage;
+    if (!session || isSingleImage) panel.hidden = true;
+    if (isSingleImage) {
+      triggerWrap.hidden = true;
+      reading.hidden = true;
+      summary.hidden = true;
+      collapse.hidden = true;
+      translate.hidden = true;
+      mount();
+      return;
+    } else {
+      translate.hidden = false;
+      const currentLabel =
+        pageCount === 0 || canTranslate
+          ? errors.length
+            ? "manga.retryPage"
+            : pageCount === 2
+              ? "manga.translateCurrentSpread"
+              : "manga.translateCurrentPage"
+          : items.some((item) => item.phase === "working")
+            ? "manga.translatingShort"
+            : "manga.doneShort";
+      translate.textContent = t(lang, currentLabel);
+      translate.disabled = pageCount > 0 && !canTranslate;
+      translate.title = t(lang, "manga.visibleOnlyHint");
+    }
     pick.textContent = t(lang, "manga.selectImageShort");
     pick.title = t(lang, "manga.pick");
     original.textContent = t(lang, "manga.original");
@@ -649,9 +702,14 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     results.title = t(lang, "manga.translationCounts", counts);
     results.disabled = !items.some((item) => item.translations.length);
     const nextError = errors.map((item) => item.id + item.status).join("|");
-    if (expanded && nextError && nextError !== errorSignature) {
-      panel.hidden = false;
-      panelMode = "progress";
+    if (nextError && nextError !== errorSignature) {
+      if (expanded || errors.some((item) => item.needsSetup)) {
+        expanded = true;
+        panel.hidden = false;
+        panelMode = "progress";
+      } else {
+        showToast("⚠️ " + (errors[0]?.status || t(lang, "manga.failed")));
+      }
     }
     errorSignature = nextError;
     panel.classList.toggle("translations", panelMode === "translations");
@@ -749,8 +807,12 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     }
     syncExpanded();
     mount();
-    if (readingState.enabled && expanded && panel.hidden) {
-      scheduleAutoCollapse(3500);
+    if (expanded && panel.hidden) {
+      if (readingState.enabled) {
+        scheduleAutoCollapse(3500);
+      } else if (!eligible || pageCount <= 1) {
+        scheduleAutoCollapse(2500);
+      }
     }
   };
   const outside = (event: Event) => {
@@ -813,12 +875,19 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
       canTranslate = pending;
       eligible = isEligible;
       if (!wasActive && active) {
+        const isSingle =
+          !readingState.enabled && (!eligible || pageCount <= 1 || items.length <= 1);
         if (!readingState.enabled) {
-          expanded = true;
+          expanded = !isSingle;
         }
-        showToast(t(language(), "manga.toastReady"));
+        if (eligible && pageCount >= 2) {
+          showToast(t(language(), "manga.toastReady"));
+        }
       }
       refresh();
+      if (expanded && panel.hidden) {
+        scheduleAutoCollapse(2000);
+      }
     },
     refresh,
     reflectOriginal(value: boolean) {
@@ -842,6 +911,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
       captures = Math.max(0, captures + (active ? 1 : -1));
       visibility();
     },
+    showToast,
     raise,
     dispose() {
       clearTimeout(collapseTimer);

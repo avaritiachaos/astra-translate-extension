@@ -79,7 +79,7 @@ export async function acquireMangaImage(
       blob: await responseImage(
         await fetch(source.url, {
           credentials: "omit",
-          redirect: "error",
+          redirect: "follow",
           signal: controller.signal,
           referrerPolicy: "no-referrer",
         }),

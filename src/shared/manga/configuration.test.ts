@@ -205,4 +205,22 @@ describe("manga model selection defaults", () => {
     settings.apiKey = "";
     assert.equal(resolveMangaConfiguration(settings, { requireModel: false }).status.errorCode, "API_KEY_MISSING");
   });
+  it("automatically inherits the main provider model when manga.modelId is empty and current model is vision-capable", () => {
+    const settings = configured();
+    settings.manga.modelId = "";
+    settings.model = "gemini-3.8-flash-high";
+    const { status } = resolveMangaConfiguration(settings);
+    assert.equal(status.ready, true);
+    assert.equal(status.modelId, "gemini-3.8-flash-high");
+    assert.equal(status.isModelInherited, true);
+  });
+  it("prefers explicit manga.modelId over inherited vision model", () => {
+    const settings = configured();
+    settings.manga.modelId = "custom-override-vision";
+    settings.model = "gemini-3.8-flash-high";
+    const { status } = resolveMangaConfiguration(settings);
+    assert.equal(status.ready, true);
+    assert.equal(status.modelId, "custom-override-vision");
+    assert.equal(status.isModelInherited, false);
+  });
 });

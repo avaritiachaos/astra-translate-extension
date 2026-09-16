@@ -85,11 +85,15 @@ function fixture() {
     elements.push(el);
     return el;
   };
-  const body = add("BODY", { x: 0, y: 0, width: 1000, height: 800 });
+  const html = add("HTML", { x: 0, y: 0, width: 1000, height: 800 });
+  const body = add("BODY", { x: 0, y: 0, width: 1000, height: 800 }, html);
+  (doc as unknown as { body: TestElement; documentElement: TestElement }).body = body;
+  (doc as unknown as { body: TestElement; documentElement: TestElement }).documentElement = html;
   return {
     doc,
     add,
     body,
+    html,
     stack: (...items: TestElement[]) => {
       stack = items;
     },
@@ -306,5 +310,49 @@ describe("current-page candidate selection", () => {
     );
     f.stack(chosen, large, f.body);
     assert.deepEqual(visibleMangaSpread(f.doc, image(chosen)), [chosen]);
+  });
+  it("does not clip position: fixed modal images when document has scrolled", () => {
+    const f = fixture();
+    // Simulate page scrolled by 1200px (e.g. Twitter feed scrolled down)
+    f.html.box.y = -1200;
+    f.body.box.y = -1200;
+    f.html.style.overflowY = "scroll";
+    f.body.style.overflowY = "hidden";
+
+    // Fixed modal layer in middle of viewport
+    const modal = f.add("DIV", { x: 0, y: 0, width: 1000, height: 800 }, f.body);
+    modal.style.position = "fixed";
+    const img = f.add("IMG", { x: 200, y: 100, width: 600, height: 600 }, modal);
+    img.style.position = "fixed";
+
+    f.stack(img, modal);
+    const rect = visibleMangaImageRect(image(img));
+    assert.ok(rect);
+    assert.deepEqual(rect, { x: 200, y: 100, width: 600, height: 600 });
+  });
+  it("does not clip position: absolute modal images through intermediate static overflow containers", () => {
+    const f = fixture();
+    // Simulate page scrolled by 1200px
+    f.html.box.y = -1200;
+    f.body.box.y = -1200;
+    f.html.style.overflowY = "scroll";
+    f.body.style.overflowY = "hidden";
+
+    // Fixed modal layer in middle of viewport
+    const modal = f.add("DIV", { x: 0, y: 0, width: 1000, height: 800 }, f.body);
+    modal.style.position = "fixed";
+
+    // Intermediate static containers with overflow: hidden (like Twitter React Native for Web)
+    const flexWrap = f.add("DIV", { x: 0, y: 0, width: 1000, height: 800 }, modal);
+    flexWrap.style.overflowX = "hidden";
+    flexWrap.style.overflowY = "hidden";
+
+    const img = f.add("IMG", { x: 150, y: 50, width: 700, height: 700 }, flexWrap);
+    img.style.position = "absolute";
+
+    f.stack(img, flexWrap, modal);
+    const rect = visibleMangaImageRect(image(img));
+    assert.ok(rect);
+    assert.deepEqual(rect, { x: 150, y: 50, width: 700, height: 700 });
   });
 });

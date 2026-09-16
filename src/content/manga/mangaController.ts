@@ -10,6 +10,7 @@ import {
   visibleMangaImageRect,
   intersectRects,
   visibleMangaSpread,
+  mangaImageAtPoint,
   type MangaImage,
 } from "./mangaImage";
 import { MangaViewportLease, whileMangaWanted } from "../../shared/manga/workInterest";
@@ -67,7 +68,7 @@ function refreshReader() {
     .filter(
       (entry) =>
         currentEntry(entry.image) === entry &&
-        visibleMangaImageRect(entry.image),
+        (!entry.automatic || !!visibleMangaImageRect(entry.image)),
     )
     .sort(
       (a, b) =>
@@ -75,6 +76,9 @@ function refreshReader() {
     );
   const spread = visibleMangaSpread(document, anchor);
   const eligible = isLikelyMangaPage(document, spread);
+  if (!visible.length && !spread.length && !autoReader?.state.enabled) {
+    readingSession = false;
+  }
   readerControls.update(
     visible.map((entry) => ({
       id: entry.token,
@@ -131,6 +135,14 @@ let isScrolling = false;
 let scrollDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 const pageKey = () => location.origin + location.pathname + location.search;
 const currentSource = mangaImageSource;
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.origin + u.pathname;
+  } catch {
+    return url.split("?")[0] || url;
+  }
+}
 function scheduleLayout() {
   if (
     frame ||
@@ -142,16 +154,27 @@ function scheduleLayout() {
     clearTimeout(visibilityCheck);visibilityCheck = undefined;
     let recheck = Infinity;
     for (const entry of entries.values()) {
-      if (
-        !entry.image.isConnected ||
-        entry.page !== pageKey() ||
-        currentSource(entry.image) !== entry.url
-      )
+      const isSameImage =
+        currentSource(entry.image) === entry.url ||
+        normalizeUrl(currentSource(entry.image)) === normalizeUrl(entry.url);
+      if (!entry.image.isConnected) {
         restore(entry);
-      else {
-        const state = entry.viewportLease.update(entry.view.state.phase === "working", !!visibleMangaImageRect(entry.image), Date.now());
-        if (state.cancel) restore(entry);
-        else { recheck = Math.min(recheck, state.delay ?? Infinity);entry.view.layout(); }
+      } else if (entry.automatic && (entry.page !== pageKey() || !isSameImage)) {
+        restore(entry);
+      } else {
+        if (!isSameImage) {
+          entry.url = currentSource(entry.image);
+        }
+        const state = entry.viewportLease.update(
+          entry.view.state.phase === "working",
+          !!visibleMangaImageRect(entry.image),
+          Date.now(),
+        );
+        if (entry.automatic && state.cancel) restore(entry);
+        else {
+          recheck = Math.min(recheck, state.delay ?? Infinity);
+          entry.view.layout();
+        }
       }
     }
     if (Number.isFinite(recheck)) visibilityCheck = setTimeout(scheduleLayout, Math.max(1, recheck));
@@ -178,7 +201,14 @@ function restore(entry: Entry, invalidate = true) {
   if (entry.claimedJobId) void chrome.runtime.sendMessage({
     type: "MANGA_READING_RELEASE", payload: { imageUrl: entry.url, jobId: entry.claimedJobId },
   }).catch(() => {});
-  if (entries.size === 0) { documentObserver?.disconnect();clearTimeout(visibilityCheck);visibilityCheck = undefined; }
+  if (entries.size === 0) {
+    documentObserver?.disconnect();
+    clearTimeout(visibilityCheck);
+    visibilityCheck = undefined;
+    if (!autoReader?.state.enabled) {
+      readingSession = false;
+    }
+  }
   refreshReader();
 }
 function visibleImage(entry: Entry): Promise<string> {
@@ -350,10 +380,18 @@ async function poll(entry: Entry) {
       payload: { id: entry.jobId },
     });
     if (entry.cancelled) return;
-    if (entry.page !== pageKey() || currentSource(entry.image) !== entry.url) {
+    if (!entry.image.isConnected) {
       restore(entry);
       return;
     }
+    const isSame =
+      currentSource(entry.image) === entry.url ||
+      normalizeUrl(currentSource(entry.image)) === normalizeUrl(entry.url);
+    if (entry.automatic && (entry.page !== pageKey() || !isSame)) {
+      restore(entry);
+      return;
+    }
+    if (!isSame) entry.url = currentSource(entry.image);
     if (!response?.success || !response.job)
       throw new Error(response?.error || t(language, "manga.interrupted"));
     const job = response.job as MangaJob;
@@ -367,8 +405,9 @@ async function poll(entry: Entry) {
     }
     entry.failures = 0;
     entry.view.update(job);
-    if (["ready", "failed", "cancelled", "interrupted"].includes(job.phase))
+    if (["ready", "failed", "cancelled", "interrupted"].includes(job.phase)) {
       return;
+    }
     entry.timer = setTimeout(() => void poll(entry), 650);
   } catch (error) {
     if (!entry.cancelled) {
@@ -401,12 +440,11 @@ async function start(image: MangaImage, force = false, automatic = false) {
     starts.get(image) !== version ||
     generation !== batchGeneration ||
     !image.isConnected ||
-    !visibleMangaImageRect(image) ||
-    currentSource(image) !== expectedSource ||
-    pageKey() !== expectedPage ||
     (automatic &&
-      (!autoReader?.state.enabled ||
+      (pageKey() !== expectedPage ||
+        !autoReader?.state.enabled ||
         document.hidden ||
+        currentSource(image) !== expectedSource ||
         !visibleMangaImageRect(image)))
   )
     return;
@@ -506,10 +544,19 @@ async function start(image: MangaImage, force = false, automatic = false) {
     }
     await whileMangaWanted(image.decode(), entry.lifetime.signal);
     if (entry.cancelled) return;
-    if (!visibleMangaImageRect(image)) { restore(entry);return; }
-    if (currentSource(image) !== entry.url || entry.page !== pageKey()) {
+    if (automatic && (!visibleMangaImageRect(image) || entry.page !== pageKey())) {
       restore(entry);
       return;
+    }
+    if (currentSource(image) !== entry.url) {
+      if (
+        automatic &&
+        normalizeUrl(currentSource(image)) !== normalizeUrl(entry.url)
+      ) {
+        restore(entry);
+        return;
+      }
+      entry.url = currentSource(image);
     }
     let source = entry.url;
     if (source.startsWith("blob:")) {
@@ -520,9 +567,14 @@ async function start(image: MangaImage, force = false, automatic = false) {
     }
     await submit(entry, source, force);
   } catch (error) {
+    const errMsg =
+      error instanceof Error ? error.message : t(language, "manga.failed");
+    if (!automatic) {
+      readerControls?.showToast?.("⚠️ " + errMsg);
+    }
     if (!entry.cancelled)
       view.error(
-        error instanceof Error ? error.message : t(language, "manga.failed"),
+        errMsg,
         typeof (error as { code?: unknown })?.code === "string"
           ? (error as { code: string }).code
           : undefined,
@@ -590,9 +642,62 @@ export function initMangaController(repair = false) {
     pickImage();
   };
   const contextmenu = (event: MouseEvent) => {
-    if (event.isTrusted)
-      lastImage =
-        event.target instanceof HTMLImageElement ? event.target : null;
+    if (!event.isTrusted) return;
+    if (event.target instanceof HTMLImageElement) {
+      lastImage = event.target;
+      return;
+    }
+    let found: HTMLImageElement | null = null;
+    // 1. Traverse composedPath
+    for (const node of event.composedPath()) {
+      if (node instanceof HTMLImageElement) {
+        found = node;
+        break;
+      }
+    }
+    // 2. Check within event.target and up its ancestor chain (up to 5 levels)
+    if (!found && event.target instanceof Element) {
+      let cur: Element | null = event.target;
+      for (let depth = 0; cur && depth < 5; depth++, cur = cur.parentElement) {
+        if (cur === document.body || cur === document.documentElement) break;
+        const imgs = Array.from(cur.querySelectorAll("img")).filter(
+          (i) => i.isConnected && (i.naturalWidth >= 100 || i.clientWidth >= 100),
+        );
+        if (imgs.length > 0) {
+          imgs.sort(
+            (a, b) =>
+              b.getBoundingClientRect().width * b.getBoundingClientRect().height -
+              a.getBoundingClientRect().width * a.getBoundingClientRect().height,
+          );
+          found = imgs[0];
+          break;
+        }
+      }
+    }
+    // 3. Hit test at click position
+    if (!found) {
+      const atPoint = mangaImageAtPoint(event.clientX, event.clientY);
+      if (atPoint && atPoint instanceof HTMLImageElement) {
+        found = atPoint;
+      }
+    }
+    lastImage = found;
+    const existing = lastImage ? currentEntry(lastImage) : undefined;
+    if (existing && existing.view.state.phase === "ready") {
+      void chrome.runtime
+        .sendMessage({
+          type: "MANGA_CONTEXT_MENU_STATE",
+          payload: { isOriginal: existing.view.isOriginal },
+        })
+        .catch(() => {});
+    } else {
+      void chrome.runtime
+        .sendMessage({
+          type: "MANGA_CONTEXT_MENU_STATE",
+          payload: { reset: true },
+        })
+        .catch(() => {});
+    }
   };
   const onMessage = (
     msg: { type: string; payload?: { srcUrl?: string; auto?: boolean } },
@@ -618,17 +723,74 @@ export function initMangaController(repair = false) {
       return true;
     }
     if (msg.type === "MANGA_TRANSLATE_IMAGE") {
-      const image = lastImage?.isConnected
-        ? lastImage
-        : Array.from(document.images).find(
-            (item) =>
-              currentSource(item) === msg.payload?.srcUrl ||
-              item.src === msg.payload?.srcUrl,
-          );
+      const targetSrc = msg.payload?.srcUrl;
+      const cleanTarget = targetSrc ? normalizeUrl(targetSrc) : "";
+      let image: MangaImage | null =
+        (lastImage?.isConnected ? lastImage : null) ||
+        Array.from(document.images).find((item) => {
+          if (!targetSrc) return false;
+          const src = item.src;
+          const current = currentSource(item);
+          if (src === targetSrc || current === targetSrc) return true;
+          if (cleanTarget) {
+            if (
+              normalizeUrl(src) === cleanTarget ||
+              normalizeUrl(current) === cleanTarget
+            ) {
+              return true;
+            }
+          }
+          return false;
+        }) ||
+        null;
+
+      if (!image) {
+        let largestArea = 0;
+        let largestImg: HTMLImageElement | null = null;
+        for (const img of document.images) {
+          if (!img.isConnected) continue;
+          const rect = img.getBoundingClientRect();
+          if (rect.width < 100 || rect.height < 100) continue;
+          if (
+            rect.bottom <= 0 ||
+            rect.top >= window.innerHeight ||
+            rect.right <= 0 ||
+            rect.left >= window.innerWidth
+          )
+            continue;
+          const area = rect.width * rect.height;
+          if (area > largestArea) {
+            largestArea = area;
+            largestImg = img;
+          }
+        }
+        if (largestImg) {
+          image = largestImg;
+        }
+      }
+
       if (image) {
+        const existing = currentEntry(image);
+        if (existing && existing.view.state.phase === "ready") {
+          const showOrig = !existing.view.isOriginal;
+          existing.view.setOriginal(showOrig);
+          const toastMsg = showOrig
+            ? (language === "zh-CN" ? "👁 已显示原图" : language === "ja-JP" ? "👁 原画像を表示" : "👁 Showing original")
+            : (language === "zh-CN" ? "✓ 已显示译文" : language === "ja-JP" ? "✓ 翻訳を表示" : "✓ Showing translation");
+          existing.view.flashBadge(toastMsg);
+          void chrome.runtime
+            .sendMessage({
+              type: "MANGA_CONTEXT_MENU_STATE",
+              payload: { isOriginal: showOrig },
+            })
+            .catch(() => {});
+          reply({ success: true, toggled: true, isOriginal: showOrig });
+          return;
+        }
         void start(image);
         reply({ success: true });
       } else {
+        readerControls?.showToast?.("⚠️ " + t(language, "manga.sourceFailed"));
         void requestPick().then(
           () => reply({ success: true, pickerReady: true }),
           () => reply({ success: false, pickerReady: false }),
@@ -751,8 +913,13 @@ export function initMangaController(repair = false) {
   const pageshow = (event: PageTransitionEvent) => {
     if (event.persisted) initMangaController(true);
   };
+  const onPopState = () => {
+    scheduleLayout();
+    setTimeout(refreshReader, 80);
+  };
   addEventListener("pageshow", pageshow);
   addEventListener("pagehide", pagehide);
+  addEventListener("popstate", onPopState);
   state.__astraMangaController = {
     alive,
     dispose() {
@@ -769,6 +936,7 @@ export function initMangaController(repair = false) {
       document.removeEventListener("fullscreenchange", scheduleLayout);
       removeEventListener("pagehide", pagehide);
       removeEventListener("pageshow", pageshow);
+      removeEventListener("popstate", onPopState);
       try {
         runtime.onMessage.removeListener(onMessage);
       } catch {
