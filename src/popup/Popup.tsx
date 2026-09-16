@@ -585,6 +585,13 @@ export default function Popup() {
   }, [mode]);
 
   useEffect(() => {
+    document.body.classList.toggle("ast-popup-chat-mode", mode === "chat");
+    return () => {
+      document.body.classList.remove("ast-popup-chat-mode");
+    };
+  }, [mode]);
+
+  useEffect(() => {
     const el = chatListRef.current;
     if (mode === "chat" && el) el.scrollTop = el.scrollHeight;
   }, [mode, chatTurns, chatPending, streamText]);
@@ -1323,7 +1330,10 @@ export default function Popup() {
   }
 
   return (
-    <div className="ast-popup-shell" onKeyDown={handleKeyDown}>
+    <div
+      className={`ast-popup-shell ${mode === "chat" ? "ast-popup-shell--chat" : ""}`}
+      onKeyDown={handleKeyDown}
+    >
       <div className="ast-popup-topbar">
         {/* Header: title · mode segmented control · settings */}
         <div className="ast-popup-header">

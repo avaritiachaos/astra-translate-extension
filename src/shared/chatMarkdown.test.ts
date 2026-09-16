@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseChatMarkdown, parseSpans } from "./chatMarkdown.ts";
+import { parseChatMarkdown, parseSpans, replaceLatexSymbols } from "./chatMarkdown.ts";
 
 describe("parseChatMarkdown", () => {
   it("plain text is a single para block", () => {
@@ -55,5 +55,46 @@ describe("parseSpans", () => {
   it("markers never cross line breaks", () => {
     const spans = parseSpans("**a\nb** and `c\nd`");
     assert.ok(spans.every((s) => s.type === "text"));
+  });
+
+  it("converts latex arrow and comparison symbols in text", () => {
+    const spans = parseSpans("短（みじかい / mijikai） $\\rightarrow$ 谐音：“密集的卡”");
+    assert.deepEqual(spans, [
+      { type: "text", content: "短（みじかい / mijikai） → 谐音：“密集的卡”" },
+    ]);
+  });
+
+  it("converts bare \\rightarrow and math symbols", () => {
+    const spans = parseSpans("A \\rightarrow B and x \\le y \\approx z");
+    assert.deepEqual(spans, [
+      { type: "text", content: "A → B and x ≤ y ≈ z" },
+    ]);
+  });
+
+  it("converts latex symbols inside bold", () => {
+    const spans = parseSpans("**A $\\rightarrow$ B**");
+    assert.deepEqual(spans, [
+      { type: "bold", content: "A → B" },
+    ]);
+  });
+
+  it("never converts latex symbols inside inline code", () => {
+    const spans = parseSpans("use `$\\rightarrow$` command");
+    assert.deepEqual(spans, [
+      { type: "text", content: "use " },
+      { type: "code", content: "$\\rightarrow$" },
+      { type: "text", content: " command" },
+    ]);
+  });
+
+  it("preserves currency dollar signs without mangling", () => {
+    const spans = parseSpans("Price is $100 or $200");
+    assert.deepEqual(spans, [
+      { type: "text", content: "Price is $100 or $200" },
+    ]);
+  });
+
+  it("preserves Windows paths without mangling", () => {
+    assert.equal(replaceLatexSymbols("C:\\to\\file"), "C:\\to\\file");
   });
 });

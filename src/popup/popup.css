@@ -64,9 +64,25 @@ body::after {
   min-width: 0;
 }
 
+body.ast-popup-chat-mode {
+  height: 600px;
+  max-height: 600px;
+  overflow: hidden;
+}
+
+body.ast-popup-chat-mode .ast-popup-shell,
+.ast-popup-shell--chat {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-height: 600px;
+  overflow: hidden;
+}
+
 .ast-popup-topbar {
   position: relative;
   z-index: 10;
+  flex-shrink: 0;
 }
 
 /* Scrollbar — iOS ultra-thin rounded capsule */
@@ -1071,16 +1087,20 @@ body::-webkit-scrollbar-thumb:hover {
 .ast-chat {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   gap: 10px;
   padding: 10px 16px 14px;
+  overflow: hidden;
 }
 
 .ast-chat-list {
   display: flex;
   flex-direction: column;
+  flex: 1;
   gap: 8px;
-  min-height: 220px;
-  max-height: 340px;
+  min-height: 120px;
+  max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 4px 2px;
@@ -1241,6 +1261,7 @@ body::-webkit-scrollbar-thumb:hover {
 .ast-chat-composer-card {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   background: var(--ast-glass-card);
   border: 1px solid var(--ast-glass-border);
   border-radius: 14px;
@@ -2194,6 +2215,8 @@ body::-webkit-scrollbar-thumb:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  max-height: 96px;
+  overflow-y: auto;
   margin-bottom: 6px;
   padding: 0 4px;
 }

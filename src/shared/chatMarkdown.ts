@@ -59,6 +59,95 @@ export function parseChatMarkdown(text: string): ChatBlock[] {
   return blocks;
 }
 
+const LATEX_SYMBOLS: Record<string, string> = {
+  // Arrows
+  rightarrow: "→",
+  to: "→",
+  leftarrow: "←",
+  leftrightarrow: "↔",
+  Rightarrow: "⇒",
+  Leftarrow: "⇐",
+  Leftrightarrow: "⇔",
+  uparrow: "↑",
+  downarrow: "↓",
+  // Comparisons & Math
+  le: "≤",
+  leq: "≤",
+  ge: "≥",
+  geq: "≥",
+  ne: "≠",
+  neq: "≠",
+  approx: "≈",
+  times: "×",
+  div: "÷",
+  pm: "±",
+  mp: "∓",
+  cdot: "·",
+  dots: "…",
+  cdots: "…",
+  infty: "∞",
+  // Set theory & logic
+  in: "∈",
+  notin: "∉",
+  subset: "⊂",
+  subseteq: "⊆",
+  cap: "∩",
+  cup: "∪",
+  forall: "∀",
+  exists: "∃",
+  // Greek letters
+  alpha: "α",
+  beta: "β",
+  gamma: "γ",
+  delta: "δ",
+  pi: "π",
+  theta: "θ",
+  lambda: "λ",
+  mu: "μ",
+  sigma: "σ",
+  omega: "ω",
+  Delta: "Δ",
+  Omega: "Ω",
+};
+
+const SHORT_COMMANDS = new Set(["to", "in", "le", "ge", "ne", "pm", "mp", "pi", "mu"]);
+
+/**
+ * Replaces common LaTeX command/math representations (e.g. `$\rightarrow$`, `\rightarrow`, `$\to$`)
+ * with standard Unicode characters.
+ * Guarantees that:
+ * 1. Ordinary dollar signs ($100) are never touched.
+ * 2. Windows paths like C:\to\file are never touched.
+ */
+export function replaceLatexSymbols(text: string): string {
+  return text.replace(/(?:\$\s*)?\\([a-zA-Z]+)(?:\s*\$)?/g, (match, cmd, offset) => {
+    const symbol = LATEX_SYMBOLS[cmd];
+    if (!symbol) return match;
+
+    const hasDollar = match.startsWith("$") && match.endsWith("$");
+    if (!hasDollar) {
+      if (offset > 0) {
+        const prevChar = text[offset - 1];
+        if (/[a-zA-Z0-9_:\\]/.test(prevChar)) return match;
+      }
+      const nextCharIndex = offset + match.length;
+      if (nextCharIndex < text.length) {
+        const nextChar = text[nextCharIndex];
+        if (/[\\/]/.test(nextChar)) return match;
+      }
+      if (SHORT_COMMANDS.has(cmd)) {
+        const prevChar = offset > 0 ? text[offset - 1] : " ";
+        const nextChar = nextCharIndex < text.length ? text[nextCharIndex] : " ";
+        if (!/\s/.test(prevChar) || !/\s/.test(nextChar)) {
+          return match;
+        }
+      }
+    }
+
+    return symbol;
+  });
+}
+
 /** Inline spans: `code` binds tighter than **bold**; neither crosses lines. */
 export function parseSpans(text: string): ChatSpan[] {
   const spans: ChatSpan[] = [];
@@ -71,11 +160,12 @@ export function parseSpans(text: string): ChatSpan[] {
     for (const seg of part.split(/(\*\*[^*\n]+?\*\*)/)) {
       if (!seg) continue;
       if (seg.length > 4 && seg.startsWith("**") && seg.endsWith("**")) {
-        spans.push({ type: "bold", content: seg.slice(2, -2) });
+        spans.push({ type: "bold", content: replaceLatexSymbols(seg.slice(2, -2)) });
       } else {
-        spans.push({ type: "text", content: seg });
+        spans.push({ type: "text", content: replaceLatexSymbols(seg) });
       }
     }
   }
   return spans;
 }
+
