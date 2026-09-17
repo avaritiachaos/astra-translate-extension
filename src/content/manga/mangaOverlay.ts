@@ -2,7 +2,11 @@ import type {
   MangaJob,
   Rect,
   PositionedRegion,
+  MangaFontFamily,
+  MangaBubbleTheme,
 } from "../../shared/manga/types";
+import { FONT_FAMILY_MAP } from "./mangaImageExport";
+import { resolveBubbleColor } from "../../shared/manga/bubbleTheme";
 import { imagePlacement } from "../../shared/manga/imageGeometry";
 import { followMangaFullscreen } from "./mangaFullscreen";
 import {
@@ -99,12 +103,12 @@ export function imageBox(image: MangaImage) {
   };
 }
 const css = `
-:host{all:initial;position:fixed;inset:0;margin:0;border:0;padding:0;width:100%;height:100%;max-width:none;max-height:none;background:transparent;overflow:visible;z-index:2147483600;pointer-events:none;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#24242a}
+:host{all:initial;position:fixed;inset:0;margin:0;border:0;padding:0;width:100%;height:100%;max-width:none;max-height:none;background:transparent;overflow:visible;z-index:2147483600;pointer-events:none;font-family:var(--manga-font-family, "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif);color:#24242a}
 *{box-sizing:border-box}button{font:inherit;cursor:pointer;border:0}button:focus-visible{outline:3px solid #7771f5;outline-offset:2px}[hidden]{display:none!important}
 .status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 .frame{position:absolute;overflow:hidden;pointer-events:none}
 .frame.original-mode .region{display:none!important}
-.region{position:absolute;display:flex;align-items:center;justify-content:center;padding:4px;margin:0;border-radius:5px;pointer-events:auto;overflow:hidden;background:#fff;color:#24242a;text-align:center;box-shadow:none;white-space:normal;line-height:1.35}
+.region{position:absolute;display:flex;align-items:center;justify-content:center;padding:4px;margin:0;border-radius:5px;pointer-events:auto;overflow:hidden;background:#fff;color:#24242a;text-align:center;box-shadow:none;white-space:normal;line-height:1.35;font-family:var(--manga-font-family, inherit)}
 .region.uncertain:not(.marker){box-shadow:inset 0 0 0 1px #b1833855}.region.uncertain:not(.marker)::after{content:"?";position:absolute;top:1px;right:2px;color:#95681d;font-size:10px;line-height:1}
 .region:hover{outline:1px dashed #7771f580;outline-offset:1px}.region .text{display:block;max-width:100%;max-height:100%;overflow:hidden;overflow-wrap:anywhere;word-break:normal}
 .region.vertical .text{writing-mode:vertical-rl;text-orientation:mixed;line-height:1.3;letter-spacing:0;height:100%;width:auto}
@@ -177,6 +181,8 @@ export class MangaOverlay {
   private otherCard = (event: Event) => {
     if ((event as CustomEvent).detail !== this.host) this.closeCard();
   };
+  private fontFamily: MangaFontFamily = "sans";
+  private bubbleTheme: MangaBubbleTheme = "auto";
   private outside = (event: Event) => {
     if (!event.composedPath().includes(this.host)) this.closeCard();
   };
@@ -188,13 +194,45 @@ export class MangaOverlay {
     translations: [],
     translationsRevision: 0,
   };
+  getRegions(): PositionedRegion[] {
+    return this.job?.regions || [];
+  }
+  getFontFamily(): MangaFontFamily {
+    return this.fontFamily;
+  }
+  setFontFamily(family: MangaFontFamily) {
+    if (this.fontFamily === family) return;
+    this.fontFamily = family;
+    this.host.style.setProperty(
+      "--manga-font-family",
+      FONT_FAMILY_MAP[family] || FONT_FAMILY_MAP.sans,
+    );
+    this.layout();
+  }
+  getBubbleTheme(): MangaBubbleTheme {
+    return this.bubbleTheme;
+  }
+  setBubbleTheme(theme: MangaBubbleTheme) {
+    if (this.bubbleTheme === theme) return;
+    this.bubbleTheme = theme;
+    this.layout();
+  }
   constructor(
     private image: MangaImage,
     private lang: UiLanguage,
     private changed: () => void = () => {},
+    initialJob?: MangaJob,
+    fontFamily: MangaFontFamily = "sans",
+    bubbleTheme: MangaBubbleTheme = "auto",
   ) {
+    this.fontFamily = fontFamily;
+    this.bubbleTheme = bubbleTheme;
     this.host.className = "ast-manga-root";
     this.host.dataset.astraManga = "true";
+    this.host.style.setProperty(
+      "--manga-font-family",
+      FONT_FAMILY_MAP[this.fontFamily] || FONT_FAMILY_MAP.sans,
+    );
     const style = document.createElement("style");
     style.textContent = css;
     this.frame.className = "frame";
@@ -239,7 +277,10 @@ export class MangaOverlay {
     this.loadingText.textContent = t(lang, "manga.translatingShort");
     this.loadingBadge.append(this.loadingSpinner, this.loadingText);
     this.loading.append(this.loadingBeam, this.loadingBadge);
-    this.frame.append(this.loading);
+    const isReady = initialJob?.phase === "ready";
+    if (!isReady) {
+      this.frame.append(this.loading);
+    }
     this.root.append(style, this.status, this.frame, this.card);
     this.host.setAttribute("popover", "manual");
     this.stopFollowing = followMangaFullscreen(this.host, () => this.layout());
@@ -251,8 +292,12 @@ export class MangaOverlay {
     window.addEventListener("pointerdown", this.outside, true);
     document.addEventListener("astra-manga-dock-move", this.dockMove);
     document.addEventListener(MANGA_CARD_OPEN_EVENT, this.otherCard);
-    this.message(t(lang, "manga.loading"));
-    this.layout();
+    if (isReady && initialJob) {
+      this.update(initialJob);
+    } else {
+      this.message(t(lang, "manga.loading"));
+      this.layout();
+    }
   }
   message(value: string) {
     this.state.status = value;
@@ -337,9 +382,11 @@ export class MangaOverlay {
         this.frame.prepend(this.loading);
       }
       this.loading.classList.remove("hidden");
-      this.loadingText.textContent = job.total
-        ? `${t(this.lang, "manga.translatingShort")} ${job.completed}/${job.total}`
-        : t(this.lang, "manga.translatingShort");
+      this.loadingText.textContent = job.rateLimited
+        ? t(this.lang, "manga.rateLimitRetrying")
+        : job.total
+          ? `${t(this.lang, "manga.translatingShort")} ${job.completed}/${job.total}`
+          : t(this.lang, "manga.translatingShort");
     } else {
       this.loading.classList.add("hidden");
       this.loading.remove();
@@ -648,7 +695,9 @@ export class MangaOverlay {
             unsafeReason: "sfx",
           },
           (value, font) => {
-            this.measuring.font = `${font}px "Segoe UI","Microsoft YaHei",sans-serif`;
+            const fontStack =
+              FONT_FAMILY_MAP[this.fontFamily] || FONT_FAMILY_MAP.sans;
+            this.measuring.font = `${font}px ${fontStack}`;
             return this.measuring.measureText(value).width;
           },
         );
@@ -671,12 +720,23 @@ export class MangaOverlay {
           ? markerRect(map(region.rect), page, textRects, occupied)
           : layout.rect;
         apply(bounds);
+        const colorStyle = resolveBubbleColor(
+          region.background,
+          this.bubbleTheme,
+        );
         node.style.fontSize = layout.fontSize + "px";
-        node.style.backgroundColor = marker
-          ? ""
-          : region.background?.flat
-            ? region.background.color
-            : "#fff";
+        node.style.backgroundColor = marker ? "" : colorStyle.backgroundColor;
+        node.style.color = marker ? "" : colorStyle.textColor;
+        if (!marker && colorStyle.borderColor && colorStyle.borderColor !== "transparent") {
+          node.style.border = `1px solid ${colorStyle.borderColor}`;
+        } else {
+          node.style.border = "";
+        }
+        if (!marker && colorStyle.boxShadow) {
+          node.style.boxShadow = colorStyle.boxShadow;
+        } else if (!marker && !region.uncertain) {
+          node.style.boxShadow = "none";
+        }
         text.textContent = marker ? String(index + 1) : layout.text;
         if (!marker) {
           // Browser shaping and line-breaking are authoritative. An estimate
@@ -697,6 +757,9 @@ export class MangaOverlay {
             node.classList.add("marker");
             node.classList.remove("vertical");
             node.style.backgroundColor = "";
+            node.style.color = "";
+            node.style.border = "";
+            node.style.boxShadow = "";
             node.style.fontSize = "12px";
             text.textContent = String(index + 1);
             bounds = markerRect(map(region.rect), page, textRects, occupied);
@@ -725,9 +788,10 @@ export class MangaOverlay {
         const { node, text, region } = item;
         item.layoutKey = undefined;
         item.marker = false;
-        item.markerReason = undefined;
+        const colorStyle = resolveBubbleColor(region.background, this.bubbleTheme);
         node.classList.remove("marker", "vertical");
-        node.style.backgroundColor = "#fff";
+        node.style.backgroundColor = colorStyle.backgroundColor;
+        node.style.color = colorStyle.textColor;
         text.textContent =
           region.translatedText.trim() ||
           t(this.lang, "manga.noReliableTranslation");

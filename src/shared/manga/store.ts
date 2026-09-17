@@ -134,3 +134,29 @@ export async function pruneMangaJobs(): Promise<void> {
     tx.onabort = tx.onerror = () => reject(tx.error);
   });
 }
+
+export async function getMangaCacheStats(): Promise<{ count: number; bytes: number }> {
+  const db = await open();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("results", "readonly");
+    const req = tx.objectStore("results").getAll();
+    req.onsuccess = () => {
+      const rows = req.result || [];
+      const count = rows.length;
+      const bytes = rows.reduce((sum: number, row: any) => sum + (row.bytes || 0), 0);
+      resolve({ count, bytes });
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function clearMangaCache(): Promise<void> {
+  const db = await open();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(["results", "jobs"], "readwrite");
+    tx.objectStore("results").clear();
+    tx.objectStore("jobs").clear();
+    tx.oncomplete = () => resolve();
+    tx.onabort = tx.onerror = () => reject(tx.error);
+  });
+}

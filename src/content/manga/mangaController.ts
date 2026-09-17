@@ -2,7 +2,7 @@ import { MangaOverlay, imageBox } from "./mangaOverlay";
 import { createMangaPicker } from "./mangaPicker";
 import { createMangaReaderControls } from "./mangaReaderControls";
 import { createMangaAutoReader } from "./mangaAutoReader";
-import { isLikelyMangaPage } from "./mangaDetection";
+import { isLikelyMangaPage, isMangaReaderUrl } from "./mangaDetection";
 import {
   isCanvasImage,
   mangaImageSize,
@@ -16,7 +16,8 @@ import {
 import { MangaViewportLease, whileMangaWanted } from "../../shared/manga/workInterest";
 import { imageBlobToDataUrl } from "../../shared/imageAssets";
 import { t, type UiLanguage } from "../../shared/i18n";
-import type { MangaJob, Rect } from "../../shared/manga/types";
+import type { MangaJob, Rect, MangaFontFamily, MangaBubbleTheme } from "../../shared/manga/types";
+import { downloadTranslatedMangaImage } from "./mangaImageExport";
 interface Entry {
   image: MangaImage;
   url: string;
@@ -39,6 +40,9 @@ interface Entry {
 const entries = new Map<MangaImage, Entry>();
 const starts = new WeakMap<MangaImage, number>();
 let language: UiLanguage = "zh-CN";
+let currentFontFamily: MangaFontFamily = "sans";
+let currentBubbleTheme: MangaBubbleTheme = "auto";
+let cachedPreferences: any = undefined;
 let lastImage: HTMLImageElement | null = null;
 let stopPicking: (() => void) | undefined;
 let readerControls: ReturnType<typeof createMangaReaderControls> | undefined;
@@ -75,7 +79,9 @@ function refreshReader() {
         a.image.getBoundingClientRect().x - b.image.getBoundingClientRect().x,
     );
   const spread = visibleMangaSpread(document, anchor);
-  const eligible = isLikelyMangaPage(document, spread);
+  const eligible =
+    isLikelyMangaPage(document, spread) ||
+    Boolean(visible.length > 0 && isMangaReaderUrl(location.href));
   if (!visible.length && !spread.length && !autoReader?.state.enabled) {
     readingSession = false;
   }
@@ -433,9 +439,28 @@ async function start(image: MangaImage, force = false, automatic = false) {
   starts.set(image, version);
   const old = entries.get(image);
   if (old) restore(old, false);
-  const preferences = await chrome.runtime
-    .sendMessage({ type: "MANGA_PREFERENCES" })
-    .catch(() => null);
+
+  // Instant pre-claim check: if the page was prefetched in background and is ready,
+  // we immediately obtain the translation result before creating the overlay.
+  let preClaimJob: MangaJob | undefined;
+  if (!isCanvasImage(image) && !force && autoReader?.state.enabled) {
+    const claim = await chrome.runtime
+      .sendMessage({
+        type: "MANGA_READING_CLAIM",
+        payload: { imageUrl: expectedSource },
+      })
+      .catch(() => null);
+    if (claim?.job) {
+      preClaimJob = claim.job as MangaJob;
+    }
+  }
+
+  const preferences =
+    cachedPreferences ||
+    (await chrome.runtime
+      .sendMessage({ type: "MANGA_PREFERENCES" })
+      .catch(() => null));
+  if (preferences) cachedPreferences = preferences;
   if (
     starts.get(image) !== version ||
     generation !== batchGeneration ||
@@ -449,8 +474,10 @@ async function start(image: MangaImage, force = false, automatic = false) {
   )
     return;
   if (preferences?.language) language = preferences.language;
+  if (preferences?.fontFamily) currentFontFamily = preferences.fontFamily;
+  if (preferences?.bubbleTheme) currentBubbleTheme = preferences.bubbleTheme;
   let entry: Entry;
-  const view = new MangaOverlay(image, language, refreshReader);
+  const view = new MangaOverlay(image, language, refreshReader, preClaimJob, currentFontFamily, currentBubbleTheme);
   view.setOriginal(showOriginal);
   view.hide(captureActive);
   // Keep only a small set of page overlays; completed results remain in the existing cache.
@@ -494,14 +521,22 @@ async function start(image: MangaImage, force = false, automatic = false) {
       return;
     }
     if (!isCanvasImage(image) && !force && autoReader?.state.enabled) {
+      if (preClaimJob) {
+        entry.claimedJobId = preClaimJob.id;
+        if (preClaimJob.phase === "ready") {
+          return;
+        }
+      }
       // Reuse the one prefetched result even across a same-chapter navigation.
       // Ownership remains enforced by the per-tab reading service, not the DOM.
-      let claim = await chrome.runtime
-        .sendMessage({
-          type: "MANGA_READING_CLAIM",
-          payload: { imageUrl: entry.url },
-        })
-        .catch(() => null);
+      let claim = preClaimJob
+        ? { job: preClaimJob }
+        : await chrome.runtime
+            .sendMessage({
+              type: "MANGA_READING_CLAIM",
+              payload: { imageUrl: entry.url },
+            })
+            .catch(() => null);
       const deadline = Date.now() + 150_000;
       while (claim?.job && !entry.cancelled) {
         entry.claimedJobId = claim.job.id;
@@ -611,6 +646,51 @@ function pickImage() {
   );
   readerControls?.setPicking(true);
 }
+async function exportCurrentImage() {
+  const readyVisible = [...entries.values()]
+    .filter(
+      (entry) =>
+        entry.view.state.phase === "ready" &&
+        visibleMangaImageRect(entry.image),
+    )
+    .sort((a, b) => {
+      if (lastImage && a.image === lastImage) return -1;
+      if (lastImage && b.image === lastImage) return 1;
+      return (
+        a.image.getBoundingClientRect().x - b.image.getBoundingClientRect().x
+      );
+    });
+
+  const targetEntry =
+    readyVisible[0] ||
+    (lastImage ? currentEntry(lastImage) : undefined) ||
+    [...entries.values()].find((e) => e.view.state.phase === "ready");
+
+  const regions = targetEntry?.view.getRegions();
+  if (
+    !targetEntry ||
+    targetEntry.view.state.phase !== "ready" ||
+    !regions ||
+    !regions.length
+  ) {
+    readerControls?.showToast(t(language, "manga.exportNoTranslation"));
+    return;
+  }
+
+  readerControls?.showToast("⏳ " + t(language, "manga.preparing"));
+  try {
+    await downloadTranslatedMangaImage(
+      targetEntry.image,
+      regions,
+      currentFontFamily,
+      currentBubbleTheme,
+    );
+    readerControls?.showToast(t(language, "manga.exportSuccess"));
+  } catch (err) {
+    console.error("Failed to export manga image:", err);
+    readerControls?.showToast(t(language, "manga.exportFailed"));
+  }
+}
 export function initMangaController(repair = false) {
   const state = globalThis as typeof globalThis & {
     __astraMangaController?: { alive: () => boolean; dispose: () => void };
@@ -713,6 +793,12 @@ export function initMangaController(repair = false) {
       const forceAuto =
         typeof msg.payload?.auto === "boolean" ? msg.payload.auto : undefined;
       reply({ success: true, ...translateCurrent(forceAuto) });
+      return;
+    }
+    if (msg.type === "MANGA_START_BATCH") {
+      const res = translateCurrent(true);
+      void autoReader?.startBatchPrefetch();
+      reply({ success: true, batchStarted: true, ...res });
       return;
     }
     if (msg.type === "MANGA_PICK_IMAGE") {
@@ -848,8 +934,12 @@ export function initMangaController(repair = false) {
                 record.target.contains(entry.image)),
           ),
       )
-    )
+    ) {
       scheduleLayout();
+      if (autoReader?.state.enabled) {
+        autoReader.retrigger();
+      }
+    }
   });
   readerControls = createMangaReaderControls(() => language, {
     pick: () => void requestPick().catch(() => {}),
@@ -866,6 +956,28 @@ export function initMangaController(repair = false) {
       if (depth !== undefined) {
         autoReader?.retrigger();
       }
+    },
+    batchPrefetch: (start) => {
+      if (start) {
+        void autoReader?.startBatchPrefetch();
+      } else {
+        autoReader?.stopBatchPrefetch();
+      }
+    },
+    onFontFamilyChange: (font) => {
+      currentFontFamily = font;
+      for (const entry of entries.values()) {
+        entry.view.setFontFamily(font);
+      }
+    },
+    onBubbleThemeChange: (theme) => {
+      currentBubbleTheme = theme;
+      for (const entry of entries.values()) {
+        entry.view.setBubbleTheme(theme);
+      }
+    },
+    exportCurrent: () => {
+      void exportCurrentImage();
     },
   });
   autoReader = createMangaAutoReader({
@@ -903,6 +1015,8 @@ export function initMangaController(repair = false) {
     .then((preferences) => {
       if (!alive()) return;
       if (preferences?.language) language = preferences.language;
+      if (preferences?.fontFamily) currentFontFamily = preferences.fontFamily;
+      if (preferences?.bubbleTheme) currentBubbleTheme = preferences.bubbleTheme;
       if (typeof preferences?.autoReadingDefault === "boolean")
         autoReadingDefault = preferences.autoReadingDefault;
       if (typeof preferences?.prefetchDefault === "boolean")
@@ -916,10 +1030,23 @@ export function initMangaController(repair = false) {
   const onPopState = () => {
     scheduleLayout();
     setTimeout(refreshReader, 80);
+    if (autoReader?.state.enabled) {
+      autoReader.retrigger();
+    }
+  };
+  const onVisibilityChange = () => {
+    if (!document.hidden) {
+      scheduleLayout();
+      setTimeout(refreshReader, 80);
+      if (autoReader?.state.enabled) {
+        autoReader.retrigger();
+      }
+    }
   };
   addEventListener("pageshow", pageshow);
   addEventListener("pagehide", pagehide);
   addEventListener("popstate", onPopState);
+  document.addEventListener("visibilitychange", onVisibilityChange);
   state.__astraMangaController = {
     alive,
     dispose() {
@@ -937,6 +1064,7 @@ export function initMangaController(repair = false) {
       removeEventListener("pagehide", pagehide);
       removeEventListener("pageshow", pageshow);
       removeEventListener("popstate", onPopState);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       try {
         runtime.onMessage.removeListener(onMessage);
       } catch {

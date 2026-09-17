@@ -115,9 +115,18 @@ export async function encodeMangaTile(bitmap: ImageBitmap, tile: Tile) {
     canvas.width,
     canvas.height,
   );
-  let blob = await canvas.convertToBlob({ type: "image/png" });
-  if (blob.size > 4 * 1024 * 1024)
-    blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.92 });
+  let blob: Blob;
+  try {
+    blob = await canvas.convertToBlob({ type: "image/webp", quality: 0.86 });
+  } catch {
+    blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.88 });
+  }
+  if (!blob || blob.size === 0) {
+    blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.88 });
+  }
+  if (blob.size > 4 * 1024 * 1024) {
+    blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.75 });
+  }
   if (blob.size > 4 * 1024 * 1024) throw new Error("MANGA_TOO_LARGE");
   return { canvas, dataUrl: await imageBlobToDataUrl(blob) };
 }
@@ -153,7 +162,7 @@ export function regionBackground(
   );
   return {
     color: "rgb(" + rgb.join(",") + ")",
-    flat: variance < 18 && Math.min(...rgb) > 170,
+    flat: variance < 18,
   };
 }
 export async function digest(value: Blob | string): Promise<string> {

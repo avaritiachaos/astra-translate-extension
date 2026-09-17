@@ -1,6 +1,8 @@
 import type { UserProviderSettings } from "../types";
 import type { UiLanguage } from "../i18n";
 export type MangaThinkingEffort = "low" | "default" | "medium" | "high" | "off";
+export type MangaFontFamily = "sans" | "rounded" | "comic" | "serif";
+export type MangaBubbleTheme = "auto" | "dark" | "light" | "translucent";
 
 export interface MangaSettings {
   providerId: string;
@@ -11,6 +13,10 @@ export interface MangaSettings {
   prefetchDepth?: number;
   autoReadingDefault?: boolean;
   prefetchDefault?: boolean;
+  backgroundPrefetch?: boolean;
+  batchPrefetchLimit?: number;
+  fontFamily?: MangaFontFamily;
+  bubbleTheme?: MangaBubbleTheme;
 }
 export type Box1000 = [number, number, number, number];
 export interface Rect {
@@ -74,6 +80,7 @@ export interface MangaJob {
   error?: string;
   errorCode?: string;
   probe?: boolean;
+  rateLimited?: boolean;
 }
 export type MangaSource =
   | { kind: "url"; url: string; pageOrigin: string }

@@ -25,10 +25,12 @@ import {
   digest,
 } from "./imagePipeline";
 import { translateMangaTile } from "./mangaVisionClient";
+import { MangaAdaptiveConcurrency } from "../../shared/manga/mangaAdaptiveConcurrency";
 interface RunningJob {
   job: MangaJob;
   request: MangaExecution | null;
   abort: AbortController;
+  rateLimitRetries?: number;
 }
 const jobs = new Map<string, RunningJob>();
 const queue: string[] = [];
@@ -62,15 +64,20 @@ async function publish(entry: RunningJob, changes: Partial<MangaJob>) {
   );
 }
 let configuredConcurrency = 3;
+const adaptive = new MangaAdaptiveConcurrency({ max: configuredConcurrency });
+let cooldownTimer: ReturnType<typeof setTimeout> | undefined;
+
 export function setMangaConcurrency(concurrency: number) {
   if (concurrency >= 1 && concurrency <= 8) {
     configuredConcurrency = concurrency;
+    adaptive.setMax(concurrency);
     pump();
   }
 }
 export async function startMangaJob(request: MangaExecution) {
   if (request.concurrency && request.concurrency >= 1 && request.concurrency <= 8) {
     configuredConcurrency = request.concurrency;
+    adaptive.setMax(request.concurrency);
   }
   const maxActive = Math.max(12, configuredConcurrency * 3);
   if (activeMangaJobs().length >= maxActive) throw new Error("MANGA_BUSY");
@@ -103,13 +110,26 @@ export async function cancelMangaJob(id: string, owner: string) {
   return true;
 }
 function pump() {
-  while (running < configuredConcurrency && queue.length) {
-    const entry = jobs.get(queue.shift()!);
+  const remaining = adaptive.cooldownRemainingMs();
+  if (remaining > 0) {
+    if (!cooldownTimer) {
+      cooldownTimer = setTimeout(() => {
+        cooldownTimer = undefined;
+        pump();
+      }, remaining + 20);
+    }
+    return;
+  }
+  while (adaptive.canRun(running) && queue.length) {
+    const nextId = queue.shift()!;
+    const entry = jobs.get(nextId);
     if (!entry || entry.job.phase === "cancelled" || !entry.request) continue;
     running++;
     void execute(entry).finally(() => {
       running--;
-      entry.request = null;
+      if (entry.job.phase !== "queued") {
+        entry.request = null;
+      }
       const idle = [...jobs.entries()].filter(
         ([, value]) => !MANGA_ACTIVE_PHASES.has(value.job.phase),
       );
@@ -239,7 +259,8 @@ async function execute(entry: RunningJob) {
         console.warn("[Astra Manga] Result cache unavailable."),
       );
     check();
-    await publish(entry, { phase: "ready" });
+    await publish(entry, { phase: "ready", rateLimited: false });
+    adaptive.onSuccess();
   } catch (error) {
     if (job.phase !== "cancelled") {
       const code = signal.aborted
@@ -249,6 +270,34 @@ async function execute(entry: RunningJob) {
           : error instanceof Error
             ? error.message
             : "MANGA_FAILED";
+      const isRateLimit =
+        code === "RATE_LIMIT" ||
+        code === "429" ||
+        (typeof error === "object" && (error as any)?.status === 429) ||
+        /429|rate\s*limit|quota|resource.*exhausted/i.test(
+          String(error instanceof Error ? error.message : error),
+        );
+
+      if (isRateLimit && (entry.rateLimitRetries ?? 0) < 3) {
+        entry.rateLimitRetries = (entry.rateLimitRetries ?? 0) + 1;
+        const retryAfterMs = (error as any)?.retryAfterMs;
+        const delay = adaptive.onRateLimit(retryAfterMs);
+        entry.abort = new AbortController();
+        queue.unshift(entry.job.id);
+        await publish(entry, {
+          phase: "queued",
+          rateLimited: true,
+          error: t(request.language, "manga.rateLimitRetrying"),
+        });
+        if (!cooldownTimer) {
+          cooldownTimer = setTimeout(() => {
+            cooldownTimer = undefined;
+            pump();
+          }, delay + 20);
+        }
+        return;
+      }
+
       const labels: Record<string, string> = {
         MANGA_SOURCE_UNREADABLE: "manga.sourceFailed",
         MANGA_TOO_LARGE: "manga.tooLarge",
@@ -256,16 +305,20 @@ async function execute(entry: RunningJob) {
         MANGA_INVALID_RESULT: "manga.invalidResult",
         MANGA_VISION_FAILED: "manga.visionFailed",
         TIMEOUT: "error.timeout",
+        RATE_LIMIT: "error.rateLimit",
       };
       const message = labels[code]
         ? t(request.language, labels[code])
         : error instanceof AstraError
           ? error.message
-          : t(request.language, "manga.failed");
+          : isRateLimit
+            ? t(request.language, "error.rateLimit")
+            : t(request.language, "manga.failed");
       await publish(entry, {
         phase: "failed",
         error: message,
-        errorCode: code,
+        errorCode: isRateLimit ? "RATE_LIMIT" : code,
+        rateLimited: false,
       });
     }
   } finally {

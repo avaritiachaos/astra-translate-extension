@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   openMangaPicker,
   translateCurrentMangaPage,
+  prefetchMangaChapter,
   isMangaPageUrl,
   MangaPageError,
   type MangaTabApi,
@@ -196,3 +197,38 @@ describe("current-image direct action", () => {
     assert.equal(f.injections.length, 1);
   });
 });
+
+describe("chapter batch prefetch action", () => {
+  it("sends the batch action rather than opening the picker", async () => {
+    const f = fixture((type) =>
+      type === "MANGA_PING"
+        ? healthy(type)
+        : { success: true, batchStarted: true },
+    );
+    await prefetchMangaChapter(tab, f.api);
+    assert.deepEqual(
+      f.messages.map((m) => m.type),
+      ["MANGA_PING", "MANGA_START_BATCH"],
+    );
+    assert.equal(f.injections.length, 0);
+  });
+  it("accepts acknowledgment with currentStarted or pickerReady", async () => {
+    const f = fixture((type) =>
+      type === "MANGA_PING"
+        ? healthy(type)
+        : { success: true, currentStarted: true },
+    );
+    await prefetchMangaChapter(tab, f.api);
+    assert.equal(f.messages.at(-1)?.type, "MANGA_START_BATCH");
+  });
+  it("rejects when neither batch nor start succeeds", async () => {
+    const f = fixture((type) =>
+      type === "MANGA_PING" ? healthy(type) : { success: true },
+    );
+    await assert.rejects(
+      prefetchMangaChapter(tab, f.api),
+      failure("startFailed"),
+    );
+  });
+});
+

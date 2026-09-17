@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { AstraSettings } from "../shared/types";
-import type { MangaSettings as Settings, MangaThinkingEffort } from "../shared/manga/types";
+import type { MangaSettings as Settings, MangaThinkingEffort, MangaFontFamily, MangaBubbleTheme } from "../shared/manga/types";
 import {
   DEFAULT_PROVIDER_PRESETS,
   SUPPORTED_LANGUAGES,
@@ -21,6 +21,31 @@ export function MangaSettingsCard({
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelsError, setModelsError] = useState("");
   const modelGeneration = useRef(0);
+  const [cacheStats, setCacheStats] = useState<{ count: number; bytes: number } | null>(null);
+  const [cacheClearing, setCacheClearing] = useState(false);
+
+  useEffect(() => {
+    void chrome.runtime.sendMessage({ type: "MANGA_CACHE_STATS" }).then((res) => {
+      if (res?.success) {
+        setCacheStats({ count: res.count, bytes: res.bytes });
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleClearCache = async () => {
+    if (!window.confirm(t(lang, "manga.cacheClearConfirm"))) return;
+    setCacheClearing(true);
+    try {
+      const res = await chrome.runtime.sendMessage({ type: "MANGA_CACHE_CLEAR" });
+      if (res?.success) {
+        setCacheStats({ count: 0, bytes: 0 });
+      }
+    } catch {
+      // ignore
+    } finally {
+      setCacheClearing(false);
+    }
+  };
   useEffect(() => {
     modelGeneration.current++;
     setModels([]);
@@ -310,6 +335,100 @@ export function MangaSettingsCard({
       <p className="ast-form-hint" style={{ marginTop: 0, marginBottom: 16 }}>
         {t(lang, "manga.prefetchDefaultHint")}
       </p>
+
+      <div className="ast-toggle-row" style={{ marginTop: 8, marginBottom: 4 }}>
+        <span className="ast-toggle-label">{t(lang, "manga.bgPrefetch")}</span>
+        <input
+          type="checkbox"
+          className="ast-toggle"
+          checked={settings.manga.backgroundPrefetch !== false}
+          onChange={(e) =>
+            onChange({
+              ...settings.manga,
+              backgroundPrefetch: e.target.checked,
+            })
+          }
+        />
+      </div>
+      <p className="ast-form-hint" style={{ marginTop: 0, marginBottom: 12 }}>
+        {t(lang, "manga.bgPrefetchHint")}
+      </p>
+
+      <div className="ast-form-row" style={{ marginTop: 12, marginBottom: 4 }}>
+        <div className="ast-form-group">
+          <label className="ast-form-label" htmlFor="manga-batch-prefetch-limit">
+            {t(lang, "manga.batchLimit")}
+          </label>
+          <select
+            id="manga-batch-prefetch-limit"
+            className="ast-form-select"
+            value={settings.manga.batchPrefetchLimit ?? 20}
+            onChange={(e) =>
+              onChange({
+                ...settings.manga,
+                batchPrefetchLimit: parseInt(e.target.value, 10) || 20,
+              })
+            }
+          >
+            {[10, 15, 20, 30, 40, 50].map((num) => (
+              <option key={num} value={num}>
+                {t(lang, "manga.pagesUnit", { count: num })}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <p className="ast-form-hint" style={{ marginTop: -4, marginBottom: 12 }}>
+        {t(lang, "manga.batchLimitHint")}
+      </p>
+
+      <div className="ast-form-row" style={{ marginTop: 12, marginBottom: 4 }}>
+        <div className="ast-form-group">
+          <label className="ast-form-label" htmlFor="manga-font-family">
+            {t(lang, "manga.fontFamily")}
+          </label>
+          <select
+            id="manga-font-family"
+            className="ast-form-select"
+            value={settings.manga.fontFamily ?? "sans"}
+            onChange={(e) =>
+              onChange({
+                ...settings.manga,
+                fontFamily: e.target.value as MangaFontFamily,
+              })
+            }
+          >
+            <option value="sans">{t(lang, "manga.fontSans")}</option>
+            <option value="rounded">{t(lang, "manga.fontRounded")}</option>
+            <option value="comic">{t(lang, "manga.fontComic")}</option>
+            <option value="serif">{t(lang, "manga.fontSerif")}</option>
+          </select>
+        </div>
+        <div className="ast-form-group">
+          <label className="ast-form-label" htmlFor="manga-bubble-theme">
+            {t(lang, "manga.bubbleTheme")}
+          </label>
+          <select
+            id="manga-bubble-theme"
+            className="ast-form-select"
+            value={settings.manga.bubbleTheme ?? "auto"}
+            onChange={(e) =>
+              onChange({
+                ...settings.manga,
+                bubbleTheme: e.target.value as MangaBubbleTheme,
+              })
+            }
+          >
+            <option value="auto">{t(lang, "manga.bubbleThemeAuto")}</option>
+            <option value="dark">{t(lang, "manga.bubbleThemeDark")}</option>
+            <option value="light">{t(lang, "manga.bubbleThemeLight")}</option>
+            <option value="translucent">{t(lang, "manga.bubbleThemeTranslucent")}</option>
+          </select>
+        </div>
+      </div>
+      <p className="ast-form-hint" style={{ marginTop: -4, marginBottom: 16 }}>
+        {t(lang, "manga.bubbleThemeHint")}
+      </p>
       <div className="ast-form-group">
         <button type="button" className="ast-btn ast-btn-secondary"
           disabled={modelsLoading || busy || !connection.ready} onClick={() => void loadModels()}>
@@ -367,6 +486,28 @@ export function MangaSettingsCard({
           {result.text}
         </p>
       )}
+      <div style={{ margin: "20px 0 16px 0", borderTop: "1px solid var(--ast-border, rgba(0,0,0,0.08))" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 13.5 }}>{t(lang, "manga.cacheTitle")}</div>
+          <div className="ast-form-hint" style={{ marginTop: 2, marginBottom: 0 }}>
+            {cacheStats ? (
+              cacheStats.count > 0
+                ? t(lang, "manga.cacheStats", { count: cacheStats.count, size: (cacheStats.bytes / (1024 * 1024)).toFixed(2) })
+                : t(lang, "manga.cacheEmpty")
+            ) : "..."}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="ast-btn ast-btn-secondary"
+          style={{ fontSize: 12, padding: "5px 12px" }}
+          disabled={cacheClearing || !cacheStats || cacheStats.count === 0}
+          onClick={() => void handleClearCache()}
+        >
+          {cacheClearing ? "..." : t(lang, "manga.cacheClear")}
+        </button>
+      </div>
     </div>
   );
 }

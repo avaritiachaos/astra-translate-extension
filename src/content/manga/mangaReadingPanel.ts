@@ -1,5 +1,6 @@
 import { t, type UiLanguage } from "../../shared/i18n";
 import type { MangaReadingUi } from "../../shared/manga/readingPolicy";
+import type { MangaFontFamily, MangaBubbleTheme } from "../../shared/manga/types";
 import { getSettings, saveSettings } from "../../shared/storage";
 
 export interface MangaReadingPanelOptions {
@@ -17,6 +18,10 @@ export interface MangaReadingPanelOptions {
   isVertical?: () => boolean;
   collapseToCapsule?: () => void;
   close?: () => void;
+  batchPrefetch?: (start: boolean) => void;
+  exportCurrent?: () => void;
+  onFontFamilyChange?: (font: MangaFontFamily) => void;
+  onBubbleThemeChange?: (theme: MangaBubbleTheme) => void;
 }
 
 export function createMangaReadingPanel(
@@ -155,6 +160,155 @@ export function createMangaReadingPanel(
 
   depthRow.append(depthLabel, depthButtonsWrap);
 
+  // In-panel background prefetch switch
+  const bgSwitch = document.createElement("button");
+  bgSwitch.type = "button";
+  bgSwitch.className = "reading-switch";
+  bgSwitch.setAttribute("role", "switch");
+  const bgLabel = document.createElement("span");
+  const bgTrack = document.createElement("span");
+  bgTrack.className = "switch-track";
+  bgTrack.setAttribute("aria-hidden", "true");
+  bgSwitch.append(bgLabel, bgTrack);
+  bgSwitch.dataset.setting = "bgPrefetch";
+
+  let currentBgPrefetch = true;
+  void getSettings()
+    .then((s) => {
+      currentBgPrefetch = s.manga?.backgroundPrefetch !== false;
+      bgSwitch.setAttribute("aria-checked", String(currentBgPrefetch));
+    })
+    .catch(() => {});
+
+  bgSwitch.onclick = () => {
+    currentBgPrefetch = !currentBgPrefetch;
+    bgSwitch.setAttribute("aria-checked", String(currentBgPrefetch));
+    void getSettings()
+      .then(async (settings) => {
+        settings.manga = {
+          ...settings.manga,
+          backgroundPrefetch: currentBgPrefetch,
+        };
+        await saveSettings(settings);
+      })
+      .catch(() => {});
+  };
+
+  // In-panel font style switcher
+  const fontRow = document.createElement("div");
+  fontRow.className = "reading-depth-row reading-font-row";
+  const fontLabel = document.createElement("span");
+  fontLabel.className = "depth-label";
+  const fontButtonsWrap = document.createElement("div");
+  fontButtonsWrap.className = "depth-buttons font-buttons";
+
+  let currentFont: MangaFontFamily = "sans";
+  void getSettings()
+    .then((s) => {
+      if (s.manga?.fontFamily) {
+        currentFont = s.manga.fontFamily;
+        syncFontButtons();
+      }
+    })
+    .catch(() => {});
+
+  const fontConfig: { id: MangaFontFamily; key: string }[] = [
+    { id: "sans", key: "manga.fontSans" },
+    { id: "rounded", key: "manga.fontRounded" },
+    { id: "comic", key: "manga.fontComic" },
+    { id: "serif", key: "manga.fontSerif" },
+  ];
+
+  const fontButtons: { id: MangaFontFamily; key: string; btn: HTMLButtonElement }[] =
+    fontConfig.map((item) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "depth-btn font-btn";
+      btn.onclick = () => {
+        currentFont = item.id;
+        syncFontButtons();
+        options.onFontFamilyChange?.(item.id);
+        void getSettings()
+          .then(async (settings) => {
+            settings.manga = { ...settings.manga, fontFamily: item.id };
+            await saveSettings(settings);
+          })
+          .catch(() => {});
+      };
+      fontButtonsWrap.append(btn);
+      return { id: item.id, key: item.key, btn };
+    });
+
+  const syncFontButtons = () => {
+    for (const item of fontButtons) {
+      item.btn.classList.toggle("active", item.id === currentFont);
+    }
+  };
+
+  fontRow.append(fontLabel, fontButtonsWrap);
+
+  // In-panel bubble background theme switcher
+  const themeRow = document.createElement("div");
+  themeRow.className = "reading-depth-row reading-theme-row";
+  const themeLabel = document.createElement("span");
+  themeLabel.className = "depth-label";
+  const themeButtonsWrap = document.createElement("div");
+  themeButtonsWrap.className = "depth-buttons theme-buttons";
+
+  let currentTheme: MangaBubbleTheme = "auto";
+  void getSettings()
+    .then((s) => {
+      if (s.manga?.bubbleTheme) {
+        currentTheme = s.manga.bubbleTheme;
+        syncThemeButtons();
+      }
+    })
+    .catch(() => {});
+
+  const themeConfig: { id: MangaBubbleTheme; key: string }[] = [
+    { id: "auto", key: "manga.bubbleThemeAuto" },
+    { id: "dark", key: "manga.bubbleThemeDark" },
+    { id: "light", key: "manga.bubbleThemeLight" },
+    { id: "translucent", key: "manga.bubbleThemeTranslucent" },
+  ];
+
+  const themeButtons: { id: MangaBubbleTheme; key: string; btn: HTMLButtonElement }[] =
+    themeConfig.map((item) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "depth-btn theme-btn";
+      btn.onclick = () => {
+        currentTheme = item.id;
+        syncThemeButtons();
+        options.onBubbleThemeChange?.(item.id);
+        void getSettings()
+          .then(async (settings) => {
+            settings.manga = { ...settings.manga, bubbleTheme: item.id };
+            await saveSettings(settings);
+          })
+          .catch(() => {});
+      };
+      themeButtonsWrap.append(btn);
+      return { id: item.id, key: item.key, btn };
+    });
+
+  const syncThemeButtons = () => {
+    for (const item of themeButtons) {
+      item.btn.classList.toggle("active", item.id === currentTheme);
+    }
+  };
+
+  themeRow.append(themeLabel, themeButtonsWrap);
+
+  // Batch prefetch chapter action button
+  const batchBtn = document.createElement("button");
+  batchBtn.type = "button";
+  batchBtn.className = "reading-batch-btn";
+  batchBtn.onclick = () => {
+    const isRunning = !!current.isBatchPrefetching;
+    options.batchPrefetch?.(!isRunning);
+  };
+
   const status = document.createElement("div"),
     quota = document.createElement("p");
   status.className = "reading-status";
@@ -178,7 +332,7 @@ export function createMangaReadingPanel(
     else options.recover();
   };
 
-  readingCard.append(auto, ahead, depthRow, status, failure, recovery);
+  readingCard.append(auto, ahead, depthRow, bgSwitch, fontRow, themeRow, batchBtn, status, failure, recovery);
 
   // 3. Quick Reading Actions Grid
   const toolsCard = document.createElement("div");
@@ -210,7 +364,12 @@ export function createMangaReadingPanel(
   transBtn.className = "reading-tool-btn";
   transBtn.onclick = () => options.showTranslations?.();
 
-  toolsGrid.append(origBtn, pickBtn, retryBtn, transBtn);
+  const exportBtn = document.createElement("button");
+  exportBtn.type = "button";
+  exportBtn.className = "reading-tool-btn export-btn";
+  exportBtn.onclick = () => options.exportCurrent?.();
+
+  toolsGrid.append(origBtn, pickBtn, retryBtn, transBtn, exportBtn);
   toolsCard.append(toolsGrid);
 
   // 4. Form & Minimize Footer Row
@@ -271,11 +430,43 @@ export function createMangaReadingPanel(
       syncDepthButtons();
       depthRow.hidden = !state.prefetch || !state.enabled;
 
+      bgLabel.textContent = t(language, "manga.bgPrefetch");
+      bgSwitch.title = t(language, "manga.bgPrefetchHint");
+      bgSwitch.setAttribute("aria-label", bgLabel.textContent);
+      bgSwitch.setAttribute("aria-checked", String(currentBgPrefetch));
+      bgSwitch.disabled = !!state.busy || !state.enabled || !state.prefetch;
+      bgSwitch.hidden = !state.prefetch || !state.enabled;
+
+      if (state.isBatchPrefetching) {
+        batchBtn.textContent = "⏹ " + t(language, "manga.batchPrefetchStop");
+        batchBtn.classList.add("active");
+        batchBtn.title = t(language, "manga.batchPrefetchStop");
+      } else {
+        batchBtn.textContent = "📥 " + t(language, "manga.batchPrefetch");
+        batchBtn.classList.remove("active");
+        batchBtn.title = t(language, "manga.batchPrefetchHint");
+      }
+      batchBtn.disabled = !!state.busy || !state.enabled;
+      batchBtn.hidden = !state.enabled;
+
       origBtn.textContent = t(language, "manga.compareOriginal");
       origBtn.classList.toggle("active", !!options.isOriginal?.());
       pickBtn.textContent = t(language, "manga.cropSelect");
       retryBtn.textContent = t(language, "manga.retranslateCurrent");
       transBtn.textContent = t(language, "manga.viewTranslations");
+      exportBtn.textContent = t(language, "manga.exportImage");
+
+      fontLabel.textContent = t(language, "manga.fontFamily");
+      for (const item of fontButtons) {
+        item.btn.textContent = t(language, item.key);
+      }
+      syncFontButtons();
+
+      themeLabel.textContent = t(language, "manga.bubbleTheme");
+      for (const item of themeButtons) {
+        item.btn.textContent = t(language, item.key);
+      }
+      syncThemeButtons();
 
       orientBtn.textContent = t(language, "manga.dockOrientationToggle");
       capsuleBtn.textContent = t(language, "manga.minimizeCapsule");
@@ -283,7 +474,14 @@ export function createMangaReadingPanel(
       const key =
         state.hint ||
         (state.enabled ? "manga.autoWaiting" : "manga.autoStopped");
-      if (state.enabled && state.prefetch && (state.aheadCount ?? 0) > 0) {
+      if (state.isBatchPrefetching) {
+        const target = state.batchTarget ?? 0;
+        const ready = state.readyCount ?? state.batchCompleted ?? 0;
+        status.textContent = t(language, "manga.batchWorking", {
+          ready,
+          total: target || "?",
+        });
+      } else if (state.enabled && state.prefetch && (state.aheadCount ?? 0) > 0) {
         const total = state.aheadCount!;
         const ready = state.readyCount ?? 0;
         if (ready >= total) {

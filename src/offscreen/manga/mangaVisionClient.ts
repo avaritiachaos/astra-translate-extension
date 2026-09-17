@@ -83,7 +83,7 @@ export async function translateMangaTile(
           optionalBody: buildMangaEffortBody(provider, thinkingEffort),
           responseFormat,
           omitTemperature: true,
-          maxRetries: 1,
+          maxRetries: 2,
           deadlineMs: 150_000,
         },
       );

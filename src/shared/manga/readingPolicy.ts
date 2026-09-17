@@ -14,6 +14,9 @@ export interface MangaReadingUi extends MangaReadingState {
   recovery?: "retry" | "settings";
   prefetchedCount?: number;
   prefetchTarget?: number;
+  isBatchPrefetching?: boolean;
+  batchTarget?: number;
+  batchCompleted?: number;
 }
 export const READING_SESSION_MS = 30 * 60_000;
 export function readingPageUrl(value: string): string | null {

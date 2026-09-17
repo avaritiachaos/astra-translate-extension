@@ -6,6 +6,7 @@ import { appendMangaTranslations } from "./mangaTranslationList";
 import { makeMangaDockDraggable } from "./mangaDockDrag";
 import { panelAtDock } from "../../shared/manga/dockGeometry";
 import type { MangaReadingUi } from "../../shared/manga/readingPolicy";
+import type { MangaFontFamily, MangaBubbleTheme } from "../../shared/manga/types";
 import { createMangaReadingPanel } from "./mangaReadingPanel";
 
 export interface ReaderItem extends MangaViewState {
@@ -21,6 +22,10 @@ export function createMangaReaderControls(
     restore: () => void;
     original: (value: boolean) => void;
     reading: (enabled: boolean, prefetch: boolean, depth?: number) => void;
+    batchPrefetch?: (start: boolean) => void;
+    exportCurrent?: () => void;
+    onFontFamilyChange?: (font: MangaFontFamily) => void;
+    onBubbleThemeChange?: (theme: MangaBubbleTheme) => void;
   },
 ) {
   const host = document.createElement("div"),
@@ -49,6 +54,7 @@ export function createMangaReaderControls(
 @keyframes ast-spin{to{transform:rotate(360deg)}}
 .reading-switch{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;min-height:42px;padding:7px 0;color:#302b3a;border-radius:6px;font-size:14px}.reading-switch:hover{background:#f3f0fa}.reading-switch:focus-visible{outline-color:#8978bd}.switch-track{display:block;width:34px;height:20px;flex:none;border-radius:12px;background:#d5cedf;padding:3px;transition:background .12s}.switch-track::after{content:"";display:block;width:14px;height:14px;border-radius:50%;background:white;box-shadow:0 1px 3px #0002;transition:transform .12s}.reading-switch[aria-checked=true] .switch-track{background:#7161ce}.reading-switch[aria-checked=true] .switch-track::after{transform:translateX(14px)}.reading-switch:disabled{opacity:.5;cursor:default}.reading-status{font-size:12px;line-height:1.5;color:#7b7189;margin-top:6px;min-height:18px}.reading-status.error{color:#a55c32}.reading-failure{font-size:12px;line-height:1.5;color:#8c6f67;white-space:normal;overflow-wrap:anywhere;margin:5px 0 8px}.reading-recover{display:block;text-align:left;color:#6f54a2!important;background:#f1edf8!important;font-size:12px;border:1px solid #e6e0f0!important;padding:6px 10px!important;border-radius:8px;margin:4px 0 8px}.reading-quota{font-size:11px;color:#9a91a6;line-height:1.5;margin:7px 0 0}
 .reading-depth-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0 8px;border-bottom:1px dashed #e8e3f2;margin-bottom:6px}
+.reading-font-row,.reading-theme-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0 8px;border-bottom:1px dashed #e8e3f2;margin-bottom:6px}
 .depth-label{font-size:12px;color:#635b75;font-weight:600}
 .depth-buttons{display:flex;gap:4px}
 .depth-btn{font-size:11.5px;padding:4px 8px;border-radius:6px;border:1px solid #ddd7ea;background:#fff;color:#5a4e76;transition:all .15s;cursor:pointer}
@@ -75,6 +81,11 @@ export function createMangaReaderControls(
 .panel.reading .reading-switch{color:#e2e8f0;padding:5px 0;min-height:36px;font-size:13px;font-weight:500}
 .panel.reading .reading-switch:hover{background:rgba(255,255,255,0.05)}
 .panel.reading .reading-depth-row{border-bottom:1px dashed rgba(255,255,255,0.1);padding:5px 0 7px}
+.panel.reading .reading-font-row{border-bottom:1px dashed rgba(255,255,255,0.1);padding:5px 0 7px}
+.panel.reading .font-buttons{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.panel.reading .font-btn{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.14);color:#cbd5e1;font-size:11px;padding:3px 7px}
+.panel.reading .font-btn:hover{background:rgba(139,92,246,0.25);color:#fff;border-color:#8b5cf6}
+.panel.reading .font-btn.active{background:#7c3aed;color:#fff;border-color:#8b5cf6}
 .panel.reading .depth-label{color:#cbd5e1}
 .panel.reading .depth-btn{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.14);color:#cbd5e1}
 .panel.reading .depth-btn:hover{background:rgba(139,92,246,0.25);color:#fff;border-color:#8b5cf6}
@@ -87,6 +98,12 @@ export function createMangaReaderControls(
 .reading-tool-btn{font-size:12px;font-weight:500;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.07);color:#e2e8f0;border:1px solid rgba(255,255,255,0.1);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:all .15s}
 .reading-tool-btn:hover{background:rgba(255,255,255,0.14);color:#fff;border-color:rgba(255,255,255,0.2)}
 .reading-tool-btn.active{background:rgba(124,58,237,0.35);color:#c4b5fd;border-color:rgba(139,92,246,0.5)}
+.reading-tool-btn.export-btn{grid-column:span 2;background:rgba(124,58,237,0.18);border-color:rgba(139,92,246,0.35);color:#ede9fe;font-weight:600}
+.reading-tool-btn.export-btn:hover{background:rgba(124,58,237,0.32);border-color:rgba(167,139,250,0.55);color:#fff}
+.reading-batch-btn{width:100%;margin-top:8px;font-size:12px;font-weight:600;padding:8px 12px;border-radius:10px;background:linear-gradient(135deg,rgba(124,58,237,0.25) 0%,rgba(99,102,241,0.25) 100%);color:#ede9fe;border:1px solid rgba(139,92,246,0.4);text-align:center;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.reading-batch-btn:hover:not(:disabled){background:linear-gradient(135deg,rgba(124,58,237,0.4) 0%,rgba(99,102,241,0.4) 100%);border-color:rgba(167,139,250,0.6);color:#fff}
+.reading-batch-btn.active{background:rgba(239,68,68,0.25);border-color:rgba(239,68,68,0.45);color:#fca5a5}
+.reading-batch-btn.active:hover:not(:disabled){background:rgba(239,68,68,0.35);border-color:rgba(239,68,68,0.65)}
 .reading-footer-row{display:flex;gap:6px}
 .reading-footer-btn{flex:1;font-size:12px;font-weight:500;padding:7px 10px;border-radius:10px;background:rgba(255,255,255,0.06);color:#cbd5e1;border:1px solid rgba(255,255,255,0.1);text-align:center;transition:all .15s}
 .reading-footer-btn:hover{background:rgba(255,255,255,0.12);color:#fff}
@@ -224,8 +241,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   const applyScale = (scale: number, persist = true) => {
     const clamped = Math.max(0.7, Math.min(1.5, Math.round(scale * 100) / 100));
     userScale = clamped;
-    const isSingle =
-      !readingState.enabled && (!eligible || pageCount <= 1 || items.length <= 1);
+    const isSingle = !readingState.enabled && !eligible;
     const factor = isSingle ? 1.0 : BASE_SCALE_FACTOR;
     visualScale = Math.round(clamped * factor * 100) / 100;
     host.style.setProperty("--ast-manga-scale", String(visualScale));
@@ -286,6 +302,18 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     onPrefetchDepthChange: (depth) => {
       actions.reading(readingState.enabled, true, depth);
       layoutPanel();
+    },
+    batchPrefetch: (start) => {
+      actions.batchPrefetch?.(start);
+    },
+    exportCurrent: () => {
+      actions.exportCurrent?.();
+    },
+    onFontFamilyChange: (font) => {
+      actions.onFontFamilyChange?.(font);
+    },
+    onBubbleThemeChange: (theme) => {
+      actions.onBubbleThemeChange?.(theme);
     },
     getScale: () => userScale,
     setScale: (s) => {
@@ -352,8 +380,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
       toast.classList.add("fade-out");
       setTimeout(() => {
         toast.hidden = true;
-        const isSingle =
-          !readingState.enabled && (!eligible || pageCount <= 1 || items.length <= 1);
+        const isSingle = !readingState.enabled && !eligible;
         if (isSingle || (!session && !items.length && !eligible)) {
           host.remove();
         }
@@ -544,8 +571,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
   };
   drag = makeMangaDockDraggable(host, grip, layoutPanel, [trigger, compact]);
   const mount = () => {
-    const isSingleImage =
-      !readingState.enabled && (!eligible || pageCount <= 1 || items.length <= 1);
+    const isSingleImage = !readingState.enabled && !eligible;
     const isFullscreen = Boolean(document.fullscreenElement && pageCount);
     const hasActiveTranslations = items.length > 0 && !isSingleImage;
     const hasActiveSession = session && !isSingleImage;
@@ -580,6 +606,11 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
       return t(lang, "manga.statusTranslating", {
         progress: (ready + 1) + "/" + (items.length || 1),
       });
+    if (readingState.isBatchPrefetching) {
+      const target = readingState.batchTarget ?? 0;
+      const readyAhead = readingState.readyCount ?? readingState.batchCompleted ?? 0;
+      return `⚡ 批量 · ${readyAhead}/${target || "?"}P`;
+    }
     if (readingState.enabled) {
       if (readingState.prefetch && (readingState.aheadCount ?? 0) > 0) {
         const readyAhead = readingState.readyCount ?? 0;
@@ -634,8 +665,7 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
     );
     reading.title = t(lang, "manga.readingSettingsTitle");
     triggerClose.setAttribute("aria-label", t(lang, "manga.dismissTrigger"));
-    const isSingleImage =
-      !readingState.enabled && (!eligible || pageCount <= 1 || items.length <= 1);
+    const isSingleImage = !readingState.enabled && !eligible;
     applyScale(userScale, false);
     dock.hidden = !session || isSingleImage;
     if (!session || isSingleImage) panel.hidden = true;
@@ -649,6 +679,10 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
       return;
     } else {
       translate.hidden = false;
+      reading.hidden = false;
+      summary.hidden = false;
+      collapse.hidden = false;
+      triggerWrap.hidden = false;
       const currentLabel =
         pageCount === 0 || canTranslate
           ? errors.length
@@ -676,7 +710,11 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
         ? t(lang, "manga.readerProgress", { ready, total: items.length })
         : t(lang, "manga.currentPageIdle");
     if (!errors.length && readingState.enabled && readingState.prefetch) {
-      if ((readingState.aheadCount ?? 0) > 0) {
+      if (readingState.isBatchPrefetching) {
+        const target = readingState.batchTarget ?? 0;
+        const readyAhead = readingState.readyCount ?? readingState.batchCompleted ?? 0;
+        summaryText += ` [⚡ 批量 ${readyAhead}/${target || "?"}P]`;
+      } else if ((readingState.aheadCount ?? 0) > 0) {
         const ahead = readingState.aheadCount!;
         const readyAhead = readingState.readyCount ?? 0;
         if (readyAhead >= ahead) {
@@ -875,12 +913,11 @@ button{background:transparent;padding:7px 11px;border-radius:12px}button:hover{b
       canTranslate = pending;
       eligible = isEligible;
       if (!wasActive && active) {
-        const isSingle =
-          !readingState.enabled && (!eligible || pageCount <= 1 || items.length <= 1);
+        const isSingle = !readingState.enabled && !eligible;
         if (!readingState.enabled) {
           expanded = !isSingle;
         }
-        if (eligible && pageCount >= 2) {
+        if (eligible && pageCount >= 1) {
           showToast(t(language(), "manga.toastReady"));
         }
       }

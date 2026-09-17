@@ -68,7 +68,9 @@ export async function automaticMangaAllowed(
   return serial(tabId!, async () => {
     const tab = await chrome.tabs.get(tabId!);
     const page = resolveReadingPage(sender, tab);
-    if (!page || !tab.active || !isMangaReaderUrl(page)) return false;
+    const settings = await getSettings().catch(() => null);
+    const allowBg = settings?.manga?.backgroundPrefetch !== false;
+    if (!page || (!tab.active && !allowBg) || !isMangaReaderUrl(page)) return false;
     const session = await load(tabId!);
     if (!session || !readingSessionAllows(session, page)) return false;
     const aheads = allAheads(session);
@@ -296,9 +298,12 @@ export async function handleMangaReading(
     if (msg.type === "MANGA_READING_PREFETCH") {
       const targetPage = readingPageUrl(msg.payload?.pageUrl || "");
       const source = msg.payload?.imageUrl;
+      const settings = await getSettings();
+      const allowBg = settings.manga?.backgroundPrefetch !== false;
+      const isBatch = msg.payload?.batch === true;
       if (
         !session.prefetch ||
-        !tab.active ||
+        (!tab.active && !allowBg) ||
         readingPageUrl(tab.url || "") !== page ||
         !targetPage ||
         !(targetPage === page || mangaReadingScope(page) === mangaReadingScope(targetPage)) ||
@@ -314,10 +319,11 @@ export async function handleMangaReading(
         return { success: true, queued: !!existing.jobId };
       }
 
-      const settings = await getSettings();
-      const maxDepth = Math.max(1, Math.min(5, settings.manga?.prefetchDepth ?? 3));
+      const limit = isBatch
+        ? Math.max(5, Math.min(50, settings.manga?.batchPrefetchLimit ?? 20))
+        : Math.max(1, Math.min(5, settings.manga?.prefetchDepth ?? 3));
       const activeUnclaimed = aheads.filter((a) => !a.claimed);
-      if (activeUnclaimed.length >= maxDepth) {
+      if (activeUnclaimed.length >= limit) {
         return { success: false, busy: true };
       }
 

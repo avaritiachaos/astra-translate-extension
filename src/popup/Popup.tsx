@@ -1,5 +1,5 @@
 import { fullChatImage } from "../shared/chatImageClient";
-import { openMangaPicker, translateCurrentMangaPage, MangaPageError } from "../shared/mangaTab";
+import { openMangaPicker, translateCurrentMangaPage, prefetchMangaChapter, MangaPageError } from "../shared/mangaTab";
 import type { MangaThinkingEffort } from "../shared/manga/types";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
@@ -762,13 +762,19 @@ export default function Popup() {
     }
   }, [lang]);
 
-  const handleMangaPick = async (action: "select" | "current" = "select") => {
+  const handleMangaPick = async (action: "select" | "current" | "batch" = "select") => {
     if (mangaPickPending) return;
     setMangaPickPending(true);
     setPageStatus("");
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      await (action === "current" ? translateCurrentMangaPage(tab ?? {}) : openMangaPicker(tab ?? {}));
+      if (action === "current") {
+        await translateCurrentMangaPage(tab ?? {});
+      } else if (action === "batch") {
+        await prefetchMangaChapter(tab ?? {});
+      } else {
+        await openMangaPicker(tab ?? {});
+      }
       window.close();
     } catch (error) {
       const key = error instanceof MangaPageError && error.code === "unsupported"
@@ -1719,6 +1725,20 @@ export default function Popup() {
                 {settings?.manga?.autoReadingDefault !== false
                   ? t(lang, "manga.autoContinuousAction")
                   : t(lang, "manga.cardPageAction")}
+              </span>
+            </button>
+
+            {/* Secondary Companion Hero: Batch Prefetch Entire Chapter */}
+            <button
+              type="button"
+              className="ast-btn ast-manga-btn-batch"
+              disabled={mangaPickPending}
+              aria-busy={mangaPickPending}
+              onClick={() => void handleMangaPick("batch")}
+            >
+              <span className="ast-manga-btn-batch-icon" aria-hidden="true">📥</span>
+              <span className="ast-manga-btn-batch-label">
+                {t(lang, "manga.batchPrefetchAction")}
               </span>
             </button>
 

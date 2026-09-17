@@ -197,6 +197,11 @@ export async function nextMangaImages(
     const nextPageUrl = urls[0];
     visitedPages.add(nextPageUrl);
 
+    if (results.length > 0) {
+      await new Promise((r) => setTimeout(r, 300));
+      if (signal.aborted) break;
+    }
+
     try {
       const response = await fetch(nextPageUrl, {
         credentials: "same-origin",

@@ -62,6 +62,7 @@ type Reply = {
   pickerVersion?: number;
   pickerReady?: boolean;
   currentStarted?: boolean;
+  batchStarted?: boolean;
 };
 
 // Only inject the manga controller. Reinjecting content.js would duplicate
@@ -70,7 +71,7 @@ export async function openMangaPicker(
   tab: { id?: number; url?: string },
   api: MangaTabApi = chrome,
   timeoutMs = 2000,
-  action: "select" | "current" = "select",
+  action: "select" | "current" | "batch" = "select",
 ): Promise<void> {
   if (!Number.isInteger(tab.id) || tab.id! < 0 || !isMangaPageUrl(tab.url))
     throw new MangaPageError("unsupported");
@@ -104,14 +105,22 @@ export async function openMangaPicker(
   let reply: Reply | undefined;
   try {
     reply = await send(
-      action === "current" ? "MANGA_TRANSLATE_CURRENT" : "MANGA_PICK_IMAGE",
+      action === "current"
+        ? "MANGA_TRANSLATE_CURRENT"
+        : action === "batch"
+          ? "MANGA_START_BATCH"
+          : "MANGA_PICK_IMAGE",
     );
   } catch {
     throw new MangaPageError("unreachable");
   }
   if (
     !reply?.success ||
-    !(reply.pickerReady || (action === "current" && reply.currentStarted))
+    !(
+      reply.pickerReady ||
+      (action === "current" && reply.currentStarted) ||
+      (action === "batch" && (reply.batchStarted || reply.currentStarted))
+    )
   )
     throw new MangaPageError("startFailed");
 }
@@ -121,4 +130,11 @@ export async function translateCurrentMangaPage(
   api: MangaTabApi = chrome,
 ): Promise<void> {
   return openMangaPicker(tab, api, 2000, "current");
+}
+
+export async function prefetchMangaChapter(
+  tab: { id?: number; url?: string },
+  api: MangaTabApi = chrome,
+): Promise<void> {
+  return openMangaPicker(tab, api, 2000, "batch");
 }

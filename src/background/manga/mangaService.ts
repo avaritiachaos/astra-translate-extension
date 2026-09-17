@@ -2,7 +2,7 @@ import type { AstraSettings } from "../../shared/types";
 import type { MangaJob, MangaSource } from "../../shared/manga/types";
 import { MANGA_ACTIVE_PHASES } from "../../shared/manga/types";
 import { imageSourceAllowed } from "../../shared/manga/imageGeometry";
-import { loadMangaJob, saveMangaJob } from "../../shared/manga/store";
+import { loadMangaJob, saveMangaJob, getMangaCacheStats, clearMangaCache } from "../../shared/manga/store";
 import { chatScopeForSender } from "../../shared/chatScope";
 import { getSettings } from "../../shared/storage";
 import { listProviderModels } from "../providerModels";
@@ -68,6 +68,10 @@ export async function handleMangaMessage(
       prefetchDefault: saved.manga.prefetchDefault !== false,
       concurrency: saved.manga.concurrency ?? 3,
       prefetchDepth: saved.manga.prefetchDepth ?? 2,
+      backgroundPrefetch: saved.manga.backgroundPrefetch !== false,
+      batchPrefetchLimit: saved.manga.batchPrefetchLimit ?? 20,
+      fontFamily: saved.manga.fontFamily ?? "sans",
+      bubbleTheme: saved.manga.bubbleTheme ?? "auto",
     };
   if (msg.type === "MANGA_MODELS") {
     if (!extensionPage(sender)) return { success: false, errorCode: "SENDER_DENIED" };
@@ -78,6 +82,14 @@ export async function handleMangaMessage(
     const { provider, status } = resolveMangaConfiguration(draft, { requireModel: false });
     if (!status.ready) return { success: false, error: status.error, errorCode: status.errorCode };
     return listProviderModels(provider, lang);
+  }
+  if (msg.type === "MANGA_CACHE_STATS") {
+    const stats = await getMangaCacheStats();
+    return { success: true, ...stats };
+  }
+  if (msg.type === "MANGA_CACHE_CLEAR") {
+    await clearMangaCache();
+    return { success: true };
   }
   if (msg.type === "MANGA_STATUS" || msg.type === "MANGA_CANCEL") {
     const id = msg.payload?.id;
