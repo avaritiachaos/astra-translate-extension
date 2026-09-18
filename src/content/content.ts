@@ -250,8 +250,8 @@ async function startPageTranslation(): Promise<void> {
   let concurrency = 4;
   let enableRealtime = true;
   let translateWholePage = false;
-  let translatePageChrome = false;
-  let translateUiControls = false;
+  let translatePageChrome = true;
+  let translateUiControls = true;
   let enableStreaming = true;
   let enableSiteLexicon = true;
   let lang: UiLanguage = "zh-CN";

@@ -645,6 +645,23 @@ export default function Popup() {
     [settings]
   );
 
+  const handleTogglePageSetting = useCallback(
+    async (key: "translatePageChrome" | "translateUiControls", val: boolean) => {
+      if (!settings) return;
+      const updated = { ...settings, [key]: val };
+      setSettings(updated);
+      try {
+        await chrome.runtime.sendMessage({
+          type: "SAVE_SETTINGS",
+          payload: updated,
+        });
+      } catch {
+        // ignore
+      }
+    },
+    [settings]
+  );
+
   // Swap languages
   const swapLangs = useCallback(() => {
     if (sourceLang === "Auto") return;
@@ -1636,6 +1653,24 @@ export default function Popup() {
                   ✓
                 </span>
               </div>
+            </div>
+            <div className="ast-page-quick-toggles">
+              <label className="ast-page-quick-toggle">
+                <input
+                  type="checkbox"
+                  checked={settings?.translatePageChrome ?? true}
+                  onChange={(e) => handleTogglePageSetting("translatePageChrome", e.target.checked)}
+                />
+                <span>{t(lang, "opt.translatePageChrome")}</span>
+              </label>
+              <label className="ast-page-quick-toggle">
+                <input
+                  type="checkbox"
+                  checked={settings?.translateUiControls ?? true}
+                  onChange={(e) => handleTogglePageSetting("translateUiControls", e.target.checked)}
+                />
+                <span>{t(lang, "opt.translateUiControls")}</span>
+              </label>
             </div>
             <div className="ast-page-actions">
               <button

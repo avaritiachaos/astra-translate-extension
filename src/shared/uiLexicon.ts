@@ -429,6 +429,149 @@ const ENTRIES: LexiconEntry[] = [
       Russian: "Telegram-канал",
     },
   },
+  {
+    sources: ["add", "добавить", "追加", "添加", "新增"],
+    targets: {
+      "Simplified Chinese": "添加",
+      "Traditional Chinese": "新增",
+      English: "Add",
+      Japanese: "追加",
+      Korean: "추가",
+      Russian: "Добавить",
+    },
+  },
+  {
+    sources: ["public view", "公開ビュー", "公开视图", "公開檢視"],
+    targets: {
+      "Simplified Chinese": "公开视图",
+      "Traditional Chinese": "公開檢視",
+      English: "Public view",
+      Japanese: "公開ビュー",
+      Korean: "공개 보기",
+      Russian: "Публичный вид",
+    },
+  },
+  {
+    sources: ["view", "просмотр", "посмотреть", "表示", "見る", "查看", "檢視"],
+    targets: {
+      "Simplified Chinese": "查看",
+      "Traditional Chinese": "檢視",
+      English: "View",
+      Japanese: "表示",
+      Korean: "보기",
+      Russian: "Просмотр",
+    },
+  },
+  {
+    sources: ["orders", "заказы", "注文", "注文履歴", "订单", "訂單"],
+    targets: {
+      "Simplified Chinese": "订单",
+      "Traditional Chinese": "訂單",
+      English: "Orders",
+      Japanese: "注文",
+      Korean: "주문",
+      Russian: "Заказы",
+    },
+  },
+  {
+    sources: ["copy", "копировать", "скопировать", "コピー", "复制", "複製"],
+    targets: {
+      "Simplified Chinese": "复制",
+      "Traditional Chinese": "複製",
+      English: "Copy",
+      Japanese: "コピー",
+      Korean: "복사",
+      Russian: "Копировать",
+    },
+  },
+  {
+    sources: ["refresh", "reload", "обновить", "更新", "リロード", "刷新", "重新整理"],
+    targets: {
+      "Simplified Chinese": "刷新",
+      "Traditional Chinese": "重新整理",
+      English: "Refresh",
+      Japanese: "更新",
+      Korean: "새로고침",
+      Russian: "Обновить",
+    },
+  },
+  {
+    sources: ["confirm", "подтвердить", "確認", "确认"],
+    targets: {
+      "Simplified Chinese": "确认",
+      "Traditional Chinese": "確認",
+      English: "Confirm",
+      Japanese: "確認",
+      Korean: "확인",
+      Russian: "Подтвердить",
+    },
+  },
+  {
+    sources: ["retry", "повторить", "再試行", "重试", "重試"],
+    targets: {
+      "Simplified Chinese": "重试",
+      "Traditional Chinese": "重試",
+      English: "Retry",
+      Japanese: "再試行",
+      Korean: "다시 시도",
+      Russian: "Повторить",
+    },
+  },
+  {
+    sources: ["share", "поделиться", "共有", "シェア", "分享"],
+    targets: {
+      "Simplified Chinese": "分享",
+      "Traditional Chinese": "分享",
+      English: "Share",
+      Japanese: "共有",
+      Korean: "공유",
+      Russian: "Поделиться",
+    },
+  },
+  {
+    sources: ["filter", "фильтр", "フィルター", "筛选", "篩選"],
+    targets: {
+      "Simplified Chinese": "筛选",
+      "Traditional Chinese": "篩選",
+      English: "Filter",
+      Japanese: "フィルター",
+      Korean: "필터",
+      Russian: "Фильтр",
+    },
+  },
+  {
+    sources: ["sort", "сортировка", "並び替え", "ソート", "排序"],
+    targets: {
+      "Simplified Chinese": "排序",
+      "Traditional Chinese": "排序",
+      English: "Sort",
+      Japanese: "並び替え",
+      Korean: "정렬",
+      Russian: "Сортировка",
+    },
+  },
+  {
+    sources: ["more", "ещё", "еще", "もっと見る", "もっと", "更多"],
+    targets: {
+      "Simplified Chinese": "更多",
+      "Traditional Chinese": "更多",
+      English: "More",
+      Japanese: "もっと見る",
+      Korean: "더보기",
+      Russian: "Ещё",
+    },
+  },
+  {
+    sources: ["details", "подробнее", "детали", "詳細", "详情", "詳情"],
+    targets: {
+      "Simplified Chinese": "详情",
+      "Traditional Chinese": "詳情",
+      English: "Details",
+      Japanese: "詳細",
+      Korean: "자세히",
+      Russian: "Подробнее",
+    },
+  },
 ];
 
 /** sourceNorm → targetLang → translation */

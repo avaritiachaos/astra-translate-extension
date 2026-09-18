@@ -101,8 +101,8 @@ interface WalkCaches {
 
 function normalizeCollectOptions(opts?: TextCollectOptions): Required<TextCollectOptions> {
   return {
-    translatePageChrome: opts?.translatePageChrome ?? false,
-    translateUiControls: opts?.translateUiControls ?? false,
+    translatePageChrome: opts?.translatePageChrome ?? true,
+    translateUiControls: opts?.translateUiControls ?? true,
   };
 }
 

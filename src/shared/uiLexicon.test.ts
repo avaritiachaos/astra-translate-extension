@@ -43,6 +43,20 @@ describe("uiLexicon", () => {
     assert.equal(lookupUiLexicon(long, "Simplified Chinese"), null);
   });
 
+  it("maps common UI action controls including add, orders, public view", () => {
+    assert.equal(lookupUiLexicon("Add", "Simplified Chinese"), "添加");
+    assert.equal(lookupUiLexicon("add", "Traditional Chinese"), "新增");
+    assert.equal(lookupUiLexicon("Public view", "Simplified Chinese"), "公开视图");
+    assert.equal(lookupUiLexicon("Orders", "Simplified Chinese"), "订单");
+    assert.equal(lookupUiLexicon("Copy", "Simplified Chinese"), "复制");
+    assert.equal(lookupUiLexicon("Refresh", "Simplified Chinese"), "刷新");
+    assert.equal(lookupUiLexicon("Retry", "Simplified Chinese"), "重试");
+    assert.equal(lookupUiLexicon("Filter", "Simplified Chinese"), "筛选");
+    assert.equal(lookupUiLexicon("Sort", "Simplified Chinese"), "排序");
+    assert.equal(lookupUiLexicon("More", "Simplified Chinese"), "更多");
+    assert.equal(lookupUiLexicon("Details", "Simplified Chinese"), "详情");
+  });
+
   it("returns null for unknown phrases", () => {
     assert.equal(lookupUiLexicon("Случайная раздача", "Simplified Chinese"), null);
   });

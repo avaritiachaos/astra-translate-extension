@@ -252,8 +252,8 @@ export class PageTranslator {
     this.enableStreaming = opts.enableStreaming ?? true;
     this.enableSiteLexicon = opts.enableSiteLexicon ?? true;
     this.collectOptions = {
-      translatePageChrome: opts.translatePageChrome ?? false,
-      translateUiControls: opts.translateUiControls ?? false,
+      translatePageChrome: opts.translatePageChrome ?? true,
+      translateUiControls: opts.translateUiControls ?? true,
     };
     this.statusCallback = opts.onStatus;
     this.lang = opts.lang || "zh-CN";
@@ -682,7 +682,7 @@ export class PageTranslator {
       this.debouncedDrain();
       if (this.enableRealtime) this.debouncedScrollScan();
     };
-    window.addEventListener("scroll", this.onScrollBound, { passive: true });
+    window.addEventListener("scroll", this.onScrollBound, { capture: true, passive: true });
 
     this.onResizeBound = () => this.debouncedDrain();
     window.addEventListener("resize", this.onResizeBound, { passive: true });
@@ -691,7 +691,7 @@ export class PageTranslator {
   /** Stop scroll/resize detection. */
   private stopScrollDetection(): void {
     if (this.onScrollBound) {
-      window.removeEventListener("scroll", this.onScrollBound);
+      window.removeEventListener("scroll", this.onScrollBound, { capture: true } as EventListenerOptions);
       this.onScrollBound = null;
     }
     if (this.onResizeBound) {

@@ -712,6 +712,39 @@ body::-webkit-scrollbar-thumb:hover {
   border-radius: 8px;
 }
 
+.ast-page-quick-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: var(--ast-glass-card);
+  border: 1px solid var(--ast-glass-border-subtle);
+  border-radius: var(--ast-radius-sm);
+}
+
+.ast-page-quick-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--ast-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ast-page-quick-toggle:hover {
+  color: var(--ast-text);
+}
+
+.ast-page-quick-toggle input[type="checkbox"] {
+  accent-color: var(--ast-primary);
+  cursor: pointer;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+}
+
 .ast-page-actions {
   display: flex;
   gap: 8px;
