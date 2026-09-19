@@ -15,6 +15,7 @@ import type {
   AstraSettings,
   DictionaryResult,
   TranslationHistoryEntry,
+  ChatDraft,
 } from "../shared/types";
 import { t, type UiLanguage } from "../shared/i18n";
 import { getSettings, saveSettings } from "../shared/storage";
@@ -63,7 +64,7 @@ import {
   sendChatMessage,
 } from "./chatService";
 import { siteLexiconHost } from "../shared/siteLexicon";
-import { chatScopeForSender } from "../shared/chatScope";
+import { chatScopeForSender, getDraftStorageKey } from "../shared/chatScope";
 import { StreamBatchItemParser, topLevelJsonObjects } from "../shared/streamBatchParser";
 import {
   clearTranslationHistory,
@@ -340,7 +341,62 @@ export async function handleMessage(
       if (!isChatSenderAllowed(sender)) {
         return { success: false };
       }
-      return clearChat(chatScopeForSender(sender,chrome.runtime.id)!);
+      const scope = chatScopeForSender(sender, chrome.runtime.id);
+      if (scope) {
+        const draftKey = getDraftStorageKey(scope);
+        chrome.storage.session?.remove(draftKey).catch(() => {});
+      }
+      return clearChat(scope!);
+    }
+
+    case "GET_CHAT_DRAFT": {
+      if (!isChatSenderAllowed(sender)) return { success: false };
+      const scope = chatScopeForSender(sender, chrome.runtime.id);
+      const draftKey = getDraftStorageKey(scope);
+      try {
+        const res = await chrome.storage.session.get(draftKey);
+        return { success: true, draft: res?.[draftKey] || null };
+      } catch (err: any) {
+        return { success: false, error: err?.message };
+      }
+    }
+
+    case "SAVE_CHAT_DRAFT": {
+      if (!isChatSenderAllowed(sender)) return { success: false };
+      const scope = chatScopeForSender(sender, chrome.runtime.id);
+      const draftKey = getDraftStorageKey(scope);
+      const draft = (msg as any).payload?.draft as ChatDraft | undefined;
+      try {
+        if (!draft || (!draft.text?.trim() && (!draft.images || draft.images.length === 0))) {
+          await chrome.storage.session.remove(draftKey);
+        } else {
+          await chrome.storage.session.set({ [draftKey]: { ...draft, updatedAt: Date.now() } });
+        }
+        return { success: true };
+      } catch (err: any) {
+        // Fallback: if session storage quota exceeded, try saving text only without heavy images
+        try {
+          if (draft && draft.images?.length) {
+            await chrome.storage.session.set({
+              [draftKey]: { ...draft, images: [], updatedAt: Date.now() },
+            });
+            return { success: true, quotaExceeded: true };
+          }
+        } catch {}
+        return { success: false, error: err?.message };
+      }
+    }
+
+    case "CLEAR_CHAT_DRAFT": {
+      if (!isChatSenderAllowed(sender)) return { success: false };
+      const scope = chatScopeForSender(sender, chrome.runtime.id);
+      const draftKey = getDraftStorageKey(scope);
+      try {
+        await chrome.storage.session.remove(draftKey);
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err?.message };
+      }
     }
 
     case "OPEN_CHAT_PANEL": {

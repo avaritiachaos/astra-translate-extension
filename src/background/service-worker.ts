@@ -23,6 +23,9 @@ import {
 // blocked behind an answer that can never arrive.
 resetStaleChatPending();
 
+// Allow content scripts to read/write session storage for shared state/drafts
+chrome.storage.session?.setAccessLevel?.({ accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS" }).catch(() => {});
+
 /** Check if a tab URL is accessible for scripting (not chrome://, edge://, about:, etc.). */
 function isInjectableUrl(url?: string): boolean {
   if (!url) return false;

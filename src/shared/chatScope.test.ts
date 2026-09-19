@@ -4,8 +4,9 @@ import {
   chatScopeForSender,
   boundChatHistory,
   writeChatSession,
+  getDraftStorageKey,
 } from "./chatScope.ts";
-import { CHAT_STORAGE_KEY } from "./types.ts";
+import { CHAT_STORAGE_KEY, CHAT_DRAFT_STORAGE_KEY } from "./types.ts";
 
 describe("chat document privacy", () => {
   const sender = {
@@ -100,4 +101,14 @@ describe("chat document privacy", () => {
       16,
     );
   });
+  it("derives matching draft storage keys for popup and per-page scopes", () => {
+    assert.equal(getDraftStorageKey(), CHAT_DRAFT_STORAGE_KEY);
+    assert.equal(getDraftStorageKey(CHAT_STORAGE_KEY), CHAT_DRAFT_STORAGE_KEY);
+    assert.equal(getDraftStorageKey(null), CHAT_DRAFT_STORAGE_KEY);
+    assert.equal(
+      getDraftStorageKey(CHAT_STORAGE_KEY + ":7:doc-a"),
+      CHAT_DRAFT_STORAGE_KEY + ":7:doc-a"
+    );
+  });
 });
+

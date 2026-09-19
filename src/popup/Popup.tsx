@@ -22,9 +22,11 @@ import type {
 import {
   CHAT_EFFORT_SESSION_KEY,
   CHAT_STORAGE_KEY,
+  CHAT_DRAFT_STORAGE_KEY,
   CHAT_STREAM_PORT,
   CHAT_WEB_SEARCH_SESSION_KEY,
   POPUP_MODE_STORAGE_KEY,
+  type ChatDraft,
 } from "../shared/types";
 import { parseChatMarkdown } from "../shared/chatMarkdown";
 import {
@@ -458,6 +460,7 @@ export default function Popup() {
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamReqRef = useRef(0);
+  const draftRestoredRef = useRef(false);
 
 
   const lang: UiLanguage = settings?.uiLanguage || "zh-CN";
@@ -548,13 +551,23 @@ export default function Popup() {
         POPUP_MODE_STORAGE_KEY,
         CHAT_WEB_SEARCH_SESSION_KEY,
         CHAT_EFFORT_SESSION_KEY,
+        CHAT_DRAFT_STORAGE_KEY,
       ])
       .then((r) => {
         if (r?.[CHAT_WEB_SEARCH_SESSION_KEY] === true) setWebSearchEnabled(true);
         setChatEffort(normalizeChatEffort(r?.[CHAT_EFFORT_SESSION_KEY]));
         if (r?.[POPUP_MODE_STORAGE_KEY] === "chat") setMode("chat");
+        const draft = r?.[CHAT_DRAFT_STORAGE_KEY] as ChatDraft | undefined;
+        if (draft) {
+          if (typeof draft.text === "string" && draft.text) setChatInput(draft.text);
+          if (Array.isArray(draft.images) && draft.images.length > 0) setChatImages(draft.images);
+          if (draft.attachment) setChatAttach(draft.attachment);
+        }
+        draftRestoredRef.current = true;
       })
-      .catch(() => {});
+      .catch(() => {
+        draftRestoredRef.current = true;
+      });
     refreshChatState();
 
     const onStorageChanged = (
@@ -578,6 +591,41 @@ export default function Popup() {
     chrome.storage.onChanged.addListener(onStorageChanged);
     return () => chrome.storage.onChanged.removeListener(onStorageChanged);
   }, [refreshChatState]);
+
+  // Auto-save uncommitted chat composer draft (text, images, attachment)
+  useEffect(() => {
+    if (!draftRestoredRef.current) return;
+    if (chatPending) return;
+
+    const timer = setTimeout(() => {
+      const text = chatInput;
+      const images = chatImages;
+      const attachment = chatAttach;
+
+      if (!text.trim() && (!images || images.length === 0)) {
+        chrome.storage.session?.remove(CHAT_DRAFT_STORAGE_KEY).catch(() => {});
+      } else {
+        const draft: ChatDraft = {
+          text,
+          images,
+          attachment,
+          updatedAt: Date.now(),
+        };
+        chrome.storage.session
+          ?.set({ [CHAT_DRAFT_STORAGE_KEY]: draft })
+          .catch(() => {
+            // If quota exceeded due to large images, fallback to saving text only
+            if (images.length > 0) {
+              chrome.storage.session
+                ?.set({ [CHAT_DRAFT_STORAGE_KEY]: { ...draft, images: [] } })
+                .catch(() => {});
+            }
+          });
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [chatInput, chatImages, chatAttach, chatPending]);
 
   // Focus follows the active tab; the chat list sticks to the newest message.
   useEffect(() => {
@@ -1099,6 +1147,7 @@ export default function Popup() {
     setChatAttach(null);
     setChatImages([]);
     setStreamText("");
+    chrome.storage.session?.remove(CHAT_DRAFT_STORAGE_KEY).catch(() => {});
 
     const doWebSearch = webSearchEnabled;
     setChatPhase(doWebSearch ? "searching" : "answering");
@@ -1255,6 +1304,9 @@ export default function Popup() {
     setChatPhase(null);
     setStreamText("");
     setChatAttach(null);
+    setChatInput("");
+    setChatImages([]);
+    chrome.storage.session?.remove(CHAT_DRAFT_STORAGE_KEY).catch(() => {});
     chrome.runtime
       .sendMessage({ type: "CLEAR_CHAT" })
       .then(() => refreshChatState())

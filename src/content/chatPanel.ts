@@ -22,6 +22,7 @@ import {
   CHAT_STREAM_PORT,
   CHAT_WEB_SEARCH_SESSION_KEY,
   type ChatAttachment,
+  type ChatDraft,
   type ChatImageAttachment,
   type ChatState,
   type ChatStreamEvent,
@@ -1782,6 +1783,7 @@ function renderFooter(): void {
           e.stopPropagation();
           stagedImages.splice(idx, 1);
           renderFooter();
+          saveDraftDebounced();
         });
         item.append(thumb, del);
         imgTray.appendChild(item);
@@ -1872,6 +1874,65 @@ async function refreshState(): Promise<void> {
   }
 }
 
+let saveDraftTimer: ReturnType<typeof setTimeout> | undefined;
+
+function saveCurrentDraft(): void {
+  if (pending) return;
+  const input = panel?.querySelector(`.${P}-cp-input`) as HTMLTextAreaElement | null;
+  const text = input ? input.value : "";
+  const images = stagedImages.slice();
+  const attach = attachment;
+
+  const draft: ChatDraft = {
+    text,
+    images,
+    attachment: attach,
+    updatedAt: Date.now(),
+  };
+
+  chrome.runtime
+    .sendMessage({
+      type: "SAVE_CHAT_DRAFT",
+      payload: { draft },
+    })
+    .catch(() => {});
+}
+
+function saveDraftDebounced(): void {
+  if (saveDraftTimer) clearTimeout(saveDraftTimer);
+  saveDraftTimer = setTimeout(() => {
+    saveCurrentDraft();
+  }, 250);
+}
+
+function clearSavedDraft(): void {
+  if (saveDraftTimer) clearTimeout(saveDraftTimer);
+  chrome.runtime.sendMessage({ type: "CLEAR_CHAT_DRAFT" }).catch(() => {});
+}
+
+async function restoreSavedDraft(): Promise<void> {
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "GET_CHAT_DRAFT" });
+    if (res?.success && res.draft) {
+      const draft = res.draft as ChatDraft;
+      const input = panel?.querySelector(`.${P}-cp-input`) as HTMLTextAreaElement | null;
+      if (input && typeof draft.text === "string" && draft.text) {
+        input.value = draft.text;
+        autoGrow(input);
+      }
+      if (Array.isArray(draft.images) && draft.images.length > 0) {
+        stagedImages = [...draft.images];
+      }
+      if (draft.attachment && !attachment) {
+        attachment = draft.attachment;
+      }
+      renderFooter();
+    }
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Open a stream port for one exchange. Returns false when the port can't be
  * opened so the caller can fall back to the one-shot message path.
@@ -1888,6 +1949,7 @@ function restoreRetryDraft(draft: ChatRetryDraft, message: string): void {
   errorText = message;
   render();
   input?.focus();
+  saveDraftDebounced();
 }
 
 async function handleAddImages(files: File[]): Promise<void> {
@@ -1907,6 +1969,7 @@ async function handleAddImages(files: File[]): Promise<void> {
   }
   renderFooter();
   focusInput();
+  saveDraftDebounced();
 }
 
 async function handleCaptureScreenshot(): Promise<void> {
@@ -1923,6 +1986,7 @@ async function handleCaptureScreenshot(): Promise<void> {
       stagedImages.push(img);
       errorText = "";
       renderFooter();
+      saveDraftDebounced();
     } else {
       errorText = t(lang, "chat.screenshotFailed");
       renderFooter();
@@ -2054,6 +2118,7 @@ async function send(): Promise<void> {
     input.value = "";
     autoGrow(input);
   }
+  clearSavedDraft();
 
   // Optimistic user bubble: storage confirms it a moment later.
   const optimistic: ChatTurn = { role: "user", content: text, ts: Date.now() };
@@ -2139,6 +2204,7 @@ function clearChat(): void {
   attachment = null;
   stagedImages = [];
   supplementPage = false;
+  clearSavedDraft();
   chrome.runtime
     .sendMessage({ type: "CLEAR_CHAT" })
     .then(() => refreshState())
@@ -2240,6 +2306,7 @@ export async function openChatPanel(
   await prepareChatPanel(selectionText);
   await refreshState();
   buildPanel(anchor);
+  await restoreSavedDraft();
   render();
   focusInput();
 }
@@ -2297,6 +2364,7 @@ export async function openChatPanelInHost(
 
   await refreshState();
   mount.root = buildPanel(undefined, true);
+  await restoreSavedDraft();
   render();
   focusInput();
 }
@@ -2406,6 +2474,7 @@ function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
     attachment = null;
     supplementPage = false;
     renderFooter();
+    saveDraftDebounced();
   });
   chip.append(chipLabel, chipX);
   foot.appendChild(chip);
@@ -2431,6 +2500,7 @@ function buildPanel(anchor?: AnchorRect, embedded = false): HTMLElement {
   input.addEventListener("input", () => {
     autoGrow(input);
     renderFooter();
+    saveDraftDebounced();
   });
   input.addEventListener("paste", async (e) => {
     const items = e.clipboardData?.items;

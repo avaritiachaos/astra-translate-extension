@@ -220,7 +220,10 @@ export type MessageType =
   | "GET_LIVE_SUBTITLE_HISTORY"
   | "CLEAR_LIVE_SUBTITLE_HISTORY"
   | "SAVE_GLOSSARY"
-  | "CAPTURE_VISIBLE_TAB";
+  | "CAPTURE_VISIBLE_TAB"
+  | "GET_CHAT_DRAFT"
+  | "SAVE_CHAT_DRAFT"
+  | "CLEAR_CHAT_DRAFT";
 
 
 /** Port name for streaming page-batch translation (content ↔ service worker). */
@@ -379,6 +382,8 @@ export interface TestProviderResponse {
  * Session storage survives popup close and SW idle death, and clears when
  * the browser exits — chats are deliberately ephemeral. */
 export const CHAT_STORAGE_KEY = "astra_chat_v1";
+/** chrome.storage.session key holding the uncommitted composer draft. */
+export const CHAT_DRAFT_STORAGE_KEY = "astra_chat_draft_v1";
 /** chrome.storage.session key remembering which popup tab was last active. */
 export const POPUP_MODE_STORAGE_KEY = "astra_popup_mode_v1";
 /** chrome.storage.session key for the popup chat's per-session web-search
@@ -387,6 +392,14 @@ export const CHAT_WEB_SEARCH_SESSION_KEY = "astra_chat_web_search_v1";
 /** chrome.storage.session key for the chat's per-session thinking-effort
  * level. Shared by the popup and the in-page panel. */
 export const CHAT_EFFORT_SESSION_KEY = "astra_chat_effort_v1";
+
+/** Staged composer draft saved across popup close or page navigations. */
+export interface ChatDraft {
+  text: string;
+  images: ChatImageAttachment[];
+  attachment?: ChatAttachment | null;
+  updatedAt?: number;
+}
 
 /** A readable-page supplement attached alongside another chat reference. */
 export interface ChatPageContext {

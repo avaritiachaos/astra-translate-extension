@@ -1,4 +1,4 @@
-import { CHAT_STORAGE_KEY, type ChatState } from "./types.ts";
+import { CHAT_STORAGE_KEY, CHAT_DRAFT_STORAGE_KEY, type ChatState } from "./types.ts";
 interface Sender {
   id?: string;
   url?: string;
@@ -28,6 +28,15 @@ export function chatScopeForSender(
   } catch {
     return null;
   }
+}
+
+/** Derive the matching storage key for saving composer drafts for a chat scope. */
+export function getDraftStorageKey(scope?: string | null): string {
+  if (!scope || scope === CHAT_STORAGE_KEY) return CHAT_DRAFT_STORAGE_KEY;
+  if (scope.startsWith(CHAT_STORAGE_KEY + ":")) {
+    return scope.replace(CHAT_STORAGE_KEY, CHAT_DRAFT_STORAGE_KEY);
+  }
+  return CHAT_DRAFT_STORAGE_KEY;
 }
 export function boundChatHistory(state: ChatState): ChatState {
   const bounded = { ...state, turns: state.turns.slice(-60) };
