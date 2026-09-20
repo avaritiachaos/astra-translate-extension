@@ -1,6 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildRequestParts, openAIChat, openAIChatStream } from "./openAICompatibleClient.ts";
+import {
+  buildRequestParts,
+  openAIChat,
+  openAIChatStream,
+  GEMINI_SAFETY_SETTINGS,
+} from "./openAICompatibleClient.ts";
 import type { UserProviderSettings } from "../shared/types.ts";
 
 const BASE_SETTINGS: UserProviderSettings = {
@@ -26,7 +31,8 @@ describe("openAICompatibleClient buildRequestParts", () => {
     );
 
     assert.equal(parts.body.reasoning_effort, "low");
-    assert.deepEqual(parts.optionalKeys, ["reasoning_effort"]);
+    assert.deepEqual(parts.body.safety_settings, GEMINI_SAFETY_SETTINGS);
+    assert.deepEqual(parts.optionalKeys, ["reasoning_effort", "safety_settings"]);
   });
 
   it("uses none reasoning_effort for Gemini 2.5 Flash translation requests", () => {
@@ -38,7 +44,8 @@ describe("openAICompatibleClient buildRequestParts", () => {
     );
 
     assert.equal(parts.body.reasoning_effort, "none");
-    assert.deepEqual(parts.optionalKeys, ["reasoning_effort"]);
+    assert.deepEqual(parts.body.safety_settings, GEMINI_SAFETY_SETTINGS);
+    assert.deepEqual(parts.optionalKeys, ["reasoning_effort", "safety_settings"]);
   });
 
   it("disables thinking for DeepSeek translation requests", () => {
@@ -68,7 +75,8 @@ describe("openAICompatibleClient buildRequestParts", () => {
     );
 
     assert.equal(parts.body.reasoning_effort, "high");
-    assert.deepEqual(parts.optionalKeys, ["reasoning_effort"]);
+    assert.deepEqual(parts.body.safety_settings, GEMINI_SAFETY_SETTINGS);
+    assert.deepEqual(parts.optionalKeys, ["reasoning_effort", "safety_settings"]);
   });
 
   it("disables reasoning_effort for custom provider when disableThinking is true", () => {
@@ -102,7 +110,8 @@ describe("openAICompatibleClient buildRequestParts", () => {
     );
 
     assert.equal(parts.body.reasoning_effort, "low");
-    assert.deepEqual(parts.optionalKeys, ["reasoning_effort"]);
+    assert.deepEqual(parts.body.safety_settings, GEMINI_SAFETY_SETTINGS);
+    assert.deepEqual(parts.optionalKeys, ["reasoning_effort", "safety_settings"]);
   });
 });
 

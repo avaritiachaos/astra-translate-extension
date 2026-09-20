@@ -78,6 +78,14 @@ interface StreamChunk {
 /** Max automatic retries for transient failures (429 / 5xx / network). */
 const MAX_TRANSIENT_RETRIES = 3;
 
+export const GEMINI_SAFETY_SETTINGS = [
+  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+  { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
+];
+
 /**
  * Non-standard body fields (thinking / reasoning controls) that only some
  * OpenAI-compatible gateways understand. A gateway that doesn't rejects the
@@ -142,20 +150,24 @@ export function buildRequestParts(
     // Gemini 3.x (3.7 / 3.8) does not support "none" and returns 400;
     // "low" effort minimizes thinking budget and gives sub-second translation.
     // Gemini 2.5 Flash supports "none".
-    if (modelLower.includes("2.5") && !modelLower.includes("pro")) {
-      defaultTranslationOptional = { reasoning_effort: "none" };
-    } else {
-      defaultTranslationOptional = { reasoning_effort: "low" };
-    }
+    const reasoningEffort =
+      modelLower.includes("2.5") && !modelLower.includes("pro")
+        ? "none"
+        : "low";
+    defaultTranslationOptional = {
+      reasoning_effort: reasoningEffort,
+      safety_settings: GEMINI_SAFETY_SETTINGS,
+    };
   } else if (isDeepSeek) {
     defaultTranslationOptional = { thinking: { type: "disabled" } };
   } else if (disableThinking) {
     defaultTranslationOptional = { thinking: false };
   }
 
-  const optional: Record<string, unknown> = extra?.optionalBody
-    ? { ...extra.optionalBody }
-    : defaultTranslationOptional;
+  const optional: Record<string, unknown> = {
+    ...defaultTranslationOptional,
+    ...(extra?.optionalBody ?? {}),
+  };
 
   const reserved = new Set(["model", "messages", "stream", "response_format"]);
   const optionalKeys = Object.keys(optional).filter(
@@ -264,10 +276,11 @@ function extractContent(data: CompletionResponse, lang: UiLanguage): string {
     );
   }
   const choice = data?.choices?.[0] || (data as any)?.candidates?.[0];
-  checkFinish(choice?.finish_reason, lang);
+  const finishReason = choice?.finish_reason || (choice as any)?.finishReason;
+  checkFinish(finishReason, lang);
   const content = stripThink(extractDeltaText(choice)).trim();
   if (!content) {
-    if (choice?.finish_reason && isSafetyFinishReason(choice.finish_reason)) {
+    if (finishReason && isSafetyFinishReason(finishReason)) {
       throw new ProviderRequestError(
         t(lang, "error.contentFilterBlocked"),
         "CONTENT_FILTER",
@@ -325,7 +338,8 @@ async function readStream(
         "CONTENT_FILTER",
       );
     }
-    const choice = chunk.choices?.[0] || (chunk as any).candidates?.[0];
+    const choice = chunk.choices?.[0] || (chunk as any)?.candidates?.[0];
+    const finishReason = choice?.finish_reason || (choice as any)?.finishReason;
     const delta = extractDeltaText(choice);
     if (delta) {
       text += delta;
@@ -336,8 +350,8 @@ async function readStream(
         emittedLength = clean.length;
       }
     }
-    checkFinish(choice?.finish_reason, lang);
-    if (isNormalFinishReason(choice?.finish_reason)) complete = true;
+    checkFinish(finishReason, lang);
+    if (isNormalFinishReason(finishReason)) complete = true;
   };
   const line = (raw: string) => {
     const value = raw.endsWith("\r") ? raw.slice(0, -1) : raw;

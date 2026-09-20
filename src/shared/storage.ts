@@ -11,6 +11,8 @@ import {
   DEFAULT_CHAT_PROMPT,
   DEFAULT_LIVE_TRANSLATE_PROMPT,
   LEGACY_DICTIONARY_PROMPTS,
+  LEGACY_SELECTION_PROMPTS,
+  LEGACY_PAGE_PROMPTS,
 } from "./prompts.ts";
 
 export function getDefaultSettings(): AstraSettings {
@@ -138,11 +140,19 @@ export async function getSettings(): Promise<AstraSettings> {
       customHeaders: { ...(merged.customHeaders ?? {}) },
     };
   }
-  // Auto-upgrade the dictionary prompt for users who never customized it, so the
-  // dictionary / name-meaning behavior applies without a manual "restore default".
+  // Auto-upgrade prompts for users who never customized them, so improved rules
+  // apply without requiring a manual "restore default prompts".
   const savedPrompt = saved.dictionaryPrompt?.trim();
   if (!savedPrompt || LEGACY_DICTIONARY_PROMPTS.some((p) => p.trim() === savedPrompt)) {
     merged.dictionaryPrompt = DEFAULT_DICTIONARY_PROMPT;
+  }
+  const savedSelectionPrompt = saved.selectionPrompt?.trim();
+  if (!savedSelectionPrompt || LEGACY_SELECTION_PROMPTS.some((p) => p.trim() === savedSelectionPrompt)) {
+    merged.selectionPrompt = DEFAULT_SELECTION_PROMPT;
+  }
+  const savedPagePrompt = saved.pagePrompt?.trim();
+  if (!savedPagePrompt || LEGACY_PAGE_PROMPTS.some((p) => p.trim() === savedPagePrompt)) {
+    merged.pagePrompt = DEFAULT_PAGE_PROMPT;
   }
   return merged;
 }
