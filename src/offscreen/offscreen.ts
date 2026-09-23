@@ -15,6 +15,7 @@ import { langCode } from "../shared/lang";
 
 const TARGET_SAMPLE_RATE = 16000;
 const CHUNK_SAMPLES = 1600; // ~100ms at 16kHz
+const MAX_PENDING_AUDIO_SAMPLES = TARGET_SAMPLE_RATE * 2;
 const VAD_HANGOVER_CHUNKS = 8; // Keep sending ~800ms after speech ends
 const WS_ENDPOINT =
   "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
@@ -36,6 +37,9 @@ let processorNode: ScriptProcessorNode | null = null;
 let sourceNode: MediaStreamAudioSourceNode | null = null;
 
 let ws: WebSocket | null = null;
+// Gemini Live accepts realtime input only after it acknowledges the setup
+// message. Audio capture can start first, so keep the two states separate.
+let wsSetupComplete = false;
 let isRunning = false;
 let sessionGeneration = 0;
 let resumeHandle = "";
@@ -43,6 +47,8 @@ let currentPayload: StartCapturePayload | null = null;
 
 // Audio buffer accumulation for 16kHz
 let pcm16Accumulator: Int16Array = new Int16Array(0);
+let pendingAudioChunks: Int16Array[] = [];
+let pendingAudioSamples = 0;
 let hangoverCounter = 0;
 let lastLevelReportTime = 0;
 
@@ -179,6 +185,10 @@ function appendPcm16(existing: Int16Array, incoming: Int16Array): Int16Array {
 
 async function startAudioCapture(payload: StartCapturePayload) {
   stopAudioCapture();
+  // A stopped session's resumption handle must not leak into a new capture.
+  // Handles are retained only while reconnecting the same live session.
+  resumeHandle = "";
+  wsSetupComplete = false;
   currentPayload = payload;
   isRunning = true;
   sessionGeneration++;
@@ -205,7 +215,23 @@ async function startAudioCapture(payload: StartCapturePayload) {
     activeStream = stream;
     audioContext = new AudioContext();
     if (audioContext.state === "suspended") {
-      await audioContext.resume();
+      // Offscreen documents do not always inherit the popup's user gesture.
+      // A rejected resume must not discard an otherwise valid tab stream.
+      try {
+        await audioContext.resume();
+      } catch (resumeError) {
+        console.debug("[Astra Offscreen] AudioContext resume deferred:", resumeError);
+      }
+    }
+
+    const audioTrack = stream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.onmute = () =>
+        broadcastStatus("info", "标签页音频被浏览器暂时静音");
+      audioTrack.onunmute = () =>
+        broadcastStatus("connected", "已恢复监听标签页声音");
+      audioTrack.onended = () =>
+        broadcastStatus("error", "标签页音频流已结束");
     }
 
     // Loopback: route tab audio to speakers so user can still hear
@@ -235,7 +261,11 @@ async function startAudioCapture(payload: StartCapturePayload) {
       if (now - lastLevelReportTime > 250) {
         lastLevelReportTime = now;
         const normalizedLevel = Math.min(100, Math.round((rms / 2000) * 100));
-        broadcastStatus("connected", undefined, normalizedLevel);
+        broadcastStatus(
+          wsSetupComplete ? "connected" : "connecting",
+          undefined,
+          normalizedLevel,
+        );
       }
 
       const isVoice = !vadEnabled || rms >= vadThreshold;
@@ -272,18 +302,20 @@ async function startAudioCapture(payload: StartCapturePayload) {
     // Start WebSocket connection
     initWebSocket(payload, gen);
   } catch (err) {
+    const message = err instanceof Error ? err.message : "音频捕获失败";
     console.debug("[Astra Offscreen] Audio capture error:", err);
-    isRunning = false;
-    broadcastStatus(
-      "error",
-      err instanceof Error ? err.message : "音频捕获失败",
-    );
+    stopAudioCapture("error", message);
   }
 }
 
 function initWebSocket(payload: StartCapturePayload, gen: number) {
   if (!isRunning || sessionGeneration !== gen) return;
 
+  // A new socket has not completed the setup handshake yet. Do not send
+  // realtime audio until Gemini acknowledges the setup message.
+  wsSetupComplete = false;
+  pendingAudioChunks = [];
+  pendingAudioSamples = 0;
   const url = `${WS_ENDPOINT}?key=${encodeURIComponent(payload.apiKey)}`;
   broadcastStatus("connecting", "正在连接 Gemini Live API…");
 
@@ -294,14 +326,19 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
     return;
   }
 
-  ws.onopen = () => {
-    if (!isRunning || sessionGeneration !== gen || !ws) return;
+  const socket = ws;
+  if (!socket) return;
+
+  socket.onopen = () => {
+    if (ws !== socket || !isRunning || sessionGeneration !== gen) return;
 
     broadcastStatus("connecting", "已建立连接，正在完成握手…");
 
+    const modelName = normalizeModel(payload.model);
+    const isLiveTranslateModel = modelName.includes("live-translate");
     const setupPayload: any = {
       setup: {
-        model: normalizeModel(payload.model),
+        model: modelName,
         generationConfig: {
           responseModalities: ["AUDIO"],
           translationConfig: {
@@ -311,25 +348,27 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
         },
         inputAudioTranscription: {},
         outputAudioTranscription: {},
-        contextWindowCompression: {
-          triggerTokens: "0",
-          slidingWindow: { targetTokens: "0" },
-        },
-        sessionResumption: resumeHandle ? { handle: resumeHandle } : {},
       },
     };
 
-    if (payload.prompt?.trim()) {
+    // Keep the dedicated translation model's setup equal to Google's
+    // documented translation config. General Live models can use the
+    // optional session/compression settings and custom instructions.
+    if (!isLiveTranslateModel && resumeHandle) {
+      setupPayload.setup.sessionResumption = { handle: resumeHandle };
+    }
+
+    if (payload.prompt?.trim() && !isLiveTranslateModel) {
       setupPayload.setup.systemInstruction = {
         parts: [{ text: payload.prompt.trim() }],
       };
     }
 
-    ws.send(JSON.stringify(setupPayload));
+    socket.send(JSON.stringify(setupPayload));
   };
 
-  ws.onmessage = async (event) => {
-    if (!isRunning || sessionGeneration !== gen) return;
+  socket.onmessage = async (event) => {
+    if (ws !== socket || !isRunning || sessionGeneration !== gen) return;
 
     let rawText = "";
     if (typeof event.data === "string") {
@@ -348,6 +387,7 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
       }
     }
 
+    if (ws !== socket || !isRunning || sessionGeneration !== gen) return;
     if (!rawText || !rawText.trim().startsWith("{")) {
       return; // Ignore raw binary audio frames
     }
@@ -362,6 +402,10 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
       }
 
       if (data.setupComplete) {
+        // The Live API requires this acknowledgement before any
+        // realtimeInput message is sent.
+        wsSetupComplete = true;
+        flushPendingAudio();
         broadcastStatus("connected", "已就绪（正在监听标签页声音）");
       }
 
@@ -384,7 +428,7 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
           broadcastStatus("info", "触发配额限制，稍后重连…");
           reconnectWithBackoff(payload, gen, 3000);
         } else {
-          broadcastStatus("error", `Gemini 错误: ${errMsg}`);
+          stopAudioCapture("error", `Gemini 错误: ${errMsg}`);
         }
         return;
       }
@@ -395,6 +439,8 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
         let deltaOriginal = "";
         if (serverContent.inputTranscription?.text) {
           deltaOriginal += serverContent.inputTranscription.text;
+        } else if (serverContent.interimInputTranscription?.text) {
+          deltaOriginal += serverContent.interimInputTranscription.text;
         } else if (serverContent.inputAudioTranscription?.parts) {
           for (const part of serverContent.inputAudioTranscription.parts) {
             if (part.text) deltaOriginal += part.text;
@@ -428,12 +474,14 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
     }
   };
 
-  ws.onerror = () => {
-    // Suppress unhandled event errors in extensions UI
+  socket.onerror = () => {
+    if (ws !== socket || !isRunning || sessionGeneration !== gen) return;
+    broadcastStatus("error", "Gemini Live WebSocket 连接失败");
   };
 
-  ws.onclose = (event) => {
-    if (!isRunning || sessionGeneration !== gen) return;
+  socket.onclose = (event) => {
+    if (ws !== socket || !isRunning || sessionGeneration !== gen) return;
+    wsSetupComplete = false;
     console.debug(
       `[Astra Offscreen] WebSocket closed: code=${event.code} reason=${event.reason}`,
     );
@@ -465,8 +513,29 @@ function reconnectWithBackoff(
   }, delayMs);
 }
 
+function enqueuePendingAudio(pcm16: Int16Array): void {
+  const copy = pcm16.slice();
+  pendingAudioChunks.push(copy);
+  pendingAudioSamples += copy.length;
+  while (pendingAudioSamples > MAX_PENDING_AUDIO_SAMPLES && pendingAudioChunks.length > 0) {
+    const removed = pendingAudioChunks.shift();
+    pendingAudioSamples -= removed?.length || 0;
+  }
+}
+
+function flushPendingAudio(): void {
+  if (!ws || ws.readyState !== WebSocket.OPEN || !wsSetupComplete) return;
+  const queued = pendingAudioChunks;
+  pendingAudioChunks = [];
+  pendingAudioSamples = 0;
+  for (const chunk of queued) sendAudioChunk(chunk);
+}
+
 function sendAudioChunk(pcm16: Int16Array) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN || !wsSetupComplete) {
+    if (isRunning) enqueuePendingAudio(pcm16);
+    return;
+  }
 
   const base64Audio = base64EncodePcm16(pcm16);
   // Send matching live-translate and Gemini Live protocol format
@@ -486,8 +555,13 @@ function sendAudioChunk(pcm16: Int16Array) {
   }
 }
 
-function stopAudioCapture() {
+function stopAudioCapture(
+  status: LiveTranslateStatusKind = "idle",
+  message = "已停止",
+) {
   isRunning = false;
+  wsSetupComplete = false;
+  resumeHandle = "";
   sessionGeneration++;
   if (reconnectTimeout) {
     clearTimeout(reconnectTimeout);
@@ -530,8 +604,10 @@ function stopAudioCapture() {
   }
 
   pcm16Accumulator = new Int16Array(0);
+  pendingAudioChunks = [];
+  pendingAudioSamples = 0;
   hangoverCounter = 0;
-  broadcastStatus("idle", "已停止");
+  broadcastStatus(status, message);
 }
 
 let audioStarting = false;
@@ -548,11 +624,15 @@ function scheduleIdleClose() {
 }
 onMangaIdle(scheduleIdleClose);
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // Commands are sent by the service worker through runtime messaging. For
+  // extension contexts Chrome may leave sender.url undefined; requiring an
+  // extension URL here makes every command silently drop before capture starts.
   if (
     msg?.target !== "offscreen" ||
     sender.id !== chrome.runtime.id ||
     sender.tab ||
-    !sender.url?.startsWith(chrome.runtime.getURL(""))
+    (sender.url !== undefined &&
+      !sender.url.startsWith(chrome.runtime.getURL("")))
   )
     return;
   if (msg.type === "ASTRA_HOST_PING") {

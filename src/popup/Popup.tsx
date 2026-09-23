@@ -997,6 +997,17 @@ export default function Popup() {
     }
   }, [refreshLiveState]);
 
+  // Keep the live panel synchronized while it is open. Status and subtitle
+  // events are delivered to the tab HUD, so the popup also needs a small
+  // polling loop to reflect errors and newly completed subtitle entries.
+  useEffect(() => {
+    if (mode !== "live") return;
+    void refreshLiveState();
+    const timer = window.setInterval(() => {
+      void refreshLiveState();
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [mode, refreshLiveState]);
 
   const handleAddImages = useCallback(
     async (files: File[]) => {

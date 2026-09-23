@@ -55,15 +55,15 @@ export async function startLiveTranslation(
 ): Promise<{ success: boolean; error?: string }> {
   const settings = await getSettings();
 
-  // Determine Gemini API key
-  let apiKey = "";
-  if (settings.providerId === "google-gemini" && settings.apiKey) {
-    apiKey = settings.apiKey;
-  } else if (settings.providerConfigs?.["google-gemini"]?.apiKey) {
-    apiKey = settings.providerConfigs["google-gemini"].apiKey;
-  } else if (settings.apiKey) {
-    apiKey = settings.apiKey;
-  }
+  // Live translation uses Gemini's native Live WebSocket, so it must never
+  // fall back to the currently selected provider's key (for example a
+  // DeepSeek key). That key would make the socket fail asynchronously while
+  // the UI incorrectly remains in the "waiting for audio" state.
+  const googleConfig = settings.providerConfigs?.["google-gemini"];
+  const apiKey =
+    (settings.providerId === "google-gemini" ? settings.apiKey : "") ||
+    googleConfig?.apiKey ||
+    "";
 
   if (!apiKey) {
     return {
@@ -74,7 +74,7 @@ export async function startLiveTranslation(
 
   // Determine target tab
   let targetTab: chrome.tabs.Tab | undefined;
-  if (tabId) {
+  if (tabId !== undefined) {
     targetTab = await chrome.tabs.get(tabId).catch(() => undefined);
   } else {
     const [active] = await chrome.tabs.query({

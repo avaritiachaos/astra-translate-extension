@@ -83,7 +83,8 @@ export function getDefaultSettings(): AstraSettings {
     liveTranslateTargetLang: DEFAULT_TARGET_LANG,
     liveTranslateShowOriginal: false,
     liveTranslateVadEnabled: true,
-    liveTranslateVadThreshold: 200,
+    // Tab audio (especially ASMR/whispers) is often much quieter than a mic.
+    liveTranslateVadThreshold: 80,
     liveTranslateFontSize: 20,
     liveTranslateBgOpacity: 80,
     liveTranslatePrompt: DEFAULT_LIVE_TRANSLATE_PROMPT,
@@ -122,6 +123,11 @@ export async function getSettings(): Promise<AstraSettings> {
   const saved = result[STORAGE_KEY] as Partial<AstraSettings> | undefined;
   if (!saved) return getDefaultSettings();
   const merged = { ...getDefaultSettings(), ...saved };
+  // 200 was the old built-in threshold; it commonly drops quiet tab audio
+  // (ASMR, whispers, podcasts) even though the capture stream is healthy.
+  if (saved.liveTranslateVadThreshold === undefined || saved.liveTranslateVadThreshold === 200) {
+    merged.liveTranslateVadThreshold = 80;
+  }
   merged.manga = { ...getDefaultSettings().manga, ...saved.manga };
   merged.popupTabs = { ...getDefaultSettings().popupTabs, ...saved.popupTabs };
   if (!merged.providerConfigs) {

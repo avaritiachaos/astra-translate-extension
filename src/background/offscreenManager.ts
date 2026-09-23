@@ -18,11 +18,15 @@ async function ensure() {
       reasons: [
         chrome.offscreen.Reason.BLOBS,
         chrome.offscreen.Reason.USER_MEDIA,
+        chrome.offscreen.Reason.AUDIO_PLAYBACK,
       ],
       justification:
-        "Process user-selected manga images and capture tab media for enabled live translation.",
+        "Process user-selected manga images, capture tab media, and preserve tab audio playback for enabled live translation.",
     });
-  for (let attempt = 0; attempt < 10; attempt++) {
+  // The offscreen entry imports the manga worker graph before registering its
+  // message listener. Give a cold document a few seconds to become ready;
+  // otherwise a transient startup delay looks like an audio-capture failure.
+  for (let attempt = 0; attempt < 50; attempt++) {
     try {
       const reply = await chrome.runtime.sendMessage({
         target: "offscreen",
@@ -30,7 +34,7 @@ async function ensure() {
       });
       if (reply?.success) return;
     } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error("OFFSCREEN_UNAVAILABLE");
 }

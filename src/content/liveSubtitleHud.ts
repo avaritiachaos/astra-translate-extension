@@ -181,7 +181,13 @@ export class LiveSubtitleHud {
     }
 
     if (this.statusText) {
-      this.statusText.textContent = status === "connected" ? "同传中" : status === "connecting" ? "连接中" : "实时同传";
+      this.statusText.textContent = status === "connected" ? "同传中" : status === "connecting" ? "连接中" : status === "error" ? "同传错误" : "实时同传";
+    }
+
+    // Do not leave a failed session looking like it is merely waiting for
+    // speech; surface the actual capture/API error in the HUD body.
+    if (status === "error" && message && this.translationEl) {
+      this.translationEl.textContent = message;
     }
 
     if (this.levelBar && level !== undefined) {
