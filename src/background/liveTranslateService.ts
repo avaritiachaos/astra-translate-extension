@@ -197,13 +197,8 @@ export async function stopLiveTranslation(): Promise<{ success: boolean }> {
 
   flushCurrentSentence();
 
-  if (activeTabId) {
-    try {
-      await chrome.tabs.sendMessage(activeTabId, {
-        type: "LIVE_SUBTITLE_STOP_HUD",
-      });
-    } catch {}
-  }
+  // Inform ALL tabs that live subtitles HUD must be hidden
+  await broadcastToAllTabs({ type: "LIVE_SUBTITLE_STOP_HUD" });
 
   currentState = {
     running: false,
@@ -211,6 +206,12 @@ export async function stopLiveTranslation(): Promise<{ success: boolean }> {
     message: "已停止",
   };
   activeTabId = null;
+
+  // Broadcast the idle status to all tabs
+  await broadcastToAllTabs({
+    type: "LIVE_TRANSLATE_STATUS",
+    payload: currentState,
+  });
 
   return { success: true };
 }
@@ -327,13 +328,39 @@ async function broadcastToCurrentTabs(msg: { type: string; payload: any }) {
   } catch {}
 }
 
+async function broadcastToAllTabs(msg: { type: string; payload?: any }) {
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (
+        tab.id &&
+        (tab.url?.startsWith("http://") ||
+          tab.url?.startsWith("https://") ||
+          tab.url?.startsWith("file://"))
+      ) {
+        chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
+      }
+    }
+  } catch {}
+}
+
 // Automatically sync HUD when user switches between browser tabs
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
-  if (!currentState.running) return;
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId);
     const url = tab.url || "";
-    if (url.startsWith("http://") || url.startsWith("https://")) {
+    if (
+      url.startsWith("http://") ||
+      url.startsWith("https://") ||
+      url.startsWith("file://")
+    ) {
+      if (!currentState.running) {
+        // If live translate is not running, ensure the activated tab doesn't have a stale HUD lingering
+        chrome.tabs
+          .sendMessage(activeInfo.tabId, { type: "LIVE_SUBTITLE_STOP_HUD" })
+          .catch(() => {});
+        return;
+      }
       const settings = await getSettings();
       await chrome.tabs
         .sendMessage(activeInfo.tabId, {
