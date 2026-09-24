@@ -30,6 +30,7 @@ export default function Options() {
   const [testSearchResult, setTestSearchResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [showSerperKey, setShowSerperKey] = useState(false);
   const [showGoogleSearchKey, setShowGoogleSearchKey] = useState(false);
+  const [showLiveKey, setShowLiveKey] = useState(false);
   const [toast, setToast] = useState("");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [siteStats, setSiteStats] = useState<{
@@ -180,6 +181,28 @@ export default function Options() {
       }
     },
     [update]
+  );
+
+  // Update dedicated Google Gemini API Key for live audio translation
+  const handleLiveGeminiKeyChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      setSettings((prev) => {
+        const configs = { ...(prev.providerConfigs || {}) };
+        configs["google-gemini"] = {
+          ...(configs["google-gemini"] || {}),
+          apiKey: val,
+        };
+        const next = { ...prev, providerConfigs: configs };
+        if (prev.providerId === "google-gemini") {
+          next.apiKey = val;
+        }
+        settingsRef.current = next;
+        return next;
+      });
+      scheduleSave();
+    },
+    [scheduleSave]
   );
 
   // Provider preset change: persist current provider's settings and restore target provider's settings
@@ -1079,6 +1102,44 @@ export default function Options() {
         <div className="ast-card-title">{t(lang, "opt.liveSettings")}</div>
         <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 12 }}>
           {t(lang, "opt.liveSettingsDescription")}
+        </div>
+
+        <div className="ast-form-group" style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <label className="ast-form-label" style={{ margin: 0 }}>
+              Google Gemini API Key（同传专用）
+            </label>
+            <a
+              href="https://aistudio.google.com/apikey"
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: 12, color: "var(--ast-primary)", textDecoration: "none" }}
+            >
+              {t(lang, "opt.getApiKey")} ↗
+            </a>
+          </div>
+          <div className="ast-api-key-group">
+            <input
+              className="ast-form-input"
+              type={showLiveKey ? "text" : "password"}
+              value={settings.providerConfigs?.["google-gemini"]?.apiKey ?? (settings.providerId === "google-gemini" ? settings.apiKey : "")}
+              onChange={handleLiveGeminiKeyChange}
+              placeholder="填入 Google AI Studio 生成的 API Key"
+            />
+            <button
+              type="button"
+              className="ast-toggle-visibility"
+              onClick={() => setShowLiveKey(!showLiveKey)}
+              title={showLiveKey ? t(lang, "opt.hideKey") : t(lang, "opt.showKey")}
+            >
+              {showLiveKey ? (
+                <img src={chrome.runtime.getURL("icons/key-girl.png")} alt="hide" className="ast-key-icon" />
+              ) : "👁"}
+            </button>
+          </div>
+          <div className="ast-form-hint" style={{ marginTop: 4 }}>
+            实时音视频同传通过 Google Gemini Live API 运行。无论主服务商选择 DeepSeek 还是其他，都可在此单独配置并使用 Gemini Key。
+          </div>
         </div>
 
         <div className="ast-form-row">
