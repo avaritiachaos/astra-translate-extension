@@ -2325,9 +2325,11 @@ export default function Popup() {
               <div className="ast-live-status-badge">
                 <span className={`ast-live-dot ast-live-dot--${liveState.status}`} />
                 <span className="ast-live-status-text">
-                  {liveState.running
-                    ? (liveState.message || t(lang, "live.connected"))
-                    : t(lang, "live.idle")}
+                  {liveState.status === "error"
+                    ? (liveState.message || "同传连接失败")
+                    : liveState.running
+                      ? (liveState.message || t(lang, "live.connected"))
+                      : t(lang, "live.idle")}
                 </span>
               </div>
               <div className="ast-live-eq" title={liveState.running ? "正在监听网页音频" : "等待开启"}>

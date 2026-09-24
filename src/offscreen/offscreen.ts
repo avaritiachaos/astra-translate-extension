@@ -329,10 +329,19 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
   const socket = ws;
   if (!socket) return;
 
+  clearSocketSetupTimeout();
+  socketSetupTimeout = setTimeout(() => {
+    if (ws !== socket || !isRunning || wsSetupComplete) return;
+    stopAudioCapture(
+      "error",
+      "Gemini Live 握手超时：检查网络、Gemini API Key 和模型访问权限",
+    );
+  }, SOCKET_SETUP_TIMEOUT_MS);
+
   socket.onopen = () => {
     if (ws !== socket || !isRunning || sessionGeneration !== gen) return;
 
-    broadcastStatus("connecting", "已建立连接，正在完成握手…");
+    broadcastStatus("connecting", "已连接，等待 Gemini Live 握手…");
 
     const modelName = normalizeModel(payload.model);
     const isLiveTranslateModel = modelName.includes("live-translate");
@@ -405,6 +414,7 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
         // The Live API requires this acknowledgement before any
         // realtimeInput message is sent.
         wsSetupComplete = true;
+        clearSocketSetupTimeout();
         flushPendingAudio();
         broadcastStatus("connected", "已就绪（正在监听标签页声音）");
       }
@@ -476,25 +486,51 @@ function initWebSocket(payload: StartCapturePayload, gen: number) {
 
   socket.onerror = () => {
     if (ws !== socket || !isRunning || sessionGeneration !== gen) return;
-    broadcastStatus("error", "Gemini Live WebSocket 连接失败");
+    // A browser WebSocket error is usually followed by a close event, but
+    // repeatedly reconnecting can hide the real failure behind "connecting".
+    // Stop here so the HUD can show an actionable error instead of waiting.
+    stopAudioCapture(
+      "error",
+      "Gemini Live 连接失败；请检查 Gemini API Key、模型权限和网络",
+    );
   };
 
   socket.onclose = (event) => {
     if (ws !== socket || !isRunning || sessionGeneration !== gen) return;
+    const wasSetupComplete = wsSetupComplete;
     wsSetupComplete = false;
+    clearSocketSetupTimeout();
     console.debug(
       `[Astra Offscreen] WebSocket closed: code=${event.code} reason=${event.reason}`,
     );
+    if (!wasSetupComplete) {
+      stopAudioCapture(
+        "error",
+        `Gemini Live 握手失败（WebSocket ${event.code}${event.reason ? `：${event.reason}` : ""}）`,
+      );
+      return;
+    }
     reconnectWithBackoff(payload, gen);
   };
 }
 
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+let socketSetupTimeout: ReturnType<typeof setTimeout> | null = null;
+const SOCKET_SETUP_TIMEOUT_MS = 15_000;
+
+function clearSocketSetupTimeout(): void {
+  if (socketSetupTimeout) {
+    clearTimeout(socketSetupTimeout);
+    socketSetupTimeout = null;
+  }
+}
+
 function reconnectWithBackoff(
   payload: StartCapturePayload,
   gen: number,
   delayMs = 1500,
 ) {
+  clearSocketSetupTimeout();
   if (reconnectTimeout) clearTimeout(reconnectTimeout);
   if (!isRunning || sessionGeneration !== gen) return;
 
@@ -567,6 +603,7 @@ function stopAudioCapture(
     clearTimeout(reconnectTimeout);
     reconnectTimeout = null;
   }
+  clearSocketSetupTimeout();
 
   if (ws) {
     try {
