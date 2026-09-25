@@ -187,22 +187,9 @@ export default function Options() {
   const handleLiveGeminiKeyChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value;
-      setSettings((prev) => {
-        const configs = { ...(prev.providerConfigs || {}) };
-        configs["google-gemini"] = {
-          ...(configs["google-gemini"] || {}),
-          apiKey: val,
-        };
-        const next = { ...prev, providerConfigs: configs };
-        if (prev.providerId === "google-gemini") {
-          next.apiKey = val;
-        }
-        settingsRef.current = next;
-        return next;
-      });
-      scheduleSave();
+      update("liveTranslateApiKey", val);
     },
-    [scheduleSave]
+    [update]
   );
 
   // Provider preset change: persist current provider's settings and restore target provider's settings
@@ -1122,7 +1109,7 @@ export default function Options() {
             <input
               className="ast-form-input"
               type={showLiveKey ? "text" : "password"}
-              value={settings.providerConfigs?.["google-gemini"]?.apiKey ?? (settings.providerId === "google-gemini" ? settings.apiKey : "")}
+              value={settings.liveTranslateApiKey || ""}
               onChange={handleLiveGeminiKeyChange}
               placeholder="填入 Google AI Studio 生成的 API Key"
             />

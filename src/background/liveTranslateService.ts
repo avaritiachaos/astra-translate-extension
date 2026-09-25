@@ -55,20 +55,19 @@ export async function startLiveTranslation(
 ): Promise<{ success: boolean; error?: string }> {
   const settings = await getSettings();
 
-  // Live translation uses Gemini's native Live WebSocket, so it must never
-  // fall back to the currently selected provider's key (for example a
-  // DeepSeek key). That key would make the socket fail asynchronously while
-  // the UI incorrectly remains in the "waiting for audio" state.
-  const googleConfig = settings.providerConfigs?.["google-gemini"];
+  // Live translation uses Gemini's native Live WebSocket, which requires an official Google AI Studio key.
+  // It uses its own dedicated key (liveTranslateApiKey), completely isolated from the user's
+  // main translation provider configs (which may use custom proxies like localhost:8317).
   const apiKey =
+    settings.liveTranslateApiKey ||
+    settings.providerConfigs?.["google-gemini"]?.apiKey ||
     (settings.providerId === "google-gemini" ? settings.apiKey : "") ||
-    googleConfig?.apiKey ||
     "";
 
   if (!apiKey) {
     return {
       success: false,
-      error: "请先在设置中配置 Google Gemini (AI Studio) 的 API Key",
+      error: "请先在设置的「实时音视频同传」卡片中配置 Google Gemini (AI Studio) 的 API Key",
     };
   }
 

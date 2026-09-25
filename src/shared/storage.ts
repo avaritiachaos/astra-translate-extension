@@ -79,6 +79,7 @@ export function getDefaultSettings(): AstraSettings {
     enableTranslationCache: true,
     translationCacheMaxEntries: 5000,
     customGlossary: "",
+    liveTranslateApiKey: "",
     liveTranslateModel: "models/gemini-3.5-live-translate-preview",
     liveTranslateTargetLang: DEFAULT_TARGET_LANG,
     liveTranslateShowOriginal: false,
@@ -130,6 +131,10 @@ export async function getSettings(): Promise<AstraSettings> {
   }
   merged.manga = { ...getDefaultSettings().manga, ...saved.manga };
   merged.popupTabs = { ...getDefaultSettings().popupTabs, ...saved.popupTabs };
+  if (!merged.liveTranslateApiKey) {
+    // If user previously stored the live key under the old config, smoothly adopt it
+    merged.liveTranslateApiKey = saved.liveTranslateApiKey || saved.providerConfigs?.["google-gemini"]?.apiKey || "";
+  }
   if (!merged.providerConfigs) {
     merged.providerConfigs = {};
   }

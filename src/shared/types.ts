@@ -142,6 +142,7 @@ export interface AstraSettings extends UserProviderSettings {
   // Glossary / Terminology
   customGlossary: string;
   // Live Subtitles / Real-time Audio Translation
+  liveTranslateApiKey: string;
   liveTranslateModel: string;
   liveTranslateTargetLang: string;
   liveTranslateShowOriginal: boolean;
