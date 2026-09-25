@@ -21,6 +21,8 @@ body {
   width: 460px;
   min-height: 200px;
   max-height: 600px;
+  margin: 0;
+  padding: 0;
   overflow-y: auto;
   overflow-x: hidden;
   background: var(--ast-bg);
@@ -58,25 +60,36 @@ body::after {
   z-index: 0;
 }
 
+#root {
+  width: 460px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .ast-popup-shell {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   min-width: 0;
 }
 
-body.ast-popup-chat-mode {
-  height: 600px;
-  max-height: 600px;
+/* Chat mode height: comfortable 460px popup — spacious dialogue, safely inside screen bounds */
+html.ast-popup-chat-mode,
+html.ast-popup-chat-mode body,
+body.ast-popup-chat-mode,
+body.ast-popup-chat-mode #root,
+.ast-popup-shell--chat {
+  height: 460px;
+  max-height: 460px;
   overflow: hidden;
 }
 
-body.ast-popup-chat-mode .ast-popup-shell,
 .ast-popup-shell--chat {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  max-height: 600px;
-  overflow: hidden;
 }
 
 .ast-popup-topbar {
@@ -86,29 +99,31 @@ body.ast-popup-chat-mode .ast-popup-shell,
 }
 
 /* Scrollbar — iOS ultra-thin rounded capsule */
-body::-webkit-scrollbar {
+::-webkit-scrollbar {
   width: 5px;
+  height: 5px;
 }
 
-body::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
   background: transparent;
 }
 
-body::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.14);
   border-radius: 9999px;
+  transition: background var(--ast-dur-fast, 0.15s);
 }
 
-body::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.22);
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
 }
 
 @media (prefers-color-scheme: dark) {
-  body::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16);
   }
-  body::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.25);
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.28);
   }
 }
 
@@ -426,6 +441,11 @@ body::-webkit-scrollbar-thumb:hover {
 /* ============================================================
    Language Bar & Translation Controls
    ============================================================ */
+
+.ast-translate-view {
+  display: flex;
+  flex-direction: column;
+}
 
 .ast-lang-bar {
   display: flex;
@@ -762,9 +782,9 @@ body::-webkit-scrollbar-thumb:hover {
    ============================================================ */
 
 .ast-manga-panel {
-  padding: 12px 16px 14px;
   display: flex;
   flex-direction: column;
+  padding: 12px 16px 14px;
   gap: 12px;
   animation: ast-fade-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1171,8 +1191,8 @@ body::-webkit-scrollbar-thumb:hover {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  gap: 10px;
-  padding: 10px 16px 14px;
+  gap: 8px;
+  padding: 8px 14px 10px;
   overflow: hidden;
 }
 
@@ -1181,11 +1201,12 @@ body::-webkit-scrollbar-thumb:hover {
   flex-direction: column;
   flex: 1;
   gap: 8px;
-  min-height: 120px;
-  max-height: none;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 4px 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.14) transparent;
 }
 
 .ast-chat-list::-webkit-scrollbar {
@@ -1197,13 +1218,32 @@ body::-webkit-scrollbar-thumb:hover {
 }
 
 .ast-chat-list::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.14);
   border-radius: 9999px;
+  transition: background var(--ast-dur-fast);
+}
+
+.ast-chat-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+@media (prefers-color-scheme: dark) {
+  .ast-chat-list {
+    scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  }
+
+  .ast-chat-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .ast-chat-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.28);
+  }
 }
 
 .ast-chat-empty {
   margin: auto;
-  padding: 32px 20px;
+  padding: 24px 16px;
   color: var(--ast-muted);
   font-size: 12.5px;
   text-align: center;
@@ -1834,6 +1874,7 @@ body::-webkit-scrollbar-thumb:hover {
   color: var(--ast-muted);
   text-align: right;
   margin-top: 2px;
+  flex-shrink: 0;
 }
 
 /* Toast (iOS Dynamic Island Floating Capsule - below header bar) */

@@ -44,6 +44,8 @@ import {
 import { isVisionCapable } from "../shared/modelCapability";
 import "./popup.css";
 
+
+
 /** Whitelist markdown for assistant replies: fenced code, inline code, bold.
  * Tokens map to React elements — model output can never inject markup. */
 function ChatRichText({ text }: { text: string }): React.ReactElement {
@@ -436,8 +438,22 @@ export default function Popup() {
   const [liveHistory, setLiveHistory] = useState<LiveSubtitleHistoryItem[]>([]);
   const [liveLoading, setLiveLoading] = useState(false);
 
-  // ---- Chat mode state ----
-  const [mode, setMode] = useState<PopupMode>("translate");
+  const [mode, setMode] = useState<PopupMode>(() => {
+    try {
+      const cached =
+        sessionStorage.getItem(POPUP_MODE_STORAGE_KEY) ||
+        localStorage.getItem(POPUP_MODE_STORAGE_KEY);
+      if (
+        cached === "chat" ||
+        cached === "translate" ||
+        cached === "manga" ||
+        cached === "live"
+      ) {
+        return cached;
+      }
+    } catch {}
+    return "translate";
+  });
   const [chatTurns, setChatTurns] = useState<ChatTurn[]>([]);
   const [chatPending, setChatPending] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -556,7 +572,21 @@ export default function Popup() {
       .then((r) => {
         if (r?.[CHAT_WEB_SEARCH_SESSION_KEY] === true) setWebSearchEnabled(true);
         setChatEffort(normalizeChatEffort(r?.[CHAT_EFFORT_SESSION_KEY]));
-        if (r?.[POPUP_MODE_STORAGE_KEY] === "chat") setMode("chat");
+        if (r?.[POPUP_MODE_STORAGE_KEY]) {
+          const stored = r[POPUP_MODE_STORAGE_KEY] as PopupMode;
+          if (
+            stored === "chat" ||
+            stored === "translate" ||
+            stored === "manga" ||
+            stored === "live"
+          ) {
+            setMode(stored);
+            try {
+              sessionStorage.setItem(POPUP_MODE_STORAGE_KEY, stored);
+              localStorage.setItem(POPUP_MODE_STORAGE_KEY, stored);
+            } catch {}
+          }
+        }
         const draft = r?.[CHAT_DRAFT_STORAGE_KEY] as ChatDraft | undefined;
         if (draft) {
           if (typeof draft.text === "string" && draft.text) setChatInput(draft.text);
@@ -629,12 +659,15 @@ export default function Popup() {
 
   // Focus follows the active tab; the chat list sticks to the newest message.
   useEffect(() => {
-    (mode === "chat" ? chatInputRef : inputRef).current?.focus();
+    (mode === "chat" ? chatInputRef : inputRef).current?.focus({ preventScroll: true });
   }, [mode]);
 
   useEffect(() => {
+    document.documentElement.classList.toggle("ast-popup-chat-mode", mode === "chat");
     document.body.classList.toggle("ast-popup-chat-mode", mode === "chat");
+    window.scrollTo(0, 0);
     return () => {
+      document.documentElement.classList.remove("ast-popup-chat-mode");
       document.body.classList.remove("ast-popup-chat-mode");
     };
   }, [mode]);
@@ -989,6 +1022,10 @@ export default function Popup() {
 
   const switchMode = useCallback((next: PopupMode) => {
     setMode(next);
+    try {
+      sessionStorage.setItem(POPUP_MODE_STORAGE_KEY, next);
+      localStorage.setItem(POPUP_MODE_STORAGE_KEY, next);
+    } catch {}
     chrome.storage.session
       ?.set({ [POPUP_MODE_STORAGE_KEY]: next })
       .catch(() => {});
@@ -1026,7 +1063,7 @@ export default function Popup() {
         }
       }
       setChatImages((prev) => [...prev, ...processed]);
-      chatInputRef.current?.focus();
+      chatInputRef.current?.focus({ preventScroll: true });
     },
     [chatImages.length, lang]
   );
@@ -1286,7 +1323,7 @@ export default function Popup() {
       const ctx = results?.[0]?.result as ChatAttachment | undefined;
       if (!ctx || !ctx.text.trim()) throw new Error("empty");
       setChatAttach(ctx);
-      chatInputRef.current?.focus();
+      chatInputRef.current?.focus({ preventScroll: true });
     } catch {
       // chrome:// pages, the Web Store, or an empty page — nothing to grab.
       setChatError(t(lang, "chat.attachFailed"));
@@ -1337,7 +1374,7 @@ export default function Popup() {
         .catch(() => {});
       return next;
     });
-    chatInputRef.current?.focus();
+    chatInputRef.current?.focus({ preventScroll: true });
   }, [lang, settings]);
 
   const handleCopyTurn = useCallback(
@@ -1583,7 +1620,7 @@ export default function Popup() {
       </div>
 
       {mode === "translate" && (
-        <>
+        <div className="ast-translate-view">
           {/* Language bar */}
           <div className="ast-lang-bar">
             <select
@@ -1755,7 +1792,7 @@ export default function Popup() {
             </div>
             {pageStatus && <div role="status" className="ast-page-status">{pageStatus}</div>}
           </div>
-        </>
+        </div>
       )}
 
       {mode === "manga" && (
