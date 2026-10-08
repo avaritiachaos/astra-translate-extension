@@ -57,7 +57,7 @@ describe("manga bubbleTheme & luminance engine", () => {
       it("inverts text and uses dark background when bg is naturally dark", () => {
         const style = resolveBubbleColor(darkBg, "auto");
         assert.equal(style.isDark, true);
-        assert.equal(style.textColor, "#f5f3ff");
+        assert.equal(style.textColor, "#eef2ff");
         assert.ok(style.backgroundColor.includes("rgba("));
         assert.ok(style.borderColor);
         assert.ok(style.boxShadow);

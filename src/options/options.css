@@ -1,5 +1,8 @@
 /* ============================================================
-   Astra Translate – Options Page Styles
+   Astra Translate – Options Page Styles (iOS Liquid Glass)
+   Shares the popup's design language: glass cards, specular
+   highlights, indigo accents — gradient reserved for brand
+   marks and primary actions only.
    ============================================================ */
 
 @import "../styles/theme.css";
@@ -10,97 +13,222 @@
   padding: 0;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
+  position: relative;
   background: var(--ast-bg);
   color: var(--ast-text);
   font-family: var(--ast-font);
   font-size: 14px;
   line-height: 1.5;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ambient liquid glass glow blobs (same recipe as the popup) */
+body::before {
+  content: "";
+  position: fixed;
+  top: -120px;
+  left: -80px;
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.14) 0%, rgba(99, 102, 241, 0) 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  bottom: -140px;
+  right: -100px;
+  width: 460px;
+  height: 460px;
+  background: radial-gradient(circle, rgba(129, 140, 248, 0.1) 0%, rgba(129, 140, 248, 0) 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+::selection {
+  background: rgba(99, 102, 241, 0.22);
+}
+
+/* Scrollbar — iOS ultra-thin rounded capsule */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.16);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.28);
+  }
 }
 
 .ast-options-container {
+  position: relative;
+  z-index: 1;
   max-width: 900px;
   margin: 0 auto;
-  padding: 40px 24px 60px;
+  padding: 48px 24px 72px;
 }
 
-/* Header */
+/* ============================================================
+   Header
+   ============================================================ */
+
 .ast-options-header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 28px;
 }
 
 .ast-options-logo {
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 800;
-  color: var(--ast-primary);
   letter-spacing: -0.02em;
   margin-bottom: 6px;
+  background: var(--ast-primary-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
 .ast-options-desc {
   color: var(--ast-muted);
-  font-size: 14px;
+  font-size: 13.5px;
 }
 
-/* Sticky section nav */
+/* ============================================================
+   Sticky section nav — floating glass capsule bar
+   ============================================================ */
+
 .ast-options-nav {
   position: sticky;
-  top: 0;
+  top: 12px;
   z-index: 10;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   justify-content: center;
-  padding: 10px 0;
-  margin-bottom: 16px;
-  background: var(--ast-bg);
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 22px;
+  padding: 5px;
+  background: var(--ast-glass-popover);
+  border: 1px solid var(--ast-glass-border);
+  border-radius: 18px;
+  backdrop-filter: var(--ast-glass-blur);
+  -webkit-backdrop-filter: var(--ast-glass-blur);
+  box-shadow: var(--ast-shadow), var(--ast-glass-specular);
 }
 
 .ast-options-nav-chip {
-  padding: 5px 14px;
-  border: 1px solid var(--ast-border);
+  padding: 5px 13px;
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: var(--ast-card-bg);
+  background: transparent;
   color: var(--ast-muted);
   font-size: 12px;
   font-weight: 500;
   font-family: var(--ast-font);
   cursor: pointer;
-  transition: color 120ms ease-out, border-color 120ms ease-out;
+  transition: all var(--ast-transition);
 }
 
 .ast-options-nav-chip:hover {
   color: var(--ast-primary);
-  border-color: var(--ast-primary);
+  background: var(--ast-primary-light);
 }
 
-/* Anchored cards stop below the sticky nav instead of underneath it */
+.ast-options-nav-chip:active {
+  transform: scale(0.95);
+}
+
+/* Anchored cards stop below the floating nav instead of underneath it */
 .ast-card[id] {
-  scroll-margin-top: 56px;
+  scroll-margin-top: 84px;
 }
 
-/* Card */
+/* ============================================================
+   Card (Liquid Glass)
+   ============================================================ */
+
 .ast-card {
-  background: var(--ast-card-bg);
-  border: 1px solid var(--ast-border);
-  border-radius: 18px;
-  box-shadow: var(--ast-shadow);
+  position: relative;
+  background: var(--ast-glass-card);
+  border: 1px solid var(--ast-glass-border);
+  border-radius: 20px;
+  box-shadow: var(--ast-shadow), var(--ast-glass-specular);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
   padding: 24px;
   margin-bottom: 20px;
+  animation: ast-card-in 260ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transition: border-color var(--ast-transition), box-shadow var(--ast-transition);
+}
+
+.ast-card:hover {
+  border-color: rgba(99, 102, 241, 0.18);
+}
+
+@keyframes ast-card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .ast-card-title {
-  font-size: 16px;
+  font-size: 15.5px;
   font-weight: 700;
   color: var(--ast-text);
-  margin-bottom: 20px;
+  letter-spacing: -0.01em;
+  margin-bottom: 18px;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--ast-border);
+  border-bottom: 1px solid var(--ast-glass-border-subtle);
 }
 
-/* Form */
+/* Collapsible blocks inside cards (e.g. web-search details) */
+.ast-card details summary {
+  cursor: pointer;
+  user-select: none;
+  color: var(--ast-text-secondary);
+  transition: color var(--ast-transition);
+}
+
+.ast-card details summary:hover {
+  color: var(--ast-primary);
+}
+
+.ast-card details summary::marker {
+  color: var(--ast-primary);
+  font-size: 11px;
+}
+
+/* ============================================================
+   Form
+   ============================================================ */
+
 .ast-form-group {
   margin-bottom: 16px;
 }
@@ -117,28 +245,45 @@ body {
   font-size: 12px;
   color: var(--ast-muted);
   margin-top: 4px;
+  line-height: 1.55;
 }
 
 .ast-form-input,
 .ast-form-select,
 .ast-form-textarea {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--ast-border);
+  padding: 9px 12px;
+  border: 1px solid var(--ast-glass-border-subtle);
   border-radius: var(--ast-radius-sm);
-  background: var(--ast-bg);
+  background: var(--ast-glass-card);
+  box-shadow: var(--ast-glass-specular);
   color: var(--ast-text);
-  font-size: 14px;
+  font-size: 13.5px;
   font-family: var(--ast-font);
   outline: none;
-  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+  transition: border-color var(--ast-transition), box-shadow var(--ast-transition);
+}
+
+.ast-form-input {
+  height: 40px;
+}
+
+.ast-form-input:hover,
+.ast-form-select:hover,
+.ast-form-textarea:hover {
+  border-color: rgba(99, 102, 241, 0.3);
 }
 
 .ast-form-input:focus,
 .ast-form-select:focus,
 .ast-form-textarea:focus {
-  border-color: var(--ast-primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.14), var(--ast-glass-specular);
+}
+
+.ast-form-input::placeholder,
+.ast-form-textarea::placeholder {
+  color: var(--ast-muted);
 }
 
 .ast-form-textarea {
@@ -147,8 +292,23 @@ body {
   line-height: 1.6;
 }
 
+/* Select — custom chevron replaces the native arrow */
 .ast-form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 40px;
+  padding-right: 34px;
   cursor: pointer;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8" fill="none"><path d="M1.5 1.75L6 6.25L10.5 1.75" stroke="%2386868b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ast-form-select {
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8" fill="none"><path d="M1.5 1.75L6 6.25L10.5 1.75" stroke="%23aeaeb2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+  }
 }
 
 /* Chat web supplement */
@@ -172,18 +332,20 @@ body {
 .ast-toggle-visibility {
   width: 40px;
   height: 40px;
-  border: 1px solid var(--ast-border);
+  border: 1px solid var(--ast-glass-border-subtle);
   border-radius: var(--ast-radius-sm);
-  background: var(--ast-bg);
+  background: var(--ast-glass-card);
+  box-shadow: var(--ast-glass-specular);
   color: var(--ast-muted);
   cursor: pointer;
-  font-size: 16px;
+  font-size: 15px;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 120ms ease-out;
+  transition: all var(--ast-transition);
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .ast-key-icon {
@@ -194,15 +356,76 @@ body {
 }
 
 .ast-toggle-visibility:hover {
-  border-color: var(--ast-primary);
+  border-color: rgba(99, 102, 241, 0.4);
+  background: var(--ast-primary-light);
   color: var(--ast-primary);
 }
 
-/* Toggle switch */
+/* Checkbox row (popup tab visibility etc.) */
+.ast-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  color: var(--ast-text);
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 0;
+}
+
+.ast-checkbox-label input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  border-radius: 5px;
+  background: var(--ast-glass-card);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--ast-transition);
+}
+
+.ast-checkbox-label input[type="checkbox"]:hover {
+  border-color: rgba(99, 102, 241, 0.55);
+}
+
+.ast-checkbox-label input[type="checkbox"]:checked {
+  background: var(--ast-primary-gradient);
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.ast-checkbox-label input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 1.5px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.ast-checkbox-label input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ast-checkbox-label input[type="checkbox"] {
+    border-color: rgba(255, 255, 255, 0.28);
+  }
+}
+
+/* Toggle switch — iOS capsule */
 .ast-toggle-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 8px 0;
 }
 
@@ -213,16 +436,17 @@ body {
 
 .ast-toggle {
   position: relative;
-  width: 44px;
-  height: 24px;
+  width: 46px;
+  height: 26px;
   appearance: none;
   -webkit-appearance: none;
-  background: var(--ast-border);
-  border-radius: 12px;
+  background: rgba(120, 120, 128, 0.22);
+  border-radius: 9999px;
   cursor: pointer;
-  transition: background 120ms ease-out;
+  transition: background 200ms ease-out, box-shadow 200ms ease-out;
   outline: none;
   border: none;
+  flex-shrink: 0;
 }
 
 .ast-toggle::before {
@@ -230,20 +454,45 @@ body {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   background: #fff;
   border-radius: 50%;
-  transition: transform 120ms ease-out;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18), 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.ast-toggle:hover {
+  background: rgba(120, 120, 128, 0.32);
 }
 
 .ast-toggle:checked {
-  background: var(--ast-primary);
+  background: var(--ast-primary-gradient);
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.35);
+}
+
+.ast-toggle:checked:hover {
+  box-shadow: 0 3px 12px rgba(99, 102, 241, 0.45);
 }
 
 .ast-toggle:checked::before {
   transform: translateX(20px);
+}
+
+.ast-toggle:focus-visible {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
+@media (prefers-color-scheme: dark) {
+  .ast-toggle {
+    background: rgba(120, 120, 128, 0.36);
+  }
+  .ast-toggle:hover {
+    background: rgba(120, 120, 128, 0.46);
+  }
+  .ast-toggle:checked {
+    background: var(--ast-primary-gradient);
+  }
 }
 
 /* Range slider */
@@ -251,25 +500,50 @@ input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   height: 6px;
-  background: var(--ast-border);
-  border-radius: 3px;
+  background: rgba(120, 120, 128, 0.22);
+  border-radius: 9999px;
   outline: none;
+  cursor: pointer;
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  background: var(--ast-primary);
+  background: var(--ast-primary-gradient);
+  border: none;
   cursor: pointer;
-  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.3);
-  transition: box-shadow 120ms ease-out;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  transition: transform var(--ast-transition), box-shadow var(--ast-transition);
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5);
+  transform: scale(1.12);
+  box-shadow: 0 3px 12px rgba(99, 102, 241, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ast-primary-gradient);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: rgba(120, 120, 128, 0.22);
+  border-radius: 9999px;
+}
+
+@media (prefers-color-scheme: dark) {
+  input[type="range"] {
+    background: rgba(120, 120, 128, 0.36);
+  }
 }
 
 /* Two column layout */
@@ -285,7 +559,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
   }
 }
 
-/* Buttons */
+/* ============================================================
+   Buttons (shared recipe with the popup)
+   ============================================================ */
+
 .ast-options-actions {
   display: flex;
   gap: 12px;
@@ -294,6 +571,88 @@ input[type="range"]::-webkit-slider-thumb:hover {
   margin-top: 24px;
   flex-wrap: wrap;
 }
+
+.ast-btn {
+  padding: 9px 22px;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-family: var(--ast-font);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--ast-transition);
+}
+
+.ast-btn:active {
+  transform: scale(0.96);
+}
+
+.ast-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
+.ast-btn-primary {
+  background: var(--ast-primary-gradient);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.32), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+}
+
+.ast-btn-primary:hover {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.42), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+}
+
+.ast-btn-secondary {
+  background: var(--ast-glass-card);
+  border-color: var(--ast-glass-border-subtle);
+  color: var(--ast-text);
+  box-shadow: var(--ast-glass-specular);
+}
+
+.ast-btn-secondary:hover {
+  background: var(--ast-primary-light);
+  border-color: rgba(99, 102, 241, 0.35);
+  color: var(--ast-primary);
+  transform: translateY(-1px);
+}
+
+.ast-btn-outline {
+  background: transparent;
+  color: var(--ast-primary);
+  border-color: rgba(99, 102, 241, 0.45);
+}
+
+.ast-btn-outline:hover {
+  background: var(--ast-primary-light);
+  border-color: var(--ast-primary);
+  box-shadow: 0 3px 12px rgba(99, 102, 241, 0.14);
+  transform: translateY(-1px);
+}
+
+/* Ghost button — minimal, for reset */
+.ast-btn-ghost {
+  background: transparent;
+  color: var(--ast-muted);
+  padding: 8px 16px;
+}
+
+.ast-btn-ghost:hover {
+  color: var(--ast-error);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.ast-btn:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ============================================================
+   Status & feedback
+   ============================================================ */
 
 /* Auto-save status */
 .ast-autosave-status {
@@ -319,70 +678,6 @@ input[type="range"]::-webkit-slider-thumb:hover {
   50% { opacity: 0.5; }
 }
 
-/* Ghost button — minimal, for reset */
-.ast-btn-ghost {
-  background: transparent;
-  color: var(--ast-muted);
-  border: none;
-  padding: 8px 16px;
-  font-size: 13px;
-}
-
-.ast-btn-ghost:hover {
-  color: var(--ast-error);
-  background: rgba(239, 68, 68, 0.06);
-}
-
-.ast-btn {
-  padding: 10px 24px;
-  border: none;
-  border-radius: var(--ast-radius-sm);
-  font-size: 14px;
-  font-family: var(--ast-font);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 120ms ease-out, transform 120ms ease-out;
-}
-
-.ast-btn:active {
-  transform: scale(0.97);
-}
-
-.ast-btn-primary {
-  background: var(--ast-primary);
-  color: #fff;
-}
-
-.ast-btn-primary:hover {
-  background: var(--ast-primary-hover);
-}
-
-.ast-btn-secondary {
-  background: var(--ast-border);
-  color: var(--ast-text);
-}
-
-.ast-btn-secondary:hover {
-  background: var(--ast-muted);
-  color: #fff;
-}
-
-.ast-btn-outline {
-  background: transparent;
-  color: var(--ast-primary);
-  border: 1px solid var(--ast-primary);
-}
-
-.ast-btn-outline:hover {
-  background: var(--ast-primary);
-  color: #fff;
-}
-
-.ast-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 /* Test result */
 .ast-test-result {
   margin-top: 12px;
@@ -392,40 +687,46 @@ input[type="range"]::-webkit-slider-thumb:hover {
   display: flex;
   align-items: center;
   gap: 8px;
+  animation: ast-card-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .ast-test-success {
-  background: rgba(16, 185, 129, 0.1);
+  background: rgba(52, 199, 89, 0.1);
   color: var(--ast-success);
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(52, 199, 89, 0.22);
 }
 
 .ast-test-error {
-  background: rgba(239, 68, 68, 0.1);
+  background: rgba(255, 59, 48, 0.08);
   color: var(--ast-error);
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(255, 59, 48, 0.2);
 }
 
-/* Toast */
+/* Toast — glass capsule (same recipe as the popup toast) */
 .ast-toast {
   position: fixed;
-  bottom: 24px;
+  bottom: 28px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--ast-success);
-  color: #fff;
-  padding: 10px 24px;
-  border-radius: 24px;
-  font-size: 14px;
-  font-weight: 500;
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
-  animation: ast-toast-in 200ms ease-out;
+  background: var(--ast-glass-popover);
+  backdrop-filter: var(--ast-glass-blur);
+  -webkit-backdrop-filter: var(--ast-glass-blur);
+  border: 1px solid var(--ast-glass-border);
+  color: var(--ast-text);
+  padding: 9px 20px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--ast-font);
+  box-shadow: var(--ast-shadow-lg), var(--ast-glass-specular);
+  animation: ast-toast-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 1000;
+  white-space: nowrap;
 }
 
 @keyframes ast-toast-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  from { opacity: 0; transform: translateX(-50%) translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 
 /* Footer */

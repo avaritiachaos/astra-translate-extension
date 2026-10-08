@@ -4,6 +4,7 @@
 // ============================================================
 
 import type { LiveTranslateStatusKind } from "../shared/types";
+import { C } from "./uiPalette";
 
 interface LiveHudOptions {
   showOriginal?: boolean;
@@ -166,16 +167,16 @@ export class LiveSubtitleHud {
 
     if (this.statusDot) {
       if (status === "connected") {
-        this.statusDot.style.background = "#10B981";
-        this.statusDot.style.boxShadow = "0 0 8px #10B981";
+        this.statusDot.style.background = C.success;
+        this.statusDot.style.boxShadow = `0 0 8px ${C.success}`;
       } else if (status === "connecting") {
-        this.statusDot.style.background = "#F59E0B";
-        this.statusDot.style.boxShadow = "0 0 8px #F59E0B";
+        this.statusDot.style.background = C.warning;
+        this.statusDot.style.boxShadow = `0 0 8px ${C.warning}`;
       } else if (status === "error") {
-        this.statusDot.style.background = "#EF4444";
-        this.statusDot.style.boxShadow = "0 0 8px #EF4444";
+        this.statusDot.style.background = C.error;
+        this.statusDot.style.boxShadow = `0 0 8px ${C.error}`;
       } else {
-        this.statusDot.style.background = "#6B7280";
+        this.statusDot.style.background = C.textSecondary;
         this.statusDot.style.boxShadow = "none";
       }
     }
@@ -310,7 +311,7 @@ export class LiveSubtitleHud {
     leftInfo.style.cssText = "display: flex; align-items: center; gap: 5px; font-size: 11px; color: rgba(255,255,255,0.75); pointer-events: none; flex-shrink: 0;";
 
     const dot = document.createElement("span");
-    dot.style.cssText = "width: 7px; height: 7px; border-radius: 50%; background: #F59E0B; transition: all 0.3s ease;";
+    dot.style.cssText = `width: 7px; height: 7px; border-radius: 50%; background: ${C.warning}; transition: all 0.3s ease;`;
     this.statusDot = dot;
 
     const statusText = document.createElement("span");
@@ -320,7 +321,7 @@ export class LiveSubtitleHud {
     const levelTrack = document.createElement("div");
     levelTrack.style.cssText = "width: 28px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.2); overflow: hidden;";
     const levelBar = document.createElement("div");
-    levelBar.style.cssText = "width: 0%; height: 100%; background: #10B981; transition: width 0.1s ease;";
+    levelBar.style.cssText = `width: 0%; height: 100%; background: ${C.success}; transition: width 0.1s ease;`;
     levelTrack.appendChild(levelBar);
     this.levelBar = levelBar;
 
@@ -339,7 +340,7 @@ export class LiveSubtitleHud {
       btn.style.cssText = `
         background: rgba(255, 255, 255, 0.14);
         border: 1px solid rgba(255, 255, 255, 0.18);
-        color: #FFFFFF;
+        color: ${C.white};
         border-radius: 6px;
         padding: 2px 6px;
         font-size: 11px;
@@ -450,7 +451,7 @@ export class LiveSubtitleHud {
     const translationEl = document.createElement("div");
     translationEl.id = "astra-hud-translation";
     translationEl.style.cssText = `
-      color: #FFFFFF;
+      color: ${C.white};
       font-weight: 600;
       line-height: 1.42;
       text-shadow: 0 2px 4px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 1), 0 0 8px rgba(0, 0, 0, 0.6);

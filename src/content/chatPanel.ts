@@ -45,6 +45,7 @@ import {
 } from "../shared/imageUtils";
 import { isVisionCapable } from "../shared/modelCapability";
 import { t, type UiLanguage } from "../shared/i18n";
+import { C } from "./uiPalette";
 
 const P = "ast";
 
@@ -144,7 +145,7 @@ function injectStyles(): void {
       border: 1px solid rgba(255, 255, 255, 0.85);
       border-radius: 18px;
       box-shadow: 0 16px 48px -8px rgba(0, 0, 0, 0.16), 0 4px 12px rgba(0, 0, 0, 0.06), inset 0 1px 1.5px rgba(255, 255, 255, 0.9);
-      color: #1d1d1f;
+      color: ${C.textStrong};
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
       font-size: 13.5px;
       line-height: 1.5;
@@ -171,7 +172,7 @@ function injectStyles(): void {
     @media (prefers-color-scheme: dark) {
       .${P}-cp {
         background: rgba(22, 23, 34, 0.85);
-        color: #f5f5f7;
+        color: ${C.dTextBright};
         border-color: rgba(255, 255, 255, 0.14);
         box-shadow: 0 20px 52px -8px rgba(0, 0, 0, 0.6), inset 0 1px 1.5px rgba(255, 255, 255, 0.12);
       }
@@ -199,18 +200,18 @@ function injectStyles(): void {
       flex: 1;
       font-size: 13px;
       font-weight: 600;
-      color: #1f2937;
+      color: ${C.textBody};
       letter-spacing: -0.01em;
     }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-title { color: #f3f4f6; }
+      .${P}-cp-title { color: ${C.dTextStrong}; }
     }
     .${P}-cp-hbtn {
       width: 26px;
       height: 26px;
       border: none;
       background: transparent;
-      color: #6b7280;
+      color: ${C.textSecondary};
       border-radius: 8px;
       cursor: pointer;
       display: flex;
@@ -219,10 +220,10 @@ function injectStyles(): void {
       transition: background 120ms, color 120ms;
       flex-shrink: 0;
     }
-    .${P}-cp-hbtn:hover { background: rgba(0, 0, 0, 0.06); color: #1a1a2e; }
+    .${P}-cp-hbtn:hover { background: rgba(0, 0, 0, 0.06); color: ${C.text}; }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-hbtn { color: #9ca3af; }
-      .${P}-cp-hbtn:hover { background: rgba(255, 255, 255, 0.08); color: #e5e7eb; }
+      .${P}-cp-hbtn { color: ${C.textMuted}; }
+      .${P}-cp-hbtn:hover { background: rgba(255, 255, 255, 0.08); color: ${C.dText}; }
     }
     .${P}-cp-list {
       flex: 1;
@@ -236,14 +237,14 @@ function injectStyles(): void {
     }
     .${P}-cp-list::-webkit-scrollbar { width: 5px; }
     .${P}-cp-list::-webkit-scrollbar-track { background: transparent; }
-    .${P}-cp-list::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 3px; }
+    .${P}-cp-list::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 3px; }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-list::-webkit-scrollbar-thumb { background: #2d2d44; }
+      .${P}-cp-list::-webkit-scrollbar-thumb { background: ${C.dBorder}; }
     }
     .${P}-cp-empty {
       margin: auto;
       padding: 20px 16px;
-      color: #9ca3af;
+      color: ${C.textMuted};
       font-size: 12px;
       font-style: italic;
       text-align: center;
@@ -262,8 +263,8 @@ function injectStyles(): void {
     }
     .${P}-cp-bubble--user {
       align-self: flex-end;
-      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-      color: #fff;
+      background: ${C.gradBrand};
+      color: ${C.white};
       border-bottom-right-radius: 4px;
       box-shadow: 0 2px 8px rgba(99, 102, 241, 0.22);
     }
@@ -301,7 +302,7 @@ function injectStyles(): void {
       width: 44px;
       height: 44px;
       border-radius: 6px;
-      border: 1px solid #e5e7eb;
+      border: 1px solid ${C.border};
       object-fit: cover;
       cursor: pointer;
       display: block;
@@ -313,9 +314,9 @@ function injectStyles(): void {
       width: 15px;
       height: 15px;
       border-radius: 50%;
-      background: #ef4444;
-      color: #ffffff;
-      border: 1px solid #ffffff;
+      background: ${C.error};
+      color: ${C.white};
+      border: 1px solid ${C.white};
       font-size: 11px;
       line-height: 13px;
       text-align: center;
@@ -351,7 +352,7 @@ function injectStyles(): void {
       border-radius: 9999px;
       background: rgba(255, 255, 255, 0.15);
       border: 1px solid rgba(255, 255, 255, 0.25);
-      color: #ffffff;
+      color: ${C.white};
       font-size: 11px;
       font-weight: 500;
       cursor: pointer;
@@ -391,14 +392,14 @@ function injectStyles(): void {
       padding: 5px 8px;
       border-radius: 6px;
       background: rgba(99, 102, 241, 0.08);
-      color: #4f46e5;
+      color: ${C.primaryDark};
       font-size: 10px;
       line-height: 1.4;
       border: 1px dashed rgba(99, 102, 241, 0.3);
     }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-vision-notice { background: rgba(129, 140, 248, 0.12); color: #c7d2fe; border-color: rgba(129, 140, 248, 0.35); }
-      .${P}-cp-img-thumb { border-color: #2d2d44; }
+      .${P}-cp-vision-notice { background: rgba(129, 140, 248, 0.12); color: ${C.primaryTextSoft}; border-color: rgba(129, 140, 248, 0.35); }
+      .${P}-cp-img-thumb { border-color: ${C.dBorder}; }
     }
     .${P}-cp-model-cap-badge {
       font-size: 8px;
@@ -409,25 +410,25 @@ function injectStyles(): void {
     }
     .${P}-cp-model-cap-badge--vision {
       background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
+      color: ${C.success};
     }
     .${P}-cp-model-cap-badge--text {
       background: rgba(107, 114, 128, 0.12);
-      color: #6b7280;
+      color: ${C.textSecondary};
     }
     .${P}-cp-bubble--assistant {
       align-self: flex-start;
-      background: #ffffff;
+      background: ${C.bg};
       border: 1px solid rgba(0, 0, 0, 0.07);
       border-bottom-left-radius: 4px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-      color: #1f2937;
+      color: ${C.textBody};
     }
     @media (prefers-color-scheme: dark) {
       .${P}-cp-bubble--assistant {
-        background: #181926;
+        background: ${C.dBgBase};
         border-color: rgba(255, 255, 255, 0.08);
-        color: #f3f4f6;
+        color: ${C.dTextStrong};
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
       }
     }
@@ -435,14 +436,14 @@ function injectStyles(): void {
       align-self: flex-start;
       background: rgba(239, 68, 68, 0.08);
       border: 1px solid rgba(239, 68, 68, 0.35);
-      color: #ef4444;
+      color: ${C.error};
       border-bottom-left-radius: 4px;
     }
     .${P}-cp-bubble--thinking {
       display: flex;
       align-items: center;
       gap: 7px;
-      color: #6b7280;
+      color: ${C.textSecondary};
     }
     .${P}-cp-chip {
       margin-bottom: 4px;
@@ -465,25 +466,25 @@ function injectStyles(): void {
       align-items: center;
       gap: 3px;
       padding: 2px 7px;
-      border: 1px solid #e5e7eb;
+      border: 1px solid ${C.border};
       border-radius: 6px;
-      background: #ffffff;
-      color: #6b7280;
+      background: ${C.bg};
+      color: ${C.textSecondary};
       font-family: inherit;
       font-size: 10px;
       cursor: pointer;
       transition: color 120ms, border-color 120ms;
     }
-    .${P}-cp-act:hover { color: #6366f1; border-color: #6366f1; }
+    .${P}-cp-act:hover { color: ${C.primary}; border-color: ${C.primary}; }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-act { background: #1a1a2e; border-color: #2d2d44; color: #9ca3af; }
-      .${P}-cp-act:hover { color: #818cf8; border-color: #818cf8; }
+      .${P}-cp-act { background: ${C.dBg}; border-color: ${C.dBorder}; color: ${C.textMuted}; }
+      .${P}-cp-act:hover { color: ${C.primaryLight}; border-color: ${C.primaryLight}; }
     }
     .${P}-cp-spin {
       width: 13px;
       height: 13px;
-      border: 2px solid #e5e7eb;
-      border-top-color: #6366f1;
+      border: 2px solid ${C.border};
+      border-top-color: ${C.primary};
       border-radius: 50%;
       animation: ${P}-cp-spin 600ms linear infinite;
       flex-shrink: 0;
@@ -495,20 +496,20 @@ function injectStyles(): void {
       height: 13px;
       margin-left: 2px;
       vertical-align: text-bottom;
-      background: #6366f1;
+      background: ${C.primary};
       animation: ${P}-cp-blink 900ms steps(1) infinite;
     }
     @keyframes ${P}-cp-blink { 50% { opacity: 0; } }
     .${P}-cp-sources {
       margin-top: 8px;
       padding-top: 7px;
-      border-top: 1px solid #e5e7eb;
+      border-top: 1px solid ${C.border};
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
     }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-sources { border-top-color: #2d2d44; }
+      .${P}-cp-sources { border-top-color: ${C.dBorder}; }
     }
     .${P}-cp-source {
       display: inline-flex;
@@ -516,10 +517,10 @@ function injectStyles(): void {
       gap: 4px;
       max-width: 100%;
       padding: 3px 6px;
-      border: 1px solid #e5e7eb;
+      border: 1px solid ${C.border};
       border-radius: 6px;
-      background: #eef2ff;
-      color: #6366f1;
+      background: ${C.primarySoft};
+      color: ${C.primary};
       font-size: 10px;
       text-decoration: none;
       overflow: hidden;
@@ -530,19 +531,19 @@ function injectStyles(): void {
       white-space: nowrap;
     }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-source { background: #1e1b4b; border-color: #2d2d44; color: #818cf8; }
+      .${P}-cp-source { background: ${C.primarySoftDark}; border-color: ${C.dBorder}; color: ${C.primaryLight}; }
     }
     .${P}-cp-note {
       margin-top: 8px;
       padding: 6px 7px;
-      border: 1px solid #e5e7eb;
+      border: 1px solid ${C.border};
       border-radius: 7px;
-      color: #6b7280;
+      color: ${C.textSecondary};
       font-size: 10px;
       line-height: 1.4;
     }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-note { border-color: #2d2d44; color: #9ca3af; }
+      .${P}-cp-note { border-color: ${C.dBorder}; color: ${C.textMuted}; }
     }
     .${P}-cp-foot {
       flex-shrink: 0;
@@ -561,7 +562,7 @@ function injectStyles(): void {
       padding: 6px 8px;
       border-radius: 8px;
       background: rgba(239, 68, 68, 0.08);
-      color: #ef4444;
+      color: ${C.error};
       font-size: 11px;
     }
     .${P}-cp-attach {
@@ -573,14 +574,14 @@ function injectStyles(): void {
       border: 1px dashed rgba(99, 102, 241, 0.35);
       border-radius: 8px;
       background: rgba(99, 102, 241, 0.06);
-      color: #4f46e5;
+      color: ${C.primaryDark};
       font-size: 11px;
     }
     @media (prefers-color-scheme: dark) {
       .${P}-cp-attach {
         border-color: rgba(129, 140, 248, 0.4);
         background: rgba(129, 140, 248, 0.1);
-        color: #c7d2fe;
+        color: ${C.primaryTextSoft};
       }
     }
     .${P}-cp-attach-label {
@@ -592,33 +593,33 @@ function injectStyles(): void {
     .${P}-cp-attach-x {
       border: none;
       background: transparent;
-      color: #6b7280;
+      color: ${C.textSecondary};
       font-size: 12px;
       cursor: pointer;
       padding: 0 2px;
       flex-shrink: 0;
     }
-    .${P}-cp-attach-x:hover { color: #ef4444; }
+    .${P}-cp-attach-x:hover { color: ${C.error}; }
     .${P}-cp-composer {
-      background: #f4f5f8;
+      background: ${C.bgSunken2};
       border: 1px solid rgba(0, 0, 0, 0.08);
       border-radius: 16px;
       padding: 8px 10px 7px;
       transition: background 140ms, border-color 140ms, box-shadow 140ms;
     }
     .${P}-cp-composer:focus-within {
-      background: #ffffff;
-      border-color: #6366f1;
+      background: ${C.bg};
+      border-color: ${C.primary};
       box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
     }
     @media (prefers-color-scheme: dark) {
       .${P}-cp-composer {
-        background: #1c1d2c;
+        background: ${C.dBg2};
         border-color: rgba(255, 255, 255, 0.09);
       }
       .${P}-cp-composer:focus-within {
-        background: #222336;
-        border-color: #818cf8;
+        background: ${C.dBg3};
+        border-color: ${C.primaryLight};
         box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.18), 0 2px 10px rgba(0, 0, 0, 0.3);
       }
     }
@@ -629,7 +630,7 @@ function injectStyles(): void {
       padding: 2px 4px;
       border: none;
       background: transparent;
-      color: #1a1a2e;
+      color: ${C.text};
       font-family: inherit;
       font-size: 13px;
       line-height: 1.5;
@@ -638,10 +639,10 @@ function injectStyles(): void {
       overflow-y: auto;
       box-sizing: border-box;
     }
-    .${P}-cp-input::placeholder { color: #9ca3af; }
+    .${P}-cp-input::placeholder { color: ${C.textMuted}; }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-input { color: #f3f4f6; }
-      .${P}-cp-input::placeholder { color: #6b7280; }
+      .${P}-cp-input { color: ${C.dTextStrong}; }
+      .${P}-cp-input::placeholder { color: ${C.textSecondary}; }
     }
     .${P}-cp-row {
       display: flex;
@@ -660,8 +661,8 @@ function injectStyles(): void {
       padding: 0;
       border: none;
       border-radius: 50%;
-      background: #6366f1;
-      color: #fff;
+      background: ${C.primary};
+      color: ${C.white};
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -671,7 +672,7 @@ function injectStyles(): void {
       box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
     }
     .${P}-cp-send:hover:not(:disabled) {
-      background: #4f46e5;
+      background: ${C.primaryDark};
       transform: scale(1.06);
       box-shadow: 0 3px 10px rgba(99, 102, 241, 0.45);
     }
@@ -693,8 +694,8 @@ function injectStyles(): void {
       padding: 0 8px;
       border: 1px solid rgba(0, 0, 0, 0.08);
       border-radius: 8px;
-      background: #ffffff;
-      color: #52525b;
+      background: ${C.bg};
+      color: ${C.textZinc};
       font-family: inherit;
       font-size: 11px;
       font-weight: 500;
@@ -705,32 +706,32 @@ function injectStyles(): void {
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
     }
     .${P}-cp-toggle:hover {
-      border-color: #6366f1;
-      color: #6366f1;
-      background: #fafafa;
+      border-color: ${C.primary};
+      color: ${C.primary};
+      background: ${C.bgHover};
     }
     .${P}-cp-toggle--on, .${P}-cp-toggle--on:hover {
       border-color: rgba(99, 102, 241, 0.4);
-      background: #eef2ff;
-      color: #4f46e5;
+      background: ${C.primarySoft};
+      color: ${C.primaryDark};
     }
     .${P}-cp-toggle--locked { opacity: 0.45; cursor: not-allowed; }
     @media (prefers-color-scheme: dark) {
       .${P}-cp-toggle {
-        background: #2a2b3d;
+        background: ${C.dBgMenu};
         border-color: rgba(255, 255, 255, 0.08);
-        color: #a1a1aa;
+        color: ${C.textFaint};
         box-shadow: none;
       }
       .${P}-cp-toggle:hover {
-        border-color: #818cf8;
-        color: #818cf8;
-        background: #313248;
+        border-color: ${C.primaryLight};
+        color: ${C.primaryLight};
+        background: ${C.dBgMedia};
       }
       .${P}-cp-toggle--on, .${P}-cp-toggle--on:hover {
-        background: #2e3052;
+        background: ${C.dBgSelected};
         border-color: rgba(129, 140, 248, 0.45);
-        color: #c7d2fe;
+        color: ${C.primaryTextSoft};
       }
     }
     .${P}-cp-model-wrap { position: relative; flex-shrink: 0; }
@@ -738,9 +739,9 @@ function injectStyles(): void {
       max-width: 140px;
       padding: 0 7px 0 8px;
       gap: 4px;
-      background: #ffffff;
+      background: ${C.bg};
       border-color: rgba(99, 102, 241, 0.3);
-      color: #4f46e5;
+      color: ${C.primaryDark};
       font-weight: 600;
       box-shadow: 0 1px 2px rgba(99, 102, 241, 0.06);
       display: inline-flex;
@@ -748,9 +749,9 @@ function injectStyles(): void {
     }
     @media (prefers-color-scheme: dark) {
       .${P}-cp-model {
-        background: #2a2b3d;
+        background: ${C.dBgMenu};
         border-color: rgba(129, 140, 248, 0.35);
-        color: #c7d2fe;
+        color: ${C.primaryTextSoft};
       }
     }
     .${P}-cp-model-label {
@@ -773,9 +774,9 @@ function injectStyles(): void {
       z-index: 25;
       min-width: 210px;
       padding: 5px;
-      border: 1px solid #e5e7eb;
+      border: 1px solid ${C.border};
       border-radius: 12px;
-      background: #ffffff;
+      background: ${C.bg};
       box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
       animation: ${P}-effort-menu-in 120ms ease-out;
     }
@@ -783,10 +784,10 @@ function injectStyles(): void {
       padding: 3px 6px 5px;
       font-size: 10px;
       font-weight: 700;
-      color: #6b7280;
+      color: ${C.textSecondary};
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      border-bottom: 1px solid #e5e7eb;
+      border-bottom: 1px solid ${C.border};
       margin-bottom: 3px;
     }
     .${P}-cp-model-option {
@@ -798,7 +799,7 @@ function injectStyles(): void {
       border: none;
       border-radius: 8px;
       background: transparent;
-      color: #1a1a2e;
+      color: ${C.text};
       font-family: inherit;
       font-size: 11px;
       text-align: left;
@@ -806,8 +807,8 @@ function injectStyles(): void {
     }
     .${P}-cp-model-option:hover,
     .${P}-cp-model-option--selected {
-      background: #eef2ff;
-      color: #6366f1;
+      background: ${C.primarySoft};
+      color: ${C.primary};
     }
     .${P}-cp-model-info {
       display: flex;
@@ -822,13 +823,13 @@ function injectStyles(): void {
     }
     .${P}-cp-model-sub {
       font-size: 10px;
-      color: #6b7280;
+      color: ${C.textSecondary};
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     .${P}-cp-model-option--selected .${P}-cp-model-sub {
-      color: #6366f1;
+      color: ${C.primary};
       opacity: 0.85;
     }
     .${P}-cp-model-badge {
@@ -836,12 +837,12 @@ function injectStyles(): void {
       padding: 1px 4px;
       border-radius: 4px;
       background: rgba(239, 68, 68, 0.12);
-      color: #ef4444;
+      color: ${C.error};
       margin-left: 4px;
       font-weight: 500;
     }
     .${P}-cp-model-footer {
-      border-top: 1px solid #e5e7eb;
+      border-top: 1px solid ${C.border};
       margin-top: 3px;
       padding-top: 3px;
     }
@@ -854,26 +855,26 @@ function injectStyles(): void {
       border: none;
       border-radius: 6px;
       background: transparent;
-      color: #6b7280;
+      color: ${C.textSecondary};
       font-size: 10px;
       font-weight: 500;
       cursor: pointer;
     }
     .${P}-cp-model-manage-btn:hover {
-      background: #f3f4f6;
-      color: #6366f1;
+      background: ${C.bgSubtle};
+      color: ${C.primary};
     }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-model-menu { border-color: #2d2d44; background: #1a1a2e; }
-      .${P}-cp-model-header { border-color: #2d2d44; color: #9ca3af; }
-      .${P}-cp-model-option { color: #e5e7eb; }
+      .${P}-cp-model-menu { border-color: ${C.dBorder}; background: ${C.dBg}; }
+      .${P}-cp-model-header { border-color: ${C.dBorder}; color: ${C.textMuted}; }
+      .${P}-cp-model-option { color: ${C.dText}; }
       .${P}-cp-model-option:hover,
-      .${P}-cp-model-option--selected { background: #1e1b4b; color: #818cf8; }
-      .${P}-cp-model-sub { color: #9ca3af; }
-      .${P}-cp-model-option--selected .${P}-cp-model-sub { color: #818cf8; }
-      .${P}-cp-model-footer { border-color: #2d2d44; }
-      .${P}-cp-model-manage-btn { color: #9ca3af; }
-      .${P}-cp-model-manage-btn:hover { background: #252538; color: #818cf8; }
+      .${P}-cp-model-option--selected { background: ${C.primarySoftDark}; color: ${C.primaryLight}; }
+      .${P}-cp-model-sub { color: ${C.textMuted}; }
+      .${P}-cp-model-option--selected .${P}-cp-model-sub { color: ${C.primaryLight}; }
+      .${P}-cp-model-footer { border-color: ${C.dBorder}; }
+      .${P}-cp-model-manage-btn { color: ${C.textMuted}; }
+      .${P}-cp-model-manage-btn:hover { background: ${C.dBgHover}; color: ${C.primaryLight}; }
     }
     .${P}-cp-effort-wrap { position: relative; flex-shrink: 0; }
     .${P}-cp-effort {
@@ -901,9 +902,9 @@ function injectStyles(): void {
       z-index: 20;
       min-width: 106px;
       padding: 5px;
-      border: 1px solid #e5e7eb;
+      border: 1px solid ${C.border};
       border-radius: 12px;
-      background: #ffffff;
+      background: ${C.bg};
       box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
       animation: ${P}-effort-menu-in 120ms ease-out;
     }
@@ -921,7 +922,7 @@ function injectStyles(): void {
       border: none;
       border-radius: 8px;
       background: transparent;
-      color: #1a1a2e;
+      color: ${C.text};
       font-family: inherit;
       font-size: 11px;
       text-align: left;
@@ -929,15 +930,15 @@ function injectStyles(): void {
     }
     .${P}-cp-effort-option:hover,
     .${P}-cp-effort-option--selected {
-      background: #eef2ff;
-      color: #6366f1;
+      background: ${C.primarySoft};
+      color: ${C.primary};
     }
     .${P}-cp-effort-check { font-size: 13px; font-weight: 700; }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-effort-menu { border-color: #2d2d44; background: #1a1a2e; }
-      .${P}-cp-effort-option { color: #e5e7eb; }
+      .${P}-cp-effort-menu { border-color: ${C.dBorder}; background: ${C.dBg}; }
+      .${P}-cp-effort-option { color: ${C.dText}; }
       .${P}-cp-effort-option:hover,
-      .${P}-cp-effort-option--selected { background: #1e1b4b; color: #818cf8; }
+      .${P}-cp-effort-option--selected { background: ${C.primarySoftDark}; color: ${C.primaryLight}; }
     }
     .${P}-cp-iconbtn {
       width: 28px;
@@ -948,17 +949,17 @@ function injectStyles(): void {
       border: 1px solid transparent;
       border-radius: 8px;
       background: transparent;
-      color: #6b7280;
+      color: ${C.textSecondary};
       font-family: inherit;
       font-size: 13px;
       line-height: 1;
       cursor: pointer;
       transition: background 120ms, border-color 120ms;
     }
-    .${P}-cp-iconbtn:hover { border-color: #e5e7eb; background: #f7f7fa; }
+    .${P}-cp-iconbtn:hover { border-color: ${C.dText}; background: ${C.bgSunken}; }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-iconbtn { color: #9ca3af; }
-      .${P}-cp-iconbtn:hover { border-color: #2d2d44; background: #0f0f1a; }
+      .${P}-cp-iconbtn { color: ${C.textMuted}; }
+      .${P}-cp-iconbtn:hover { border-color: ${C.dBorder}; background: ${C.dBgDeep}; }
     }
     .${P}-cp-rowend { display: flex; align-items: center; gap: 6px; margin-left: auto; }
     .${P}-cp-media-wrap { position: relative; }
@@ -967,8 +968,8 @@ function injectStyles(): void {
       height: 26px;
       border: 1px solid rgba(0, 0, 0, 0.08);
       border-radius: 8px;
-      background: #ffffff;
-      color: #6b7280;
+      background: ${C.bg};
+      color: ${C.textSecondary};
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -977,21 +978,21 @@ function injectStyles(): void {
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
     }
     .${P}-cp-plus-btn:hover, .${P}-cp-plus-btn--open {
-      border-color: #6366f1;
-      color: #6366f1;
-      background: #eef2ff;
+      border-color: ${C.primary};
+      color: ${C.primary};
+      background: ${C.primarySoft};
     }
     @media (prefers-color-scheme: dark) {
       .${P}-cp-plus-btn {
-        background: #2a2b3d;
+        background: ${C.dBgMenu};
         border-color: rgba(255, 255, 255, 0.08);
-        color: #a1a1aa;
+        color: ${C.textFaint};
         box-shadow: none;
       }
       .${P}-cp-plus-btn:hover, .${P}-cp-plus-btn--open {
-        background: #2e3052;
-        border-color: #818cf8;
-        color: #c7d2fe;
+        background: ${C.dBgSelected};
+        border-color: ${C.primaryLight};
+        color: ${C.primaryTextSoft};
       }
     }
     .${P}-cp-media-menu {
@@ -1003,14 +1004,14 @@ function injectStyles(): void {
       padding: 5px;
       border: 1px solid rgba(0, 0, 0, 0.08);
       border-radius: 12px;
-      background: #ffffff;
+      background: ${C.bg};
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
       animation: ${P}-effort-menu-in 120ms ease-out;
     }
     @media (prefers-color-scheme: dark) {
       .${P}-cp-media-menu {
-        border-color: #2d2d44;
-        background: #1a1a2e;
+        border-color: ${C.dBorder};
+        background: ${C.dBg};
         box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
       }
     }
@@ -1023,7 +1024,7 @@ function injectStyles(): void {
       border: none;
       border-radius: 8px;
       background: transparent;
-      color: #1a1a2e;
+      color: ${C.text};
       font-family: inherit;
       font-size: 11px;
       text-align: left;
@@ -1031,12 +1032,12 @@ function injectStyles(): void {
       transition: background 100ms, color 100ms;
     }
     .${P}-cp-media-option:hover {
-      background: #eef2ff;
-      color: #6366f1;
+      background: ${C.primarySoft};
+      color: ${C.primary};
     }
     @media (prefers-color-scheme: dark) {
-      .${P}-cp-media-option { color: #e5e7eb; }
-      .${P}-cp-media-option:hover { background: #1e1b4b; color: #818cf8; }
+      .${P}-cp-media-option { color: ${C.dText}; }
+      .${P}-cp-media-option:hover { background: ${C.primarySoftDark}; color: ${C.primaryLight}; }
     }
     .${P}-cp-pre {
       margin: 4px 0;
@@ -1076,8 +1077,8 @@ function injectStyles(): void {
       bottom: 3px;
       width: 9px;
       height: 9px;
-      border-right: 2px solid #9ca3af;
-      border-bottom: 2px solid #9ca3af;
+      border-right: 2px solid ${C.textMuted};
+      border-bottom: 2px solid ${C.textMuted};
     }
   `;
   document.head.appendChild(style);

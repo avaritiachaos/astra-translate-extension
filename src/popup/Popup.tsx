@@ -1901,7 +1901,7 @@ export default function Popup() {
               >
                 <input
                   type="checkbox"
-                  style={{ cursor: "pointer", accentColor: "#7161ce" }}
+                  style={{ cursor: "pointer", accentColor: "var(--ast-primary)" }}
                   checked={settings?.manga?.autoReadingDefault !== false}
                   onChange={async (e) => {
                     const checked = e.target.checked;

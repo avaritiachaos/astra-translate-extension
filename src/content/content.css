@@ -2,6 +2,7 @@
    Astra Translate – Content Script Styles (Progress Overlay)
    Note: Selection bubble styles are inlined in selectionBubble.ts
    to ensure they work in IIFE content script builds.
+   Colors mirror src/content/uiPalette.ts — update both together.
    ============================================================ */
 
 /* Progress overlay (page translation) */

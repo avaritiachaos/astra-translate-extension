@@ -14,6 +14,9 @@
   --ast-glass-specular: inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.95);
 
   --ast-card-bg: #ffffff;
+  /* Recessed surfaces inside glass cards (stat boxes, inline inputs) */
+  --ast-surface-2: rgba(0, 0, 0, 0.035);
+  --ast-input-bg: rgba(255, 255, 255, 0.55);
   --ast-text: #1d1d1f;
   --ast-text-secondary: #48484a;
   --ast-muted: #86868b;
@@ -46,6 +49,8 @@
     --ast-glass-specular: inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.14);
 
     --ast-card-bg: #1c1c28;
+    --ast-surface-2: rgba(255, 255, 255, 0.05);
+    --ast-input-bg: rgba(255, 255, 255, 0.07);
     --ast-text: #f5f5f7;
     --ast-text-secondary: #aeaeb2;
     --ast-muted: #8e8e93;

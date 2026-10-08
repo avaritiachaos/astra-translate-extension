@@ -98,7 +98,7 @@ export function resolveBubbleColor(
         const [r, g, b] = rgb!;
         return {
           backgroundColor: `rgba(${Math.max(16, r - 5)}, ${Math.max(16, g - 5)}, ${Math.max(20, b - 5)}, 0.92)`,
-          textColor: "#f5f3ff",
+          textColor: "#eef2ff",
           isDark: true,
           borderColor: "rgba(255, 255, 255, 0.18)",
           boxShadow: "0 2px 8px rgba(0,0,0,0.4)",

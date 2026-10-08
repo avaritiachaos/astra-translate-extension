@@ -1,4 +1,5 @@
 import { t, type UiLanguage } from "../../shared/i18n";
+import { C } from "../uiPalette";
 import { followMangaFullscreen } from "./mangaFullscreen";
 import {
   mangaImageAtPoint,
@@ -45,7 +46,7 @@ export function createMangaPicker(
     padding: "8px 10px 8px 14px",
     borderRadius: "14px",
     background: "#282631f5",
-    color: "#fff",
+    color: C.white,
     boxShadow: "0 5px 25px #17132930",
     font: "13px system-ui",
     cursor: "default",
@@ -62,7 +63,7 @@ export function createMangaPicker(
     Object.assign(button.style, {
       all: "initial",
       font: "13px system-ui",
-      color: "#fff",
+      color: C.white,
       background: "#ffffff18",
       borderRadius: "9px",
       padding: "8px 10px",

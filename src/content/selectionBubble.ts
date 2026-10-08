@@ -10,6 +10,7 @@ import {
   openChatPanel,
   openChatPanelInHost,
 } from "./chatPanel";
+import { C } from "./uiPalette";
 
 // Constants
 const BUBBLE_PREFIX = "ast";
@@ -102,9 +103,9 @@ export function injectThemeVars(): void {
       z-index: 2147483646;
       max-width: 420px;
       min-width: 260px;
-      background: #ffffff;
-      color: #1a1a2e;
-      border: 1px solid #e5e7eb;
+      background: ${C.bg};
+      color: ${C.text};
+      border: 1px solid ${C.border};
       border-radius: 16px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -115,9 +116,9 @@ export function injectThemeVars(): void {
     }
     @media (prefers-color-scheme: dark) {
       .${BUBBLE_PREFIX}-bubble {
-        background: #1a1a2e;
-        color: #e5e7eb;
-        border-color: #2d2d44;
+        background: ${C.dBg};
+        color: ${C.dText};
+        border-color: ${C.dBorder};
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
       }
     }
@@ -152,23 +153,23 @@ export function injectThemeVars(): void {
       align-items: center;
       justify-content: space-between;
       padding: 10px 14px;
-      border-bottom: 1px solid #e5e7eb;
-      background: #eef2ff;
+      border-bottom: 1px solid ${C.border};
+      background: ${C.primarySoft};
     }
     @media (prefers-color-scheme: dark) {
       .${BUBBLE_PREFIX}-bubble-header {
-        border-bottom-color: #2d2d44;
-        background: #1e1b4b;
+        border-bottom-color: ${C.dBorder};
+        background: ${C.primarySoftDark};
       }
     }
     .${BUBBLE_PREFIX}-title {
       font-size: 12px;
       font-weight: 600;
-      color: #6366f1;
+      color: ${C.primary};
       letter-spacing: 0.02em;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-title { color: #818cf8; }
+      .${BUBBLE_PREFIX}-title { color: ${C.primaryLight}; }
     }
     .${BUBBLE_PREFIX}-bubble-actions {
       display: flex;
@@ -186,8 +187,8 @@ export function injectThemeVars(): void {
       margin-right: 2px;
       border: none;
       border-radius: 12px;
-      background: #6366f1;
-      color: #ffffff;
+      background: ${C.primary};
+      color: ${C.white};
       font-family: inherit;
       font-size: 11px;
       font-weight: 600;
@@ -196,12 +197,12 @@ export function injectThemeVars(): void {
       cursor: pointer;
       transition: background 120ms ease-out, transform 120ms ease-out;
     }
-    .${BUBBLE_PREFIX}-ask-cta:hover { background: #4f46e5; }
+    .${BUBBLE_PREFIX}-ask-cta:hover { background: ${C.primaryDark}; }
     .${BUBBLE_PREFIX}-ask-cta:active { transform: scale(0.96); }
     .${BUBBLE_PREFIX}-ask-cta svg { width: 12px; height: 12px; }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-ask-cta { background: #6366f1; }
-      .${BUBBLE_PREFIX}-ask-cta:hover { background: #818cf8; }
+      .${BUBBLE_PREFIX}-ask-cta { background: ${C.primary}; }
+      .${BUBBLE_PREFIX}-ask-cta:hover { background: ${C.primaryLight}; }
     }
     .${BUBBLE_PREFIX}-btn {
       width: 24px;
@@ -213,32 +214,32 @@ export function injectThemeVars(): void {
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #6b7280;
+      color: ${C.textSecondary};
       font-size: 13px;
       transition: background 120ms ease-out, color 120ms ease-out;
     }
     .${BUBBLE_PREFIX}-btn:hover {
-      background: #e5e7eb;
-      color: #1a1a2e;
+      background: ${C.border};
+      color: ${C.text};
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-btn { color: #9ca3af; }
-      .${BUBBLE_PREFIX}-btn:hover { background: #2d2d44; color: #e5e7eb; }
+      .${BUBBLE_PREFIX}-btn { color: ${C.textMuted}; }
+      .${BUBBLE_PREFIX}-btn:hover { background: ${C.dBorder}; color: ${C.dText}; }
     }
     .${BUBBLE_PREFIX}-source-section {
       padding: 8px 14px;
-      border-bottom: 1px solid #e5e7eb;
-      background: #f7f7fa;
+      border-bottom: 1px solid ${C.border};
+      background: ${C.bgSunken};
     }
     @media (prefers-color-scheme: dark) {
       .${BUBBLE_PREFIX}-source-section {
-        border-bottom-color: #2d2d44;
-        background: #0f0f1a;
+        border-bottom-color: ${C.dBorder};
+        background: ${C.dBgDeep};
       }
     }
     .${BUBBLE_PREFIX}-source-toggle {
       font-size: 11px;
-      color: #6b7280;
+      color: ${C.textSecondary};
       cursor: pointer;
       user-select: none;
       display: flex;
@@ -256,7 +257,7 @@ export function injectThemeVars(): void {
     .${BUBBLE_PREFIX}-source-text {
       margin-top: 6px;
       font-size: 13px;
-      color: #6b7280;
+      color: ${C.textSecondary};
       white-space: pre-wrap;
       word-break: break-word;
       max-height: 120px;
@@ -278,22 +279,22 @@ export function injectThemeVars(): void {
       display: flex;
       align-items: center;
       gap: 10px;
-      color: #6b7280;
+      color: ${C.textSecondary};
       font-size: 13px;
     }
     .${BUBBLE_PREFIX}-spinner {
       width: 16px;
       height: 16px;
-      border: 2px solid #e5e7eb;
-      border-top-color: #6366f1;
+      border: 2px solid ${C.border};
+      border-top-color: ${C.primary};
       border-radius: 50%;
       animation: ${BUBBLE_PREFIX}-spin 600ms linear infinite;
       flex-shrink: 0;
     }
     @media (prefers-color-scheme: dark) {
       .${BUBBLE_PREFIX}-spinner {
-        border-color: #2d2d44;
-        border-top-color: #818cf8;
+        border-color: ${C.dBorder};
+        border-top-color: ${C.primaryLight};
       }
     }
     @keyframes ${BUBBLE_PREFIX}-spin {
@@ -301,14 +302,14 @@ export function injectThemeVars(): void {
     }
     .${BUBBLE_PREFIX}-error {
       padding: 12px 14px;
-      color: #ef4444;
+      color: ${C.error};
       font-size: 13px;
       display: flex;
       align-items: flex-start;
       gap: 8px;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-error { color: #f87171; }
+      .${BUBBLE_PREFIX}-error { color: ${C.errorSoft}; }
     }
     /* Progress overlay (page translation) */
     .${BUBBLE_PREFIX}-progress {
@@ -316,9 +317,9 @@ export function injectThemeVars(): void {
       bottom: 20px;
       right: 20px;
       z-index: 2147483645;
-      background: #ffffff;
-      color: #1a1a2e;
-      border: 1px solid #e5e7eb;
+      background: ${C.bg};
+      color: ${C.text};
+      border: 1px solid ${C.border};
       border-radius: 14px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
       padding: 12px 18px;
@@ -332,25 +333,25 @@ export function injectThemeVars(): void {
     }
     @media (prefers-color-scheme: dark) {
       .${BUBBLE_PREFIX}-progress {
-        background: #1a1a2e;
-        color: #e5e7eb;
-        border-color: #2d2d44;
+        background: ${C.dBg};
+        color: ${C.dText};
+        border-color: ${C.dBorder};
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
       }
     }
     .${BUBBLE_PREFIX}-progress-bar {
       width: 60px;
       height: 4px;
-      background: #e5e7eb;
+      background: ${C.border};
       border-radius: 2px;
       overflow: hidden;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-progress-bar { background: #2d2d44; }
+      .${BUBBLE_PREFIX}-progress-bar { background: ${C.dBorder}; }
     }
     .${BUBBLE_PREFIX}-progress-fill {
       height: 100%;
-      background: #6366f1;
+      background: ${C.primary};
       border-radius: 2px;
       transition: width 200ms ease-out;
     }
@@ -360,15 +361,15 @@ export function injectThemeVars(): void {
       pointer-events: none;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-progress-fill { background: #818cf8; }
+      .${BUBBLE_PREFIX}-progress-fill { background: ${C.primaryLight}; }
     }
     .${BUBBLE_PREFIX}-progress-stop {
       width: 22px;
       height: 22px;
       border-radius: 50%;
-      border: 1px solid #e5e7eb;
-      background: #fff;
-      color: #6b7280;
+      border: 1px solid ${C.border};
+      background: ${C.bg};
+      color: ${C.textSecondary};
       font-size: 12px;
       cursor: pointer;
       display: flex;
@@ -379,20 +380,20 @@ export function injectThemeVars(): void {
       transition: background 120ms ease-out, color 120ms ease-out;
     }
     .${BUBBLE_PREFIX}-progress-stop:hover {
-      background: #fef2f2;
-      color: #ef4444;
-      border-color: #fecaca;
+      background: ${C.errorBg};
+      color: ${C.error};
+      border-color: ${C.errorBorder};
     }
     @media (prefers-color-scheme: dark) {
       .${BUBBLE_PREFIX}-progress-stop {
-        background: #1a1a2e;
-        border-color: #2d2d44;
-        color: #9ca3af;
+        background: ${C.dBg};
+        border-color: ${C.dBorder};
+        color: ${C.textMuted};
       }
       .${BUBBLE_PREFIX}-progress-stop:hover {
-        background: #2d1b1b;
-        color: #f87171;
-        border-color: #4a2020;
+        background: ${C.errorBgDark};
+        color: ${C.errorSoft};
+        border-color: ${C.errorBorderDark};
       }
     }
     /* ---- Draggable Popup (context menu / selection button) ---- */
@@ -401,9 +402,9 @@ export function injectThemeVars(): void {
       z-index: 2147483646;
       width: 420px;
       max-height: 80vh;
-      background: #ffffff;
-      color: #1a1a2e;
-      border: 1px solid #e5e7eb;
+      background: ${C.bg};
+      color: ${C.text};
+      border: 1px solid ${C.border};
       border-radius: 14px;
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -419,9 +420,9 @@ export function injectThemeVars(): void {
     }
     @media (prefers-color-scheme: dark) {
       .${BUBBLE_PREFIX}-popup {
-        background: #1a1a2e;
-        color: #e5e7eb;
-        border-color: #2d2d44;
+        background: ${C.dBg};
+        color: ${C.dText};
+        border-color: ${C.dBorder};
         box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
       }
     }
@@ -430,26 +431,26 @@ export function injectThemeVars(): void {
       align-items: center;
       justify-content: space-between;
       padding: 10px 14px;
-      background: #eef2ff;
-      border-bottom: 1px solid #e5e7eb;
+      background: ${C.primarySoft};
+      border-bottom: 1px solid ${C.border};
       cursor: move;
       user-select: none;
       flex-shrink: 0;
     }
     @media (prefers-color-scheme: dark) {
       .${BUBBLE_PREFIX}-popup-header {
-        background: #1e1b4b;
-        border-bottom-color: #2d2d44;
+        background: ${C.primarySoftDark};
+        border-bottom-color: ${C.dBorder};
       }
     }
     .${BUBBLE_PREFIX}-popup-title {
       font-size: 12px;
       font-weight: 600;
-      color: #6366f1;
+      color: ${C.primary};
       letter-spacing: 0.02em;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-popup-title { color: #818cf8; }
+      .${BUBBLE_PREFIX}-popup-title { color: ${C.primaryLight}; }
     }
     .${BUBBLE_PREFIX}-popup-actions {
       display: flex;
@@ -464,14 +465,14 @@ export function injectThemeVars(): void {
     .${BUBBLE_PREFIX}-popup-src-label {
       font-size: 11px;
       font-weight: 500;
-      color: #6b7280;
+      color: ${C.textSecondary};
       padding: 10px 14px 4px;
     }
     .${BUBBLE_PREFIX}-popup-src {
       width: 100%;
       border: none;
       background: transparent;
-      color: #6b7280;
+      color: ${C.textSecondary};
       font-size: 13px;
       line-height: 1.5;
       resize: vertical;
@@ -487,12 +488,12 @@ export function injectThemeVars(): void {
       background: rgba(99, 102, 241, 0.03);
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-popup-src { color: #9ca3af; }
+      .${BUBBLE_PREFIX}-popup-src { color: ${C.textMuted}; }
       .${BUBBLE_PREFIX}-popup-src:focus { background: rgba(99, 102, 241, 0.06); }
     }
     .${BUBBLE_PREFIX}-popup-result {
       padding: 12px 14px;
-      border-top: 1px solid #e5e7eb;
+      border-top: 1px solid ${C.border};
       min-height: 40px;
       white-space: pre-wrap;
       word-break: break-word;
@@ -501,31 +502,31 @@ export function injectThemeVars(): void {
       user-select: text;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-popup-result { border-top-color: #2d2d44; }
+      .${BUBBLE_PREFIX}-popup-result { border-top-color: ${C.dBorder}; }
     }
     .${BUBBLE_PREFIX}-popup-loading {
       display: flex;
       align-items: center;
       gap: 10px;
-      color: #6b7280;
+      color: ${C.textSecondary};
     }
     .${BUBBLE_PREFIX}-popup-error {
-      color: #ef4444;
+      color: ${C.error};
       display: flex;
       align-items: flex-start;
       gap: 8px;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-popup-error { color: #f87171; }
+      .${BUBBLE_PREFIX}-popup-error { color: ${C.errorSoft}; }
     }
     .${BUBBLE_PREFIX}-popup-actions-bar {
       display: flex;
       justify-content: flex-end;
       padding: 10px 14px;
-      border-top: 1px solid #e5e7eb;
+      border-top: 1px solid ${C.border};
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-popup-actions-bar { border-top-color: #2d2d44; }
+      .${BUBBLE_PREFIX}-popup-actions-bar { border-top-color: ${C.dBorder}; }
     }
     /* ---- Resize Handle ---- */
     .${BUBBLE_PREFIX}-resize-handle {
@@ -550,17 +551,17 @@ export function injectThemeVars(): void {
       right: 3px;
       width: 10px;
       height: 10px;
-      border-right: 2px solid #9ca3af;
-      border-bottom: 2px solid #9ca3af;
+      border-right: 2px solid ${C.textMuted};
+      border-bottom: 2px solid ${C.textMuted};
       border-radius: 0 0 2px 0;
     }
     @media (prefers-color-scheme: dark) {
       .${BUBBLE_PREFIX}-resize-handle::before {
-        border-color: #6b7280;
+        border-color: ${C.textSecondary};
       }
     }
     .${BUBBLE_PREFIX}-resize-handle:hover::before {
-      border-color: #6366f1;
+      border-color: ${C.primary};
     }
     /* ---- Floating Ball ---- */
     .ast-ball-container {
@@ -572,7 +573,7 @@ export function injectThemeVars(): void {
       height: 48px;
       border-radius: 50% !important;
       corner-shape: round !important;
-      background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+      background: ${C.gradBall};
       box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35), 0 0 0 2px rgba(255,255,255,0.2);
       cursor: pointer;
       display: flex;
@@ -614,7 +615,7 @@ export function injectThemeVars(): void {
     }
     @media (prefers-color-scheme: dark) {
       .ast-ball-container {
-        background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+        background: ${C.gradBallDark};
         box-shadow: 0 4px 16px rgba(79, 70, 229, 0.4), 0 0 0 2px rgba(255,255,255,0.1);
       }
       .ast-ball-container:hover {
@@ -626,9 +627,9 @@ export function injectThemeVars(): void {
       position: fixed;
       z-index: 2147483643;
       width: 200px;
-      background: #ffffff;
-      color: #1a1a2e;
-      border: 1px solid #e5e7eb;
+      background: ${C.bg};
+      color: ${C.text};
+      border: 1px solid ${C.border};
       border-radius: 14px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -642,9 +643,9 @@ export function injectThemeVars(): void {
     }
     @media (prefers-color-scheme: dark) {
       .ast-ball-settings {
-        background: #1a1a2e;
-        color: #e5e7eb;
-        border-color: #2d2d44;
+        background: ${C.dBg};
+        color: ${C.dText};
+        border-color: ${C.dBorder};
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
       }
     }
@@ -653,29 +654,29 @@ export function injectThemeVars(): void {
       align-items: center;
       justify-content: space-between;
       padding: 10px 14px;
-      border-bottom: 1px solid #e5e7eb;
-      background: #eef2ff;
+      border-bottom: 1px solid ${C.border};
+      background: ${C.primarySoft};
     }
     @media (prefers-color-scheme: dark) {
       .ast-ball-settings-header {
-        background: #1e1b4b;
-        border-bottom-color: #2d2d44;
+        background: ${C.primarySoftDark};
+        border-bottom-color: ${C.dBorder};
       }
     }
     .ast-ball-settings-title {
       font-size: 12px;
       font-weight: 600;
-      color: #6366f1;
+      color: ${C.primary};
     }
     @media (prefers-color-scheme: dark) {
-      .ast-ball-settings-title { color: #818cf8; }
+      .ast-ball-settings-title { color: ${C.primaryLight}; }
     }
     .ast-ball-settings-close {
       width: 22px;
       height: 22px;
       border: none;
       background: transparent;
-      color: #6b7280;
+      color: ${C.textSecondary};
       font-size: 16px;
       cursor: pointer;
       border-radius: 6px;
@@ -685,12 +686,12 @@ export function injectThemeVars(): void {
       transition: background 120ms, color 120ms;
     }
     .ast-ball-settings-close:hover {
-      background: #e5e7eb;
-      color: #1a1a2e;
+      background: ${C.border};
+      color: ${C.text};
     }
     @media (prefers-color-scheme: dark) {
-      .ast-ball-settings-close { color: #9ca3af; }
-      .ast-ball-settings-close:hover { background: #2d2d44; color: #e5e7eb; }
+      .ast-ball-settings-close { color: ${C.textMuted}; }
+      .ast-ball-settings-close:hover { background: ${C.dBorder}; color: ${C.dText}; }
     }
     .ast-ball-settings-body {
       padding: 12px 14px;
@@ -706,10 +707,10 @@ export function injectThemeVars(): void {
     .ast-ball-settings-label {
       font-size: 11px;
       font-weight: 500;
-      color: #6b7280;
+      color: ${C.textSecondary};
     }
     @media (prefers-color-scheme: dark) {
-      .ast-ball-settings-label { color: #9ca3af; }
+      .ast-ball-settings-label { color: ${C.textMuted}; }
     }
     .ast-ball-slider-group {
       display: flex;
@@ -721,7 +722,7 @@ export function injectThemeVars(): void {
       height: 4px;
       -webkit-appearance: none;
       appearance: none;
-      background: #e5e7eb;
+      background: ${C.border};
       border-radius: 2px;
       outline: none;
     }
@@ -731,80 +732,80 @@ export function injectThemeVars(): void {
       width: 14px;
       height: 14px;
       border-radius: 50%;
-      background: #6366f1;
+      background: ${C.primary};
       cursor: pointer;
       box-shadow: 0 1px 4px rgba(99, 102, 241, 0.3);
     }
     @media (prefers-color-scheme: dark) {
-      .ast-ball-slider { background: #2d2d44; }
-      .ast-ball-slider::-webkit-slider-thumb { background: #818cf8; }
+      .ast-ball-slider { background: ${C.dBorder}; }
+      .ast-ball-slider::-webkit-slider-thumb { background: ${C.primaryLight}; }
     }
     .ast-ball-slider-value {
       font-size: 11px;
-      color: #6b7280;
+      color: ${C.textSecondary};
       min-width: 32px;
       text-align: right;
     }
     @media (prefers-color-scheme: dark) {
-      .ast-ball-slider-value { color: #9ca3af; }
+      .ast-ball-slider-value { color: ${C.textMuted}; }
     }
     .ast-ball-settings-translate {
       width: 100%;
       padding: 7px 0;
       border: none;
       border-radius: 8px;
-      background: #6366f1;
-      color: #ffffff;
+      background: ${C.primary};
+      color: ${C.white};
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       transition: background 120ms;
     }
     .ast-ball-settings-translate:hover {
-      background: #4f46e5;
+      background: ${C.primaryDark};
     }
     .ast-ball-settings-chat {
       width: 100%;
       padding: 7px 0;
-      border: 1px solid #6366f1;
+      border: 1px solid ${C.primary};
       border-radius: 8px;
       background: transparent;
-      color: #6366f1;
+      color: ${C.primary};
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       transition: background 120ms, color 120ms;
     }
     .ast-ball-settings-chat:hover {
-      background: #eef2ff;
+      background: ${C.primarySoft};
     }
     @media (prefers-color-scheme: dark) {
-      .ast-ball-settings-chat { border-color: #818cf8; color: #818cf8; }
-      .ast-ball-settings-chat:hover { background: #1e1b4b; }
+      .ast-ball-settings-chat { border-color: ${C.primaryLight}; color: ${C.primaryLight}; }
+      .ast-ball-settings-chat:hover { background: ${C.primarySoftDark}; }
     }
     .ast-ball-settings-hide {
       width: 100%;
       padding: 6px 0;
-      border: 1px solid #e5e7eb;
+      border: 1px solid ${C.border};
       border-radius: 8px;
       background: transparent;
-      color: #6b7280;
+      color: ${C.textSecondary};
       font-size: 11px;
       cursor: pointer;
       transition: background 120ms, color 120ms;
     }
     .ast-ball-settings-hide:hover {
-      background: #f3f4f6;
-      color: #1a1a2e;
+      background: ${C.bgSubtle};
+      color: ${C.text};
     }
     @media (prefers-color-scheme: dark) {
       .ast-ball-settings-hide {
-        border-color: #2d2d44;
-        color: #9ca3af;
+        border-color: ${C.dBorder};
+        color: ${C.textMuted};
       }
       .ast-ball-settings-hide:hover {
-        background: #2d2d44;
-        color: #e5e7eb;
+        background: ${C.dBorder};
+        color: ${C.dText};
       }
     }
     /* ---- Dictionary Card (compact) ---- */
@@ -832,11 +833,11 @@ export function injectThemeVars(): void {
     .${BUBBLE_PREFIX}-dict-word {
       font-size: 18px;
       font-weight: 700;
-      color: #1a1a2e;
+      color: ${C.text};
       line-height: 1.3;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-dict-word { color: #e5e7eb; }
+      .${BUBBLE_PREFIX}-dict-word { color: ${C.dText}; }
     }
     .${BUBBLE_PREFIX}-dict-meta {
       display: flex;
@@ -850,29 +851,29 @@ export function injectThemeVars(): void {
       padding: 1px 8px;
       border-radius: 999px;
       background: rgba(99,102,241,0.08);
-      color: #6366f1;
+      color: ${C.primary};
       font-weight: 500;
       line-height: 1.6;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-pos-pill { background: rgba(129,140,248,0.15); color: #818cf8; }
+      .${BUBBLE_PREFIX}-pos-pill { background: rgba(129,140,248,0.15); color: ${C.primaryLight}; }
     }
     .${BUBBLE_PREFIX}-phonetic {
       font-size: 12px;
-      color: #9ca3af;
+      color: ${C.textMuted};
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-phonetic { color: #6b7280; }
+      .${BUBBLE_PREFIX}-phonetic { color: ${C.textSecondary}; }
     }
     .${BUBBLE_PREFIX}-dict-main-translation {
       padding: 8px 16px 6px;
       font-size: 18px;
       font-weight: 600;
-      color: #1a1a2e;
+      color: ${C.text};
       line-height: 1.4;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-dict-main-translation { color: #e5e7eb; }
+      .${BUBBLE_PREFIX}-dict-main-translation { color: ${C.dText}; }
     }
     .${BUBBLE_PREFIX}-dict-section {
       margin: 10px 16px 14px;
@@ -883,22 +884,22 @@ export function injectThemeVars(): void {
     .${BUBBLE_PREFIX}-dict-section-title {
       font-size: 12px;
       font-weight: 600;
-      color: #6b7280;
+      color: ${C.textSecondary};
       margin-bottom: 6px;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-dict-section-title { color: #9ca3af; }
+      .${BUBBLE_PREFIX}-dict-section-title { color: ${C.textMuted}; }
     }
     .${BUBBLE_PREFIX}-dict-context-box {
       font-size: 13px;
-      color: #374151;
+      color: ${C.textSlateDark};
       background: rgba(99,102,241,0.06);
       border-radius: 10px;
       padding: 8px 10px;
       line-height: 1.5;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-dict-context-box { color: #d1d5db; background: rgba(129,140,248,0.1); }
+      .${BUBBLE_PREFIX}-dict-context-box { color: ${C.borderStrong}; background: rgba(129,140,248,0.1); }
     }
     .${BUBBLE_PREFIX}-meaning-chips {
       display: flex;
@@ -910,16 +911,16 @@ export function injectThemeVars(): void {
       padding: 4px 8px;
       font-size: 12px;
       border-radius: 6px;
-      background: #f3f4f6;
-      color: #374151;
+      background: ${C.bgSubtle};
+      color: ${C.textSlateDark};
       line-height: 1.4;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-meaning-chip { background: #2d2d44; color: #d1d5db; }
+      .${BUBBLE_PREFIX}-meaning-chip { background: ${C.dBorder}; color: ${C.borderStrong}; }
     }
     .${BUBBLE_PREFIX}-example-list > div {
       font-size: 13px;
-      color: #6b7280;
+      color: ${C.textSecondary};
       line-height: 1.5;
       margin-bottom: 4px;
     }
@@ -927,50 +928,50 @@ export function injectThemeVars(): void {
       margin-bottom: 0;
     }
     .${BUBBLE_PREFIX}-example-list strong {
-      color: #374151;
+      color: ${C.textSlateDark};
       font-weight: 600;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-example-list > div { color: #9ca3af; }
-      .${BUBBLE_PREFIX}-example-list strong { color: #d1d5db; }
+      .${BUBBLE_PREFIX}-example-list > div { color: ${C.textMuted}; }
+      .${BUBBLE_PREFIX}-example-list strong { color: ${C.borderStrong}; }
     }
     .${BUBBLE_PREFIX}-dict-notrans {
       font-size: 12px;
-      color: #9ca3af;
+      color: ${C.textMuted};
       font-style: italic;
       padding: 8px 16px 12px;
     }
     .${BUBBLE_PREFIX}-dict-name-hint {
       margin: 8px 16px 0;
       font-size: 12px;
-      color: #6b7280;
+      color: ${C.textSecondary};
       background: rgba(99,102,241,0.06);
       border-radius: 10px;
       padding: 8px 10px;
       line-height: 1.5;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-dict-name-hint { color: #9ca3af; background: rgba(129,140,248,0.1); }
+      .${BUBBLE_PREFIX}-dict-name-hint { color: ${C.textMuted}; background: rgba(129,140,248,0.1); }
     }
     .${BUBBLE_PREFIX}-dict-nt-hint {
       margin: 6px 16px 12px;
       font-size: 13px;
-      color: #6b7280;
+      color: ${C.textSecondary};
       line-height: 1.5;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-dict-nt-hint { color: #9ca3af; }
+      .${BUBBLE_PREFIX}-dict-nt-hint { color: ${C.textMuted}; }
     }
     .${BUBBLE_PREFIX}-dict-footer {
       display: flex;
       justify-content: flex-end;
       gap: 4px;
       padding: 6px 16px 10px;
-      border-top: 1px solid #f3f4f6;
+      border-top: 1px solid ${C.bgSubtle};
       margin-top: 4px;
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-dict-footer { border-top-color: #2d2d44; }
+      .${BUBBLE_PREFIX}-dict-footer { border-top-color: ${C.dBorder}; }
     }
     .${BUBBLE_PREFIX}-dict-footer-btn {
       width: 24px;
@@ -982,16 +983,16 @@ export function injectThemeVars(): void {
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #9ca3af;
+      color: ${C.textMuted};
       transition: background 120ms, color 120ms;
     }
     .${BUBBLE_PREFIX}-dict-footer-btn:hover {
-      background: #f3f4f6;
-      color: #6366f1;
+      background: ${C.bgSubtle};
+      color: ${C.primary};
     }
     @media (prefers-color-scheme: dark) {
-      .${BUBBLE_PREFIX}-dict-footer-btn { color: #6b7280; }
-      .${BUBBLE_PREFIX}-dict-footer-btn:hover { background: #2d2d44; color: #818cf8; }
+      .${BUBBLE_PREFIX}-dict-footer-btn { color: ${C.textSecondary}; }
+      .${BUBBLE_PREFIX}-dict-footer-btn:hover { background: ${C.dBorder}; color: ${C.primaryLight}; }
     }
   `;
   document.head.appendChild(style);
@@ -1262,7 +1263,7 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
   pinBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
     isPinned = !isPinned;
-    (pinBtn as HTMLElement).style.color = isPinned ? "#6366f1" : "";
+    (pinBtn as HTMLElement).style.color = isPinned ? `${C.primary}` : "";
     (pinBtn as HTMLElement).title = isPinned
       ? t(cachedLang, "bubble.unpin")
       : t(cachedLang, "bubble.pin");
@@ -1276,7 +1277,7 @@ function showBubble(anchorRect: DOMRect, sourceText: string): void {
       || el.querySelector(`.${BUBBLE_PREFIX}-dict-word`);
     if (transEl) {
       navigator.clipboard.writeText(transEl.textContent || "");
-      (copyBtn as HTMLElement).style.color = "#10b981";
+      (copyBtn as HTMLElement).style.color = `${C.success}`;
       setTimeout(() => {
         (copyBtn as HTMLElement).style.color = "";
       }, 1000);
@@ -1537,7 +1538,7 @@ function attachDictFooterListeners(container: Element, retranslateFn?: () => voi
       || container.querySelector(`.${BUBBLE_PREFIX}-dict-word`);
     if (translationEl) {
       navigator.clipboard.writeText(translationEl.textContent || "");
-      (copyBtn as HTMLElement).style.color = "#10b981";
+      (copyBtn as HTMLElement).style.color = `${C.success}`;
       setTimeout(() => { (copyBtn as HTMLElement).style.color = ""; }, 1000);
     }
   });
@@ -1592,8 +1593,8 @@ async function requestTranslation(text: string): Promise<void> {
       } else {
         const trans = response.translation || "";
         const resolvedLang = response.resolvedLang || "";
-        const langLabel = resolvedLang ? `<div style="font-size:11px;color:#9ca3af;margin-bottom:4px;">${escapeHtml(t(cachedLang, "bubble.translatedTo", { lang: resolvedLang }))}</div>` : "";
-        const hint = trans.trim() === text.trim() ? `<div style="font-size:11px;color:#9ca3af;margin-top:4px;">${t(cachedLang, "bubble.mayBeIdentifier")}</div>` : "";
+        const langLabel = resolvedLang ? `<div style="font-size:11px;color:${C.textMuted};margin-bottom:4px;">${escapeHtml(t(cachedLang, "bubble.translatedTo", { lang: resolvedLang }))}</div>` : "";
+        const hint = trans.trim() === text.trim() ? `<div style="font-size:11px;color:${C.textMuted};margin-top:4px;">${t(cachedLang, "bubble.mayBeIdentifier")}</div>` : "";
         loadingEl.innerHTML = `${langLabel}<div class="${BUBBLE_PREFIX}-translation">${escapeHtml(trans)}</div>${hint}`;
       }
     } else {
@@ -1717,10 +1718,10 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
       </div>
     </div>
     <div class="${BUBBLE_PREFIX}-popup-actions-bar">
-      <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-popup-retranslate" style="width:auto;padding:0 10px;font-size:12px;color:#6366f1;">
+      <button class="${BUBBLE_PREFIX}-btn ${BUBBLE_PREFIX}-popup-retranslate" style="width:auto;padding:0 10px;font-size:12px;color:${C.primary};">
         ${t(cachedLang, "popup.translate")}
       </button>
-      <button class="${BUBBLE_PREFIX}-btn" style="width:auto;padding:0 10px;font-size:12px;color:#6b7280;">
+      <button class="${BUBBLE_PREFIX}-btn" style="width:auto;padding:0 10px;font-size:12px;color:${C.textSecondary};">
         ${t(cachedLang, "popup.openSettings")}
       </button>
     </div>
@@ -1893,7 +1894,7 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
     const resultEl = el.querySelector(`.${BUBBLE_PREFIX}-popup-result`);
     if (resultEl) {
       navigator.clipboard.writeText(resultEl.textContent || "");
-      (copyBtn as HTMLElement).style.color = "#10b981";
+      (copyBtn as HTMLElement).style.color = `${C.success}`;
       setTimeout(() => { (copyBtn as HTMLElement).style.color = ""; }, 1000);
     }
   });
@@ -1987,8 +1988,8 @@ async function requestTranslationForPopup(text: string): Promise<void> {
       } else {
         const trans = response.translation || "";
         const resolvedLang = response.resolvedLang || "";
-        const langLabel = resolvedLang ? `<div style="font-size:11px;color:#9ca3af;margin-bottom:4px;">${escapeHtml(t(cachedLang, "bubble.translatedTo", { lang: resolvedLang }))}</div>` : "";
-        const hint = trans.trim() === text.trim() ? `<div style="font-size:11px;color:#9ca3af;margin-top:4px;">${t(cachedLang, "bubble.mayBeIdentifier")}</div>` : "";
+        const langLabel = resolvedLang ? `<div style="font-size:11px;color:${C.textMuted};margin-bottom:4px;">${escapeHtml(t(cachedLang, "bubble.translatedTo", { lang: resolvedLang }))}</div>` : "";
+        const hint = trans.trim() === text.trim() ? `<div style="font-size:11px;color:${C.textMuted};margin-top:4px;">${t(cachedLang, "bubble.mayBeIdentifier")}</div>` : "";
         resultEl.innerHTML = `${langLabel}<div>${escapeHtml(trans)}</div>${hint}`;
       }
     } else {
