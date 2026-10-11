@@ -106,6 +106,11 @@ export async function handleMangaMessage(
         if (msg.type === "MANGA_STATUS" && result?.job)
           return { success: true, job: result.job };
       }
+      if (msg.type === "MANGA_STATUS")
+        console.warn(
+          "[Astra Manga] active job lost its offscreen runner, marking interrupted:",
+          id,
+        );
       stored.phase = msg.type === "MANGA_CANCEL" ? "cancelled" : "interrupted";
       stored.revision++;
       stored.updatedAt = Date.now();

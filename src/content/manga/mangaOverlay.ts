@@ -128,6 +128,8 @@ const css = `
 @keyframes ast-badge-pulse{from{opacity:.92;transform:translateX(-50%) scale(.98)}to{opacity:1;transform:translateX(-50%) scale(1.02)}}
 .flash-badge{position:absolute!important;left:50%!important;top:20px!important;transform:translateX(-50%)!important;display:inline-flex;align-items:center;gap:8px;padding:7px 16px;background:rgba(18,16,28,0.88);color:${C.mangaTextBright};font-size:13px;font-weight:600;border-radius:20px;border:1px solid rgba(255,255,255,0.2);box-shadow:0 6px 20px rgba(0,0,0,0.4),0 0 0 1px rgba(99,102,241,0.35);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);pointer-events:none;z-index:110;transition:opacity .25s ease,transform .25s ease}
 .flash-badge.fading{opacity:0;transform:translateX(-50%) translateY(-6px)}
+.state-chip{position:absolute!important;left:50%!important;top:20px!important;transform:translateX(-50%)!important;display:inline-flex;align-items:center;max-width:calc(100% - 32px);padding:7px 16px;background:rgba(18,16,28,0.88);color:${C.mangaTextBright};font-size:13px;font-weight:600;border-radius:20px;border:1px solid rgba(255,255,255,0.2);box-shadow:0 6px 20px rgba(0,0,0,0.4);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);pointer-events:none;z-index:110;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.state-chip.error{border-color:rgba(248,113,113,0.55);box-shadow:0 6px 20px rgba(0,0,0,0.4),0 0 0 1px rgba(239,68,68,0.35)}
 `;
 export interface MangaViewState {
   status: string;
@@ -164,6 +166,7 @@ export class MangaOverlay {
   private loadingText = document.createElement("span");
   private flashBadgeEl?: HTMLDivElement;
   private flashBadgeTimer?: ReturnType<typeof setTimeout>;
+  private stateChip?: HTMLDivElement;
   private nodes: RegionNode[] = [];
   private job?: MangaJob;
   private crop?: Rect;
@@ -311,6 +314,7 @@ export class MangaOverlay {
     this.loading.classList.add("hidden");
     this.loading.remove();
     this.message(value);
+    this.renderStateChip();
     this.changed();
   }
   configurationError(value: string) {
@@ -359,6 +363,31 @@ export class MangaOverlay {
       }, 250);
     }, 1200);
   }
+  /**
+   * Terminal job states (empty result, failure) previously only updated the
+   * visually hidden aria-live status, so the scan overlay vanished leaving no
+   * on-image feedback. Render a persistent, non-interactive chip instead.
+   */
+  private renderStateChip() {
+    let text: string | undefined;
+    if (this.state.phase === "ready" && this.job && !this.job.regions.length)
+      text = "🔍 " + t(this.lang, "manga.noText");
+    else if (this.state.phase === "error")
+      text = "⚠️ " + (this.state.status || t(this.lang, "manga.failed"));
+    if (!text) {
+      this.stateChip?.remove();
+      this.stateChip = undefined;
+      return;
+    }
+    if (!this.stateChip) {
+      this.stateChip = document.createElement("div");
+      this.stateChip.className = "state-chip";
+    }
+    this.stateChip.textContent = text;
+    this.stateChip.classList.toggle("error", this.state.phase === "error");
+    if (this.stateChip.parentElement !== this.frame)
+      this.frame.append(this.stateChip);
+  }
   update(job: MangaJob) {
     this.state.errorCode = job.errorCode;
     this.job = job;
@@ -378,20 +407,6 @@ export class MangaOverlay {
           : t(this.lang, phaseKey) + progress) +
           (this.crop ? " · " + t(this.lang, "manga.visiblePart") : ""),
     );
-    if (this.state.phase === "working") {
-      if (this.loading.parentElement !== this.frame) {
-        this.frame.prepend(this.loading);
-      }
-      this.loading.classList.remove("hidden");
-      this.loadingText.textContent = job.rateLimited
-        ? t(this.lang, "manga.rateLimitRetrying")
-        : job.total
-          ? `${t(this.lang, "manga.translatingShort")} ${job.completed}/${job.total}`
-          : t(this.lang, "manga.translatingShort");
-    } else {
-      this.loading.classList.add("hidden");
-      this.loading.remove();
-    }
     if (job.revision !== this.revision) {
       this.revision = job.revision;
       this.closeCard();
@@ -428,6 +443,21 @@ export class MangaOverlay {
         return item;
       });
     }
+    if (this.state.phase === "working") {
+      if (this.loading.parentElement !== this.frame) {
+        this.frame.prepend(this.loading);
+      }
+      this.loading.classList.remove("hidden");
+      this.loadingText.textContent = job.rateLimited
+        ? t(this.lang, "manga.rateLimitRetrying")
+        : job.total
+          ? `${t(this.lang, "manga.translatingShort")} ${job.completed}/${job.total}`
+          : t(this.lang, "manga.translatingShort");
+    } else {
+      this.loading.classList.add("hidden");
+      this.loading.remove();
+    }
+    this.renderStateChip();
     this.layout();
     this.publishTranslations();
     this.changed();

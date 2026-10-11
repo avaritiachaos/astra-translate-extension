@@ -151,7 +151,12 @@ async function execute(entry: RunningJob) {
   };
   try {
     await publish(entry, { phase: "loading" });
-    check();
+    console.info(
+      "[Astra Manga] job start:",
+      job.id,
+      request.source.kind,
+      request.provider.model,
+    );
     const { blob, probeCode } = await acquireMangaImage(request.source, signal);
     check();
     const imageHash = await digest(blob);
@@ -178,7 +183,13 @@ async function execute(entry: RunningJob) {
     if (!request.force && !job.probe) {
       const cached = await getMangaCache(key).catch(() => undefined);
       check();
-      if (cached) {
+      if (cached && !cached.regions?.length)
+        console.warn(
+          "[Astra Manga] ignoring poisoned empty cache entry:",
+          job.id,
+        );
+      if (cached && cached.regions?.length) {
+        console.info("[Astra Manga] cache hit:", job.id);
         await publish(entry, {
           ...cached,
           phase: "ready",
@@ -202,6 +213,12 @@ async function execute(entry: RunningJob) {
       total: tiles.length,
       assetId,
     });
+    console.info(
+      "[Astra Manga] tiles planned:",
+      job.id,
+      `${bitmap.width}x${bitmap.height}`,
+      `${tiles.length} tile(s)`,
+    );
     for (const tile of tiles) {
       check();
       await publish(entry, { phase: "translating" });
@@ -236,6 +253,12 @@ async function execute(entry: RunningJob) {
         format: result.format,
         completed: job.completed + 1,
       });
+      console.info(
+        "[Astra Manga] tile done:",
+        job.id,
+        `${job.completed + 1}/${tiles.length}`,
+        `${positioned.length} region(s)`,
+      );
     }
     check();
     if (
@@ -254,12 +277,21 @@ async function execute(entry: RunningJob) {
       regions: job.regions,
       format: job.format ?? "",
     };
-    if (!job.probe)
+    // An empty region list is far more likely a vision failure (model cannot
+    // read the image, proxy stripped it) than a genuinely textless page.
+    // Never cache it, or every later retry of this image short-circuits to
+    // the same silent empty result.
+    if (!job.probe && job.regions.length)
       await putMangaCache(key, result).catch(() =>
         console.warn("[Astra Manga] Result cache unavailable."),
       );
     check();
     await publish(entry, { phase: "ready", rateLimited: false });
+    console.info(
+      "[Astra Manga] job ready:",
+      job.id,
+      `${job.regions.length} region(s)`,
+    );
     adaptive.onSuccess();
   } catch (error) {
     if (job.phase !== "cancelled") {
@@ -279,6 +311,12 @@ async function execute(entry: RunningJob) {
         );
 
       if (isRateLimit && (entry.rateLimitRetries ?? 0) < 3) {
+        console.warn(
+          "[Astra Manga] rate limited, requeueing:",
+          job.id,
+          (entry.rateLimitRetries ?? 0) + 1,
+          String(error instanceof Error ? error.message : error),
+        );
         entry.rateLimitRetries = (entry.rateLimitRetries ?? 0) + 1;
         const retryAfterMs = (error as any)?.retryAfterMs;
         const delay = adaptive.onRateLimit(retryAfterMs);
@@ -314,6 +352,12 @@ async function execute(entry: RunningJob) {
           : isRateLimit
             ? t(request.language, "error.rateLimit")
             : t(request.language, "manga.failed");
+      console.warn(
+        "[Astra Manga] job failed:",
+        job.id,
+        code,
+        String(error instanceof Error ? error.message : error),
+      );
       await publish(entry, {
         phase: "failed",
         error: message,
