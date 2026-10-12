@@ -311,6 +311,42 @@ export function injectThemeVars(): void {
     @media (prefers-color-scheme: dark) {
       .${BUBBLE_PREFIX}-error { color: ${C.errorSoft}; }
     }
+    /* Inline retry action shown alongside translation errors. */
+    .${BUBBLE_PREFIX}-error-retry {
+      align-self: center;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: auto;
+      padding: 3px 10px;
+      border: 1px solid ${C.border};
+      border-radius: 999px;
+      background: transparent;
+      color: ${C.primary};
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.4;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
+    }
+    .${BUBBLE_PREFIX}-error-retry:hover {
+      background: ${C.primarySoft};
+      border-color: ${C.primary};
+    }
+    .${BUBBLE_PREFIX}-error-retry svg { width: 12px; height: 12px; }
+    @media (prefers-color-scheme: dark) {
+      .${BUBBLE_PREFIX}-error-retry {
+        color: ${C.primaryLight};
+        border-color: ${C.dBorder};
+      }
+      .${BUBBLE_PREFIX}-error-retry:hover {
+        background: ${C.primarySoftDark};
+        border-color: ${C.primaryLight};
+      }
+    }
     /* Progress overlay (page translation) */
     .${BUBBLE_PREFIX}-progress {
       position: fixed;
@@ -1562,6 +1598,30 @@ function attachDictFooterListeners(container: Element, retranslateFn?: () => voi
   });
 }
 
+/**
+ * Swap a loading area for an error message with an inline retry button.
+ * `hideRetry` omits the button where retrying cannot help — e.g. a stale
+ * content script after an extension reload, which only a page refresh fixes.
+ */
+function renderErrorWithRetry(
+  container: Element,
+  errorClass: string,
+  message: string,
+  retry: () => void,
+  hideRetry = false,
+): void {
+  const P = BUBBLE_PREFIX;
+  const retryBtn = hideRetry
+    ? ""
+    : `<button class="${P}-error-retry" title="${t(cachedLang, "bubble.retry")}">${REFRESH_ICON}<span>${t(cachedLang, "bubble.retry")}</span></button>`;
+  container.innerHTML = `<div class="${errorClass}"><span>⚠</span><span>${escapeHtml(message)}</span>${retryBtn}</div>`;
+  container.querySelector(`.${P}-error-retry`)?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (isTranslating || !container.isConnected) return;
+    retry();
+  });
+}
+
 async function requestTranslation(text: string): Promise<void> {
   if (isTranslating) return;
   isTranslating = true;
@@ -1598,7 +1658,10 @@ async function requestTranslation(text: string): Promise<void> {
         loadingEl.innerHTML = `${langLabel}<div class="${BUBBLE_PREFIX}-translation">${escapeHtml(trans)}</div>${hint}`;
       }
     } else {
-      loadingEl.innerHTML = `<div class="${BUBBLE_PREFIX}-error"><span>⚠</span><span>${escapeHtml(response?.error || t(cachedLang, "bubble.translationFailed"))}</span></div>`;
+      renderErrorWithRetry(loadingEl, `${BUBBLE_PREFIX}-error`, response?.error || t(cachedLang, "bubble.translationFailed"), () => {
+        loadingEl.innerHTML = `<div class="${BUBBLE_PREFIX}-spinner"></div><span>${t(cachedLang, "bubble.translating")}</span>`;
+        requestTranslation(text);
+      });
     }
   } catch {
     if (!bubble) return;
@@ -1607,7 +1670,11 @@ async function requestTranslation(text: string): Promise<void> {
       // No runtime id ⇒ the extension was reloaded/updated and this page
       // still runs the old content script — only a refresh reconnects it.
       const reasonKey = chrome.runtime?.id ? "bubble.connectFail" : "bubble.staleContext";
-      loadingEl.innerHTML = `<div class="${BUBBLE_PREFIX}-error"><span>⚠</span><span>${t(cachedLang, reasonKey)}</span></div>`;
+      // A stale content script cannot reconnect — retrying would just fail again.
+      renderErrorWithRetry(loadingEl, `${BUBBLE_PREFIX}-error`, t(cachedLang, reasonKey), () => {
+        loadingEl.innerHTML = `<div class="${BUBBLE_PREFIX}-spinner"></div><span>${t(cachedLang, "bubble.translating")}</span>`;
+        requestTranslation(text);
+      }, !chrome.runtime?.id);
     }
   } finally {
     isTranslating = false;
@@ -1993,7 +2060,11 @@ async function requestTranslationForPopup(text: string): Promise<void> {
         resultEl.innerHTML = `${langLabel}<div>${escapeHtml(trans)}</div>${hint}`;
       }
     } else {
-      resultEl.innerHTML = `<div class="${BUBBLE_PREFIX}-popup-error"><span>⚠</span><span>${escapeHtml(response?.error || t(cachedLang, "bubble.translationFailed"))}</span></div>`;
+      renderErrorWithRetry(resultEl, `${BUBBLE_PREFIX}-popup-error`, response?.error || t(cachedLang, "bubble.translationFailed"), () => {
+        resultEl.innerHTML = `<div class="${BUBBLE_PREFIX}-popup-loading"><div class="${BUBBLE_PREFIX}-spinner"></div><span>${t(cachedLang, "bubble.translating")}</span></div>`;
+        const srcEl = dragPopup?.querySelector(`.${BUBBLE_PREFIX}-popup-src`) as HTMLTextAreaElement | null;
+        requestTranslationForPopup(srcEl?.value?.trim() || text);
+      });
     }
   } catch {
     if (!dragPopup) return;
@@ -2001,7 +2072,12 @@ async function requestTranslationForPopup(text: string): Promise<void> {
     if (resultEl) {
       // No runtime id ⇒ stale content script after an extension update.
       const reasonKey = chrome.runtime?.id ? "bubble.connectFail" : "bubble.staleContext";
-      resultEl.innerHTML = `<div class="${BUBBLE_PREFIX}-popup-error"><span>⚠</span><span>${t(cachedLang, reasonKey)}</span></div>`;
+      // A stale content script cannot reconnect — retrying would just fail again.
+      renderErrorWithRetry(resultEl, `${BUBBLE_PREFIX}-popup-error`, t(cachedLang, reasonKey), () => {
+        resultEl.innerHTML = `<div class="${BUBBLE_PREFIX}-popup-loading"><div class="${BUBBLE_PREFIX}-spinner"></div><span>${t(cachedLang, "bubble.translating")}</span></div>`;
+        const srcEl = dragPopup?.querySelector(`.${BUBBLE_PREFIX}-popup-src`) as HTMLTextAreaElement | null;
+        requestTranslationForPopup(srcEl?.value?.trim() || text);
+      }, !chrome.runtime?.id);
     }
   } finally {
     isTranslating = false;
