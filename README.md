@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-6.0.2-7C5CFF" alt="version" />
+  <img src="https://img.shields.io/badge/version-6.4.0-7C5CFF" alt="version" />
   <img src="https://img.shields.io/badge/Manifest-V3-4F46E5" alt="manifest v3" />
   <img src="https://img.shields.io/badge/TypeScript-React_18-3178C6" alt="tech" />
   <img src="https://img.shields.io/badge/license-MIT-3FB950" alt="license" />
@@ -25,7 +25,7 @@
 市面上的翻译插件，要么逼你登录、买会员、限次数，要么塞满广告。
 Astra 反着来：**它不绑架你，只做一件事——把翻译做好。**
 
-- 🔑 **用你自己的 API** —— 接入 Google Gemini (AI Studio)、DeepSeek 等大模型，按量付费或使用免费额度，成本极低
+- 🔑 **用你自己的 API** —— 接入 Google Gemini (AI Studio)、DeepSeek 等大模型与 DeepL 机翻，按量付费或使用免费额度，成本极低
 - 🚫 **无登录 / 无会员 / 无广告** —— 装上填个 Key 就能用
 - 💸 **本地缓存复用** —— 命中缓存时直接读取结果，不再调用模型；旧缓存会按容量和使用情况淘汰
 - 🎨 **翻译文风可调** —— 让 AI 用你喜欢的语气翻译，这是传统翻译引擎给不了的
@@ -92,8 +92,18 @@ v6.0 全新打造的沉浸式漫画翻译系统，将多模态大模型的视觉
 - **自定义提示词（文风）** —— 划词与整页的翻译提示词均可编辑，调出正经、地道、活泼、学术等任意风格
 - **界面随心调** —— 悬浮球大小 / 透明度、弹窗缩放、并发数、批量大小、超时、温度均可设置
 
+### DeepL 机翻引擎与按功能指派（v6.4 新增）
+DeepL 作为第 4 个服务商预设加入，与 Gemini / DeepSeek / 自定义大模型并存：
+
+- **纯文本机翻** —— 划词 / 手动 / 整页翻译可交给 DeepL：免费版每月 50 万字符，`:fx` 结尾 Key 自动走免费端点；整页翻译按 text 数组一一对应返回，没有 JSON 解析失败、拒答、复读这类 LLM 故障
+- **按功能指派引擎** —— 「整页翻译引擎」「划词 / 手动翻译引擎」两个独立下拉，每项可选：跟随当前服务商预设 / 大模型 (LLM) / DeepL；比如 DeepL 激活 + 整页指派大模型，保留流式渲染与全批上下文衔接，反向组合也成立
+- **词典与对话自动回退** —— DeepL 没有词典和聊天能力，这两项自动改用你配置的回退 LLM 服务商（可指定，默认取第一个已配置 Key 的）
+- **缓存按引擎隔离** —— 大模型与 DeepL 的译文缓存互不污染，来回切换不串味
+- **拉取上游模型列表** —— 大模型服务商填好 Key 与 Base URL 后，可一键读取 `/models` 列表直接选填
+- **漫画隔离** —— 漫画翻译需要能识图的大模型（建议 Gemini），DeepL 不会出现在漫画服务商选项中
+
 ### 服务商中立与独立隔离存储
-内置 **Google Gemini (AI Studio)**（支持 `gemini-3.7-flash` 免费层级）与 **DeepSeek** 官方预设，并支持任何 **OpenAI 兼容** 的 API（OpenAI、Groq、本地模型等）。各服务商的 API Key 与自定义模型配置**完全独立隔离存储**，切换时互不覆盖。
+内置 **Google Gemini (AI Studio)**（支持 `gemini-3.7-flash` 免费层级）、**DeepSeek** 与 **DeepL**（免费版每月 50 万字符）官方预设，并支持任何 **OpenAI 兼容** 的 API（OpenAI、Groq、本地模型等）。各服务商的 API Key 与自定义模型配置**完全独立隔离存储**，切换时互不覆盖；整页 / 划词翻译还可在「引擎分工」中分别指派给大模型或 DeepL。
 
 ### 体验细节
 - **iOS 18 液态玻璃设计** —— 超高饱和度毛玻璃折射、镜面高光光泽边缘、iOS 原生分段胶囊与灵动岛顶部悬浮通知
@@ -144,10 +154,11 @@ npm run build
 ### 配置 API
 
 1. 点击扩展图标 →「打开设置」⚙️
-2. **服务商预设** 选择 **Google Gemini (AI Studio)**、**DeepSeek** 或自定义服务
+2. **服务商预设** 选择 **Google Gemini (AI Studio)**、**DeepSeek**、**DeepL** 或自定义服务
 3. 填入 **API Key**：
    - Google Gemini: 在 <https://aistudio.google.com/apikey> 免费获取
    - DeepSeek: 在 <https://platform.deepseek.com> 创建
+   - DeepL: 在 <https://www.deepl.com/your-account/keys> 获取（`:fx` 结尾为免费版，每月 50 万字符）
 4. 点击 **测试连接** —— 成功后自动保存，每个服务商的配置独立隔离存储
 
 ---
@@ -177,6 +188,9 @@ npm run build
 |------|--------|--------|------|
 | 服务商 | 预设 / Base URL / Endpoint / 模型 / API Key | DeepSeek · `deepseek-v4-flash` / Gemini · `gemini-3.7-flash` | 各预设独立配置存储 |
 | 服务商 | 关闭思考 | 开 | 对支持思考的模型可关闭，提速省钱 |
+| 服务商 | 整页 / 划词·手动翻译引擎 | 跟随当前服务商 | 每个功能可单独指派 大模型 (LLM) / DeepL |
+| 服务商 | 词典 / 对话回退 LLM | 自动 | DeepL 激活时词典与对话使用的 LLM 服务商 |
+| 服务商 | 读取可用模型 | — | 大模型服务商填好 Key + URL 后一键拉取 `/models` 列表选填 |
 | 搜索 | Serper API Key | 空 | 联网搜索补充来源，支持测试连接与明文切换 |
 | 翻译 | 默认 / 页面 / 划词目标语言 | 简体中文 | 三套独立配置 |
 | 翻译 | 温度 | 0.2 | 越低越稳定 |
@@ -239,6 +253,7 @@ src/
 - [x] iOS 18 液态玻璃设计语言
 - [x] 漫画图片翻译（全自动连续阅读、多线程预读流水线、阅读调整弹窗、横竖形态与 2K/4K 界面缩放）
 - [x] 实时同声传译与网页悬浮字幕 HUD
+- [x] DeepL 机翻引擎预设、按功能指派翻译引擎与上游模型列表直读
 - [ ] 更多服务商预设
 - [ ] 翻译收藏夹
 

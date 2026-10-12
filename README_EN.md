@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-6.0.2-7C5CFF" alt="version" />
+  <img src="https://img.shields.io/badge/version-6.4.0-7C5CFF" alt="version" />
   <img src="https://img.shields.io/badge/Manifest-V3-4F46E5" alt="manifest v3" />
   <img src="https://img.shields.io/badge/TypeScript-React_18-3178C6" alt="tech" />
   <img src="https://img.shields.io/badge/license-MIT-3FB950" alt="license" />
@@ -26,7 +26,7 @@ Most translation extensions push you to sign in, buy a membership, or limit
 your usage — or they bury you in ads. Astra does the opposite: **it doesn't
 hold you hostage; it just translates well.**
 
-- 🔑 **Bring your own API** — connect Google Gemini (AI Studio), DeepSeek, and other LLMs; pay per use or utilize free tiers
+- 🔑 **Bring your own API** — connect Google Gemini (AI Studio), DeepSeek, and other LLMs — plus the DeepL machine-translation engine; pay per use or utilize free tiers
 - 🚫 **No login / no subscription / no ads** — install, paste a key, go
 - 💸 **Local cache reuse** — cache hits reuse results without another model call; older entries are evicted as needed
 - 🎨 **Adjustable translation style** — make the model translate in the tone you like
@@ -97,8 +97,18 @@ Select text and click 💬, or right-click the floating ball and pick "Ask AI ab
 - **Custom prompts (style)** — both selection and page prompts are editable for any tone: formal, idiomatic, playful, academic
 - **Tune the UI** — floating ball size / opacity, popup scale, concurrency, batch size, timeout, and temperature
 
+### DeepL MT engine & per-feature engine assignment (new in v6.4)
+DeepL joins as the 4th provider preset, alongside Gemini / DeepSeek / custom LLMs:
+
+- **Plain-text machine translation** — selection / manual / page translation can run on DeepL: the free tier covers 500,000 characters/month and keys ending in `:fx` automatically use the free endpoint; page translation maps DeepL's text array 1:1 in input order, with no JSON parse errors, refusals, or echoes
+- **Per-feature engine assignment** — "Page Translation Engine" and "Selection / Manual Engine" are two independent dropdowns, each offering: Follow provider preset / LLM / DeepL; e.g. DeepL active + page translation on the LLM keeps streaming and full-batch context, and the reverse works too
+- **Automatic dictionary & chat fallback** — DeepL has no dictionary or chat surface; those features automatically use your fallback LLM provider (selectable; defaults to the first configured key)
+- **Per-engine cache isolation** — LLM and DeepL translations cache under separate fingerprints, so switching engines never cross-contaminates
+- **Fetch upstream model list** — for LLM providers, fill in the key + base URL and load the `/models` list to pick a model directly
+- **Manga isolation** — manga translation needs an image-capable LLM (Gemini recommended); DeepL never appears in manga provider options
+
 ### Provider-neutral with isolated storage
-Built-in official presets for **Google Gemini (AI Studio)** (with `gemini-3.7-flash` free tier support) and **DeepSeek**, as well as any **OpenAI-compatible** API (OpenAI, Groq, local models, etc.). Configuration and API keys are **completely isolated per provider**.
+Built-in official presets for **Google Gemini (AI Studio)** (with `gemini-3.7-flash` free tier support), **DeepSeek**, and **DeepL** (500,000 free characters/month), as well as any **OpenAI-compatible** API (OpenAI, Groq, local models, etc.). Configuration and API keys are **completely isolated per provider**; page / selection translation can additionally be assigned to the LLM or DeepL independently via "Engine assignment".
 
 ### Experience details
 - **iOS 18 Liquid Glass design** — frosted glassmorphism with high-saturation refraction (`backdrop-filter: blur(28px)`), specular highlight reflections, iOS segmented tab controls, and Dynamic Island top floating notification capsules
@@ -149,10 +159,11 @@ The build output is in `dist/`. Load the `dist` folder following steps 2–4 abo
 ### Configuration
 
 1. Click the extension icon → **Open Settings** ⚙️
-2. Choose **Google Gemini (AI Studio)**, **DeepSeek**, or a custom OpenAI-compatible endpoint
+2. Choose **Google Gemini (AI Studio)**, **DeepSeek**, **DeepL**, or a custom OpenAI-compatible endpoint
 3. Enter your **API Key**:
    - Google Gemini: Get one for free at <https://aistudio.google.com/apikey>
    - DeepSeek: Create one at <https://platform.deepseek.com>
+   - DeepL: Get one at <https://www.deepl.com/your-account/keys> (keys ending in `:fx` are the free tier — 500,000 characters/month)
 4. Click **Test Connection** — saves automatically on success with isolated storage per provider
 
 ---
@@ -182,6 +193,9 @@ The build output is in `dist/`. Load the `dist` folder following steps 2–4 abo
 |-------|---------|---------|-------|
 | Provider | Preset / Base URL / Endpoint / Model / API Key | DeepSeek · `deepseek-v4-flash` / Gemini · `gemini-3.7-flash` | Isolated per preset |
 | Provider | Disable thinking | On | Speeds up / saves cost on thinking-capable models |
+| Provider | Page / selection·manual engine | Follow provider preset | Assign each feature to LLM / DeepL individually |
+| Provider | Dictionary / chat fallback LLM | Auto | The LLM provider used by dictionary & chat while DeepL is active |
+| Provider | Load available models | — | One-click `/models` fetch for LLM providers after key + URL |
 | Search | Serper API Key | Empty | Web search supplement with connection test & visibility toggle |
 | Translation | Default / Page / Selection target language | Simplified Chinese | Three independent settings |
 | Translation | Temperature | 0.2 | Lower is more stable |
@@ -244,6 +258,7 @@ src/
 - [x] iOS 18 Liquid Glass design language
 - [x] Manga image translation (Auto Continuous reading, multi-thread prefetch pipeline, Reader Hub modal, horizontal/vertical docks, and 2K/4K UI scaling)
 - [x] Live subtitles & in-page floating subtitle HUD
+- [x] DeepL MT engine preset, per-feature engine assignment & upstream model list fetching
 - [ ] More provider presets
 - [ ] Translation favorites
 
