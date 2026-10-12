@@ -4,7 +4,7 @@ import type { MangaThinkingEffort } from "../shared/manga/types";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { DEFAULT_PROVIDER_PRESETS, SUPPORTED_LANGUAGES } from "../shared/constants";
-import { saveSettings, switchProviderSettings } from "../shared/storage";
+import { saveSettings, switchProviderSettings, resolveDeeplFallbackProviderId } from "../shared/storage";
 import { t, type UiLanguage } from "../shared/i18n";
 import type {
   AstraSettings,
@@ -212,6 +212,7 @@ function ChatEffortMenu({
 
 export function getModelDisplayLabel(providerId?: string, model?: string): string {
   const norm = (model || "").toLowerCase();
+  if (providerId === "deepl") return "DeepL";
   if (providerId === "google-gemini" || norm.includes("gemini")) {
     if (norm.includes("3.8")) return "Gemini 3.8";
     if (!model || norm.includes("3.7")) return "Gemini 3.7";
@@ -365,13 +366,19 @@ function ChatModelMenu({
                 <div className="ast-chat-model-info">
                   <div className="ast-chat-model-name">
                     {preset.name}
-                    <span
-                      className={`ast-chat-model-cap-badge ast-chat-model-cap-badge--${
-                        isVision ? "vision" : "text"
-                      }`}
-                    >
-                      {t(lang, isVision ? "chat.badgeVision" : "chat.badgeText")}
-                    </span>
+                    {preset.textOnly ? (
+                      <span className="ast-chat-model-cap-badge ast-chat-model-cap-badge--text">
+                        {t(lang, "chat.badgeTranslate")}
+                      </span>
+                    ) : (
+                      <span
+                        className={`ast-chat-model-cap-badge ast-chat-model-cap-badge--${
+                          isVision ? "vision" : "text"
+                        }`}
+                      >
+                        {t(lang, isVision ? "chat.badgeVision" : "chat.badgeText")}
+                      </span>
+                    )}
                     {!hasKey && (
                       <span
                         className="ast-chat-model-badge"
@@ -407,6 +414,17 @@ function ChatModelMenu({
 }
 
 type PopupMode = "translate" | "manga" | "chat" | "live";
+
+/**
+ * Provider whose reasoning-effort levels apply to chat: when a text-only MT
+ * provider (DeepL) is active, chat actually runs on the fallback LLM, so the
+ * effort menu mirrors that provider's levels.
+ */
+function chatEffortProviderId(settings: AstraSettings | null): string | undefined {
+  if (!settings) return undefined;
+  if (settings.apiFormat !== "deepl") return settings.providerId;
+  return resolveDeeplFallbackProviderId(settings) || undefined;
+}
 
 export default function Popup() {
   const [settings, setSettings] = useState<AstraSettings | null>(null);
@@ -504,7 +522,7 @@ export default function Popup() {
         setSettings(s);
         setTargetLang(s.defaultTargetLang || "Simplified Chinese");
         setPageTargetLang(s.pageTargetLang || "Simplified Chinese");
-        setChatEffort((prev) => normalizeChatEffort(prev, s.providerId));
+        setChatEffort((prev) => normalizeChatEffort(prev, chatEffortProviderId(s)));
       }
     });
     inputRef.current?.focus();
@@ -1283,7 +1301,7 @@ export default function Popup() {
       if (!settings) return;
       const next = switchProviderSettings(settings, presetId);
       setSettings(next);
-      const nextEffort = normalizeChatEffort(chatEffort, presetId);
+      const nextEffort = normalizeChatEffort(chatEffort, chatEffortProviderId(next));
       setChatEffort(nextEffort);
       try {
         await chrome.runtime.sendMessage({
@@ -2314,7 +2332,7 @@ export default function Popup() {
                 />
                 <ChatEffortMenu
                   value={chatEffort}
-                  providerId={settings?.providerId}
+                   providerId={chatEffortProviderId(settings)}
                   lang={lang}
                   onChange={handleEffortChange}
                 />

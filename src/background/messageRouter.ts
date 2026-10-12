@@ -18,9 +18,16 @@ import type {
   ChatDraft,
 } from "../shared/types";
 import { t, type UiLanguage } from "../shared/i18n";
-import { getSettings, saveSettings } from "../shared/storage";
+import {
+  getSettings,
+  saveSettings,
+  resolveTranslateEngine,
+  resolveEngineSettings,
+} from "../shared/storage";
 import { webSearch } from "./webSearchClient";
 import { translateViaProvider, translateViaProviderStream } from "./providerClient";
+import { deeplTranslate, deeplTranslateBatch } from "./deeplClient";
+import { listProviderModels } from "./providerModels";
 import { ProviderRequestError, AstraError } from "./errors";
 import { extractJson } from "../shared/utils";
 import { PAGE_SEGMENT_SEPARATOR } from "../shared/constants";
@@ -135,6 +142,28 @@ export async function handleMessage(
       // Use settings from message payload if provided (draft settings from form),
       // otherwise read from storage
       return testProvider((msg as any).settings as AstraSettings | undefined);
+
+    case "LIST_PROVIDER_MODELS": {
+      // Fetch the upstream /models list for the provider currently being
+      // edited (draft form state, like TEST_PROVIDER). OpenAI-compatible only.
+      const draft = (msg as any).settings as AstraSettings | undefined;
+      const settings = draft || await getSettings();
+      const lang = getLang(settings);
+      if (settings.apiFormat !== "openai-compatible") {
+        return { success: false, error: t(lang, "manga.modelsFailed") };
+      }
+      if (!settings.apiKey) {
+        return { success: false, error: t(lang, "error.apiKeyNotConfigured") };
+      }
+      try {
+        return await listProviderModels(settings, lang);
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : t(lang, "manga.modelsFailed"),
+        };
+      }
+    }
 
     case "TEST_SEARCH": {
       const payload = (msg as any).payload || {};
@@ -573,11 +602,11 @@ async function translatePlainWithEchoRecovery(
   textClass: ReturnType<typeof classifySelectedText>,
   lang: UiLanguage,
 ): Promise<string> {
-  let translation = await translateViaProvider(settings, systemPrompt, text, lang);
+  let translation = await translateViaProvider(settings, systemPrompt, text, lang, targetLang);
 
   if (isModelRefusal(translation, targetLang)) {
     const refusalRetryPrompt = `${systemPrompt}\n\nIMPORTANT RETRY: The previous response was a conversational refusal. You are a deterministic, automated translation utility. You MUST translate the user's input text into natural ${targetLang} verbatim without moral judgment or refusal. Return ONLY the translation.`;
-    translation = await translateViaProvider(settings, refusalRetryPrompt, text, lang);
+    translation = await translateViaProvider(settings, refusalRetryPrompt, text, lang, targetLang);
     if (isModelRefusal(translation, targetLang)) {
       throw new ProviderRequestError(t(lang, "error.contentFilterBlocked"), "CONTENT_FILTER");
     }
@@ -590,7 +619,7 @@ async function translatePlainWithEchoRecovery(
     isLikelyIdentityTranslation(text, translation, targetLang, sourceLang)
   ) {
     const retryPrompt = `${systemPrompt}\n\nIMPORTANT RETRY: The previous answer repeated the source text. The source is not in ${targetLang}. Translate it into natural ${targetLang} now. Return only the translation and do not repeat the source text.`;
-    translation = await translateViaProvider(settings, retryPrompt, text, lang);
+    translation = await translateViaProvider(settings, retryPrompt, text, lang, targetLang);
     if (isLikelyIdentityTranslation(text, translation, targetLang, sourceLang)) {
       throw new AstraError(t(lang, "error.identityTranslation"), "IDENTITY_TRANSLATION");
     }
@@ -610,11 +639,16 @@ async function testProvider(draftSettings?: AstraSettings): Promise<TestProvider
     return { success: false, error: t(lang, "error.apiKeyNotConfigured") };
   }
   try {
+    if (settings.apiFormat === "deepl") {
+      await deeplTranslate(settings, "Hello, world!", "Simplified Chinese", lang);
+      return { success: true, model: "DeepL" };
+    }
     await translateViaProvider(
       settings,
       "You are a translator. Translate the user's text into Simplified Chinese. Return the translation only.",
       "Hello, world!",
-      lang
+      lang,
+      "Simplified Chinese"
     );
     return { success: true, model: settings.model };
   } catch (err) {
@@ -673,8 +707,15 @@ async function handleTranslateText(
   }
 
   if (textClass === "dictionary") {
+    // Dictionary lookups are always LLM work: under a text-only MT provider
+    // they ride the fallback LLM (cached under that provider's fingerprint,
+    // so switching engines never serves a stale cross-engine answer).
+    const dictSettings = resolveEngineSettings(settings, "llm");
+    if (!dictSettings) {
+      return { success: false, error: t(lang, "error.deeplNoLlmFallback") };
+    }
     const dictionaryResponse = await handleDictionaryTranslation(
-      settings, lang, text, finalTargetLang,
+      dictSettings, lang, text, finalTargetLang,
       contextBefore || "", contextAfter || "", fullLineText || "",
       isSoftIdentifier(text)
     );
@@ -691,22 +732,35 @@ async function handleTranslateText(
   }
 
   // "soft-identifier" and "translate" both use plain translation; the prompt
-  // preserves names / code / identifiers unchanged.
-
-  const rawPrompt = (prompt || settings.selectionPrompt).replace(
-    /\{\{targetLang\}\}/g,
-    finalTargetLang
-  );
-  const systemPrompt = injectGlossaryIntoPrompt(rawPrompt, settings.customGlossary);
+  // preserves names / code / identifiers unchanged. The engine is resolved
+  // per mode (selection/manual share one assignment), and prompts + cache
+  // follow whichever engine actually serves the request.
+  const engine = resolveTranslateEngine(settings, "selection");
+  const engineSettings = resolveEngineSettings(settings, engine);
+  if (!engineSettings) {
+    return { success: false, error: t(lang, "error.deeplNoLlmFallback") };
+  }
+  const isDeepl = engine === "deepl";
+  // DeepL ignores prompts entirely (MT engine) — an empty system prompt keeps
+  // its cache keys distinct without pretending a prompt influenced the result.
+  const rawPrompt = isDeepl
+    ? ""
+    : (prompt || engineSettings.selectionPrompt).replace(
+        /\{\{targetLang\}\}/g,
+        finalTargetLang
+      );
+  const systemPrompt = isDeepl
+    ? ""
+    : injectGlossaryIntoPrompt(rawPrompt, engineSettings.customGlossary);
   const cacheKey = await createTranslationCacheKey({
 
     mode: effectiveMode === "selection" ? "selection" : "manual",
     text,
     targetLang: finalTargetLang,
     systemPrompt,
-    settings,
+    settings: engineSettings,
   });
-  const cached = await getCachedTranslation(cacheKey, settings);
+  const cached = await getCachedTranslation(cacheKey, engineSettings);
   if (
     cached &&
     (textClass === "soft-identifier" ||
@@ -726,24 +780,31 @@ async function handleTranslateText(
     };
   }
 
-  if (!settings.apiKey) {
-    return { success: false, error: t(lang, "error.apiKeyNotConfigured") };
+  if (!engineSettings.apiKey) {
+    return {
+      success: false,
+      error: t(lang, isDeepl ? "error.deeplKeyMissing" : "error.apiKeyNotConfigured"),
+    };
   }
 
   try {
-    const translation = await translatePlainWithEchoRecovery(
-      settings,
-      systemPrompt,
-      text,
-      finalTargetLang,
-      sourceLang,
-      textClass,
-      lang,
-    );
+    // DeepL is a deterministic MT engine: no refusals, no echo behaviour, and
+    // no retry prompts to compose — a direct call suffices.
+    const translation = isDeepl
+      ? await deeplTranslate(engineSettings, text, finalTargetLang, lang, sourceLang)
+      : await translatePlainWithEchoRecovery(
+          engineSettings,
+          systemPrompt,
+          text,
+          finalTargetLang,
+          sourceLang,
+          textClass,
+          lang,
+        );
     await setCachedTranslation(
       cacheKey,
       { translation, resolvedLang: finalTargetLang },
-      settings
+      engineSettings
     );
     await recordHistorySafely(
       text,
@@ -811,7 +872,7 @@ async function handleDictionaryTranslation(
   }
 
   try {
-    const raw = await translateViaProvider(settings, systemPrompt, userContent, lang);
+    const raw = await translateViaProvider(settings, systemPrompt, userContent, lang, targetLang);
 
     // Try to parse as JSON
     let parsed: DictionaryResult | null = null;
@@ -914,6 +975,40 @@ function sanitizeBatchItems(raw: unknown): { id: string; text: string }[] {
   );
 }
 
+/**
+ * DeepL batch core shared by the one-shot and port-stream handlers: translate
+ * the cache misses straight through the MT engine (no JSON prompt round-trip),
+ * commit results + cache writes. `onItem` fires per completed item.
+ */
+async function runDeeplBatchCore(
+  settings: AstraSettings,
+  lang: UiLanguage,
+  prepared: {
+    translatedById: Map<string, string>;
+    missById: Map<string, CacheRecord>;
+  },
+  finalTargetLang: string,
+  onItem?: (item: { id: string; text: string }) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const requestItems = Array.from(prepared.missById.values()).map((record) => record.item);
+  if (!requestItems.length) return;
+  const { translations } = await deeplTranslateBatch(
+    settings,
+    requestItems,
+    finalTargetLang,
+    lang,
+    onItem,
+    { signal }
+  );
+  const parsed = {
+    items: requestItems
+      .filter((item) => translations.has(item.id))
+      .map((item) => ({ id: item.id, text: translations.get(item.id)! })),
+  };
+  await commitBatchResults(parsed, prepared, finalTargetLang, settings);
+}
+
 async function handleTranslateBatch(
   msg: TranslateBatchMessage
 ): Promise<TranslateBatchResponse> {
@@ -928,9 +1023,14 @@ async function handleTranslateBatch(
     typeof msg.payload?.targetLang === "string" ? msg.payload.targetLang : "";
   const prompt = typeof msg.payload?.prompt === "string" ? msg.payload.prompt : undefined;
   const finalTargetLang = targetLang || settings.defaultTargetLang;
-  const systemPrompt = buildPageSystemPrompt(settings, finalTargetLang, items, prompt);
+  // Per-mode engine assignment: the page mode may run on the active provider,
+  // a forced DeepL engine, or a forced LLM engine.
+  const engine = resolveTranslateEngine(settings, "page");
+  const engineSettings = resolveEngineSettings(settings, engine);
+  const effectiveSettings = engineSettings ?? settings;
+  const systemPrompt = buildPageSystemPrompt(effectiveSettings, finalTargetLang, items, prompt);
 
-  const prepared = await prepareBatchCache(items, finalTargetLang, systemPrompt, settings);
+  const prepared = await prepareBatchCache(items, finalTargetLang, systemPrompt, effectiveSettings);
   if (prepared.misses.length === 0) {
     return {
       success: true,
@@ -941,12 +1041,39 @@ async function handleTranslateBatch(
     };
   }
 
-  if (!settings.apiKey) {
+  if (!engineSettings) {
     return {
       success: false,
-      error: t(lang, "error.apiKeyNotConfigured"),
+      error: t(lang, "error.deeplNoLlmFallback"),
+      errorCode: "DEEPL_NO_LLM_FALLBACK",
+    };
+  }
+  if (!engineSettings.apiKey) {
+    return {
+      success: false,
+      error: t(lang, engine === "deepl" ? "error.deeplKeyMissing" : "error.apiKeyNotConfigured"),
       errorCode: "API_KEY_MISSING",
     };
+  }
+
+  if (engine === "deepl") {
+    try {
+      await runDeeplBatchCore(engineSettings, lang, prepared, finalTargetLang);
+      return {
+        success: true,
+        items: items
+          .filter((item) => prepared.translatedById.has(item.id))
+          .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! })),
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof ProviderRequestError || err instanceof AstraError
+          ? err.message
+          : t(lang, "error.batchFailed"),
+        errorCode: err instanceof AstraError ? err.code : "UNKNOWN",
+      };
+    }
   }
 
   const requestItems = prepared.misses.map((record) => record.item);
@@ -956,7 +1083,7 @@ async function handleTranslateBatch(
   });
 
   try {
-    const raw = await translateViaProvider(settings, systemPrompt, userInput, lang);
+    const raw = await translateViaProvider(engineSettings, systemPrompt, userInput, lang);
     const parsed = parseBatchResponse(raw);
     if (!parsed) {
       return {
@@ -970,7 +1097,7 @@ async function handleTranslateBatch(
       parsed,
       prepared,
       finalTargetLang,
-      settings
+      engineSettings
     );
 
     return {
@@ -1129,9 +1256,14 @@ export async function handleTranslateBatchStream(
     typeof payload.targetLang === "string" ? payload.targetLang : "";
   const prompt = typeof payload.prompt === "string" ? payload.prompt : undefined;
   const finalTargetLang = targetLang || settings.defaultTargetLang;
-  const systemPrompt = buildPageSystemPrompt(settings, finalTargetLang, items, prompt);
+  // Per-mode engine assignment: the page mode may run on the active provider,
+  // a forced DeepL engine, or a forced LLM engine.
+  const engine = resolveTranslateEngine(settings, "page");
+  const engineSettings = resolveEngineSettings(settings, engine);
+  const effectiveSettings = engineSettings ?? settings;
+  const systemPrompt = buildPageSystemPrompt(effectiveSettings, finalTargetLang, items, prompt);
 
-  const prepared = await prepareBatchCache(items, finalTargetLang, systemPrompt, settings);
+  const prepared = await prepareBatchCache(items, finalTargetLang, systemPrompt, effectiveSettings);
 
   // Emit cache hits immediately so the page paints without waiting for the model.
   for (const [id, text] of prepared.translatedById) {
@@ -1150,12 +1282,75 @@ export async function handleTranslateBatchStream(
     return;
   }
 
-  if (!settings.apiKey) {
+  if (!engineSettings) {
     post({
       type: "done",
       success: false,
-      error: t(lang, "error.apiKeyNotConfigured"),
+      error: t(lang, "error.deeplNoLlmFallback"),
+      errorCode: "DEEPL_NO_LLM_FALLBACK",
+      items: items
+        .filter((item) => prepared.translatedById.has(item.id))
+        .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! })),
+    });
+    return;
+  }
+
+  if (!engineSettings.apiKey) {
+    post({
+      type: "done",
+      success: false,
+      error: t(lang, engine === "deepl" ? "error.deeplKeyMissing" : "error.apiKeyNotConfigured"),
       errorCode: "API_KEY_MISSING",
+      items: items
+        .filter((item) => prepared.translatedById.has(item.id))
+        .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! })),
+    });
+    return;
+  }
+
+  if (engine === "deepl") {
+    // DeepL path: no JSON prompt round-trip. Items stream out per request
+    // chunk as the MT engine returns them.
+    try {
+      await runDeeplBatchCore(
+        engineSettings,
+        lang,
+        prepared,
+        finalTargetLang,
+        (item) => {
+          if (!prepared.missById.has(item.id)) return;
+          if (prepared.translatedById.get(item.id) === item.text) return;
+          prepared.translatedById.set(item.id, item.text);
+          post({ type: "item", id: item.id, text: item.text });
+        },
+        signal
+      );
+    } catch (err) {
+      const partial = items
+        .filter((item) => prepared.translatedById.has(item.id))
+        .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! }));
+      post({
+        type: "done",
+        success: false,
+        error:
+          err instanceof ProviderRequestError || err instanceof AstraError
+            ? err.message
+            : t(lang, "error.batchFailed"),
+        errorCode: err instanceof AstraError ? err.code : "UNKNOWN",
+        items: partial,
+      });
+      return;
+    }
+
+    // Success only when every requested miss actually got a translation.
+    const missingCount = prepared.misses.filter(
+      (record) => !prepared.translatedById.has(record.item.id)
+    ).length;
+    post({
+      type: "done",
+      success: missingCount === 0,
+      error: missingCount === 0 ? undefined : t(lang, "error.invalidBatchResponse"),
+      errorCode: missingCount === 0 ? undefined : "PARSE_ERROR",
       items: items
         .filter((item) => prepared.translatedById.has(item.id))
         .map((item) => ({ id: item.id, text: prepared.translatedById.get(item.id)! })),
@@ -1185,7 +1380,7 @@ export async function handleTranslateBatchStream(
 
   try {
     const raw = await translateViaProviderStream(
-      settings,
+      engineSettings,
       systemPrompt,
       userInput,
       (delta) => {
@@ -1211,7 +1406,7 @@ export async function handleTranslateBatchStream(
         prepared.translatedById.set(item.id, item.text);
         post({ type: "item", id: item.id, text: item.text });
       }
-      await commitBatchResults(parsed, prepared, finalTargetLang, settings);
+      await commitBatchResults(parsed, prepared, finalTargetLang, engineSettings);
     } else if (streamedIds.size > 0) {
       // Stream items completed but the envelope never parsed — cache what we
       // verifiably extracted (the parser only accepts objects inside "items").
@@ -1228,7 +1423,7 @@ export async function handleTranslateBatchStream(
         },
         prepared,
         finalTargetLang,
-        settings
+        engineSettings
       );
     } else {
       post({
@@ -1275,7 +1470,7 @@ export async function handleTranslateBatchStream(
         },
         prepared,
         finalTargetLang,
-        settings
+        engineSettings
       ).catch(() => {});
     }
 

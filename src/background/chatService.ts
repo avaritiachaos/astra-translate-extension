@@ -43,7 +43,7 @@ import {
 import { sliceForRegenerate } from "../shared/chatRegenerate";
 import { DEFAULT_CHAT_PROMPT } from "../shared/prompts";
 import { t, type UiLanguage } from "../shared/i18n";
-import { getSettings } from "../shared/storage";
+import { getSettings, resolveDeeplFallbackSettings } from "../shared/storage";
 import {
   chatViaProvider,
   chatViaProviderStream,
@@ -575,6 +575,19 @@ function createChatService(storageKey: string) {
   async function runChatExchange(opts: RunOpts): Promise<ChatResponse> {
     const settings = await getSettings();
     const lang: UiLanguage = settings.uiLanguage || "zh-CN";
+    // A text-only MT provider (DeepL) owns translation only — chat rides the
+    // fallback LLM provider (explicit user choice, else first configured key).
+    const effectiveSettings = settings.apiFormat === "deepl"
+      ? resolveDeeplFallbackSettings(settings)
+      : settings;
+    if (!effectiveSettings) {
+      return {
+        success: false,
+        error: t(lang, "error.deeplNoLlmFallback"),
+        errorCode: "DEEPL_NO_LLM_FALLBACK",
+        appended: false,
+      };
+    }
     const effort = normalizeChatEffort(opts.effort);
     const isRegenerate = !!opts.regenerate;
 
@@ -597,7 +610,7 @@ function createChatService(storageKey: string) {
     if (!isRegenerate && !text && (!images || images.length === 0)) {
       return { success: false, error: t(lang, "chat.failed"), appended: false };
     }
-    if (!settings.apiKey) {
+    if (!effectiveSettings.apiKey) {
       return {
         success: false,
         error: t(lang, "error.apiKeyNotConfigured"),
@@ -657,7 +670,7 @@ function createChatService(storageKey: string) {
       claim.wantSearch = false;
     }
 
-    return runExchange(claim, settings, lang, effort, opts);
+    return runExchange(claim, effectiveSettings, lang, effort, opts);
   }
 
   /** One-shot exchange (fallback path when the stream port is unavailable). */

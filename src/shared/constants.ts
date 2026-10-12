@@ -38,6 +38,18 @@ export const DEFAULT_PROVIDER_PRESETS: ProviderPreset[] = [
     supportsThinkingToggle: true,
   },
   {
+    id: "deepl",
+    name: "DeepL",
+    apiFormat: "deepl",
+    // Free-tier host by default; the client rewrites to api.deepl.com when the
+    // key is a Pro key (not ending in ":fx"). A custom Base URL (proxy) wins.
+    baseUrl: "https://api-free.deepl.com/v2",
+    endpoint: "/translate",
+    defaultModel: "deepl",
+    website: "https://www.deepl.com/en/your-account/keys",
+    textOnly: true,
+  },
+  {
     id: "custom-openai-compatible",
     name: "Custom OpenAI-compatible",
     apiFormat: "openai-compatible",

@@ -31,7 +31,7 @@ import {
   type AstraSettings,
 } from "../shared/types";
 import { DEFAULT_PROVIDER_PRESETS, STORAGE_KEY } from "../shared/constants";
-import { switchProviderSettings } from "../shared/storage";
+import { switchProviderSettings, resolveDeeplFallbackProviderId } from "../shared/storage";
 import {
   getChatEffortsForProvider,
   normalizeChatEffort,
@@ -86,6 +86,15 @@ let webSearchOn = false;
 let streamSeq = 0;
 let refreshEffortMenu: (() => void) | null = null;
 let refreshModelMenu: (() => void) | null = null;
+
+/** When DeepL is the active provider, chat actually runs on the fallback LLM
+ * provider — the reasoning-effort menu mirrors that provider's levels. */
+function chatEffortProviderId(): string {
+  if (cachedSettings && providerId === "deepl" && cachedSettings.apiFormat === "deepl") {
+    return resolveDeeplFallbackProviderId(cachedSettings) || providerId;
+  }
+  return providerId;
+}
 
 interface ChatRetryDraft {
   text: string;
@@ -1185,6 +1194,7 @@ function button(
 
 function getModelDisplayLabel(providerId?: string, model?: string): string {
   const norm = (model || "").toLowerCase();
+  if (providerId === "deepl") return "DeepL";
   if (providerId === "google-gemini" || norm.includes("gemini")) {
     if (norm.includes("3.8")) return "Gemini 3.8";
     if (!model || norm.includes("3.7")) return "Gemini 3.7";
@@ -1288,7 +1298,10 @@ function createModelMenu(): HTMLElement {
       const isVision = isVisionCapable(preset.id, modelName);
       const capBadge = document.createElement("span");
       capBadge.className = `${P}-cp-model-cap-badge ${P}-cp-model-cap-badge--${isVision ? "vision" : "text"}`;
-      capBadge.textContent = t(lang, isVision ? "chat.badgeVision" : "chat.badgeText");
+      capBadge.textContent = t(
+        lang,
+        preset.textOnly ? "chat.badgeTranslate" : isVision ? "chat.badgeVision" : "chat.badgeText",
+      );
       nameRow.appendChild(capBadge);
 
       if (!hasKey) {
@@ -1321,7 +1334,7 @@ function createModelMenu(): HTMLElement {
           const next = switchProviderSettings(cachedSettings, preset.id);
           cachedSettings = next;
           providerId = preset.id;
-          effort = normalizeChatEffort(effort, providerId);
+          effort = normalizeChatEffort(effort, chatEffortProviderId());
           await chrome.runtime
             .sendMessage({ type: "SAVE_SETTINGS", payload: next })
             .catch(() => {});
@@ -1422,7 +1435,7 @@ function createEffortMenu(): HTMLElement {
     triggerLabel.textContent = effort;
     trigger.setAttribute("aria-expanded", String(menu.style.display !== "none"));
     menu.innerHTML = "";
-    const list = getChatEffortsForProvider(providerId);
+    const list = getChatEffortsForProvider(chatEffortProviderId());
     list.forEach((level) => {
       const option = document.createElement("button");
       option.type = "button";

@@ -9,6 +9,7 @@ import {
   openAIChatStream,
   type ExtraRequestOptions,
 } from "./openAICompatibleClient.ts";
+import { deeplTranslate } from "./deeplClient.ts";
 
 export type { ChatMessage, ExtraRequestOptions };
 
@@ -17,6 +18,13 @@ function messagesOf(systemPrompt: string, userContent: string): ChatMessage[] {
     { role: "system", content: systemPrompt },
     { role: "user", content: userContent },
   ];
+}
+
+/** Target language used when a DeepL call site doesn't pass one explicitly. */
+function deeplTargetOf(settings: UserProviderSettings, targetLang?: string): string {
+  if (targetLang && targetLang.trim()) return targetLang;
+  const fallback = (settings as { defaultTargetLang?: string }).defaultTargetLang;
+  return fallback && fallback.trim() ? fallback : "Simplified Chinese";
 }
 
 /**
@@ -33,6 +41,11 @@ export async function chatViaProvider(
   switch (settings.apiFormat) {
     case "openai-compatible":
       return openAIChat(settings, messages, lang, extra);
+
+    case "deepl":
+      // DeepL has no chat surface. Callers (chatService) resolve a fallback
+      // LLM provider first; this guard catches any call site that forgets.
+      throw new Error(t(lang, "error.deeplTextOnly"));
 
     case "gemini-compatible":
       throw new Error(t(lang, "error.geminiNotImplemented"));
@@ -71,19 +84,25 @@ export async function chatViaProviderStream(
 
 /**
  * Unified translate function – dispatches to the correct provider client
- * based on the user's configured apiFormat.
+ * based on the user's configured apiFormat. `targetLang` is required by the
+ * DeepL path (MT has no prompt surface); LLM paths ignore it — the target
+ * language lives inside the system prompt.
  */
 export async function translateViaProvider(
   settings: UserProviderSettings,
   systemPrompt: string,
   userContent: string,
-  lang: UiLanguage = "zh-CN"
+  lang: UiLanguage = "zh-CN",
+  targetLang?: string
 ): Promise<string> {
   const messages = messagesOf(systemPrompt, userContent);
 
   switch (settings.apiFormat) {
     case "openai-compatible":
       return openAIChat(settings, messages, lang);
+
+    case "deepl":
+      return deeplTranslate(settings, userContent, deeplTargetOf(settings, targetLang), lang);
 
     case "gemini-compatible":
       throw new Error(t(lang, "error.geminiNotImplemented"));
@@ -106,7 +125,8 @@ export async function translateViaProviderStream(
   userContent: string,
   onDelta: (delta: string) => void,
   lang: UiLanguage = "zh-CN",
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  targetLang?: string
 ): Promise<string> {
   const messages = messagesOf(systemPrompt, userContent);
 
@@ -114,11 +134,14 @@ export async function translateViaProviderStream(
     case "openai-compatible":
       return openAIChatStream(settings, messages, onDelta, lang, signal);
 
+    case "deepl":
     case "gemini-compatible":
     case "anthropic-compatible":
     default: {
       // No stream path — emit full text once.
-      const full = await translateViaProvider(settings, systemPrompt, userContent, lang);
+      const full = await translateViaProvider(
+        settings, systemPrompt, userContent, lang, targetLang,
+      );
       if (full) onDelta(full);
       return full;
     }

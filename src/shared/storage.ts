@@ -2,7 +2,7 @@
 // Astra Translate – Chrome Storage Helpers
 // ============================================================
 
-import type { AstraSettings } from "./types";
+import type { AstraSettings, ConcreteTranslateEngine, UserProviderSettings } from "./types";
 import { STORAGE_KEY, DEFAULT_TARGET_LANG, DEFAULT_PROVIDER_PRESETS } from "./constants.ts";
 import {
   DEFAULT_SELECTION_PROMPT,
@@ -89,6 +89,9 @@ export function getDefaultSettings(): AstraSettings {
     liveTranslateFontSize: 20,
     liveTranslateBgOpacity: 80,
     liveTranslatePrompt: DEFAULT_LIVE_TRANSLATE_PROMPT,
+    deeplFallbackProviderId: "",
+    pageTranslateEngine: "provider",
+    selectionTranslateEngine: "provider",
 
     popupTabs: {
       chat: true,
@@ -216,5 +219,146 @@ export function switchProviderSettings(
     temperature: targetSaved?.temperature ?? settings.temperature,
     customHeaders: { ...(targetSaved?.customHeaders ?? {}) },
     providerConfigs: configs,
+  };
+}
+
+/**
+ * Build the full provider settings for an arbitrary preset WITHOUT switching
+ * the active provider — used by the DeepL fallback path (chat / dictionary
+ * keep running on an LLM provider while DeepL owns translation).
+ * Returns null when the preset id is unknown.
+ */
+export function resolveProviderSettingsById(
+  settings: AstraSettings,
+  presetId: string
+): UserProviderSettings | null {
+  const preset = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === presetId);
+  if (!preset) return null;
+  const saved = settings.providerConfigs?.[presetId];
+  return {
+    providerId: preset.id,
+    providerName: preset.name,
+    apiFormat: saved?.apiFormat ?? preset.apiFormat,
+    baseUrl: saved?.baseUrl ?? preset.baseUrl,
+    endpoint: saved?.endpoint ?? preset.endpoint,
+    apiKey: saved?.apiKey ?? "",
+    model: saved?.model ?? (preset.defaultModel || ""),
+    temperature: saved?.temperature ?? settings.temperature,
+    timeoutMs: settings.timeoutMs,
+    disableThinking:
+      saved?.disableThinking ?? (preset.supportsThinkingToggle ? false : true),
+    customHeaders: { ...(saved?.customHeaders ?? {}) },
+  };
+}
+
+/** True when the preset id refers to a real, LLM-capable (non-text-only) provider. */
+export function isLlmPresetId(presetId: string): boolean {
+  const preset = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === presetId);
+  return !!preset && preset.apiFormat === "openai-compatible";
+}
+
+/**
+ * Pick the LLM provider that serves chat / dictionary while a text-only MT
+ * provider (DeepL) is active. Preference order:
+ *   1. the explicit user choice (deeplFallbackProviderId) when it has a key;
+ *   2. the first LLM preset with a configured API key.
+ * Returns null when no LLM provider has a key — callers surface a clear error.
+ */
+export function resolveDeeplFallbackProviderId(
+  settings: Pick<AstraSettings, "deeplFallbackProviderId" | "providerConfigs">
+): string | null {
+  const configs = settings.providerConfigs || {};
+  const preferred = settings.deeplFallbackProviderId;
+  if (preferred && isLlmPresetId(preferred) && (configs[preferred]?.apiKey || "").trim()) {
+    return preferred;
+  }
+  for (const preset of DEFAULT_PROVIDER_PRESETS) {
+    if (preset.apiFormat !== "openai-compatible") continue;
+    if ((configs[preset.id]?.apiKey || "").trim()) return preset.id;
+  }
+  return null;
+}
+
+/**
+ * Full settings for the DeepL chat/dictionary fallback: the whole settings
+ * object with only the provider fields swapped to the fallback LLM provider
+ * (prompts, cache limits, UI language etc. stay global). Null when no LLM
+ * provider with an API key exists.
+ */
+export function resolveDeeplFallbackSettings(
+  settings: AstraSettings
+): AstraSettings | null {
+  const id = resolveDeeplFallbackProviderId(settings);
+  if (!id) return null;
+  const provider = resolveProviderSettingsById(settings, id);
+  if (!provider) return null;
+  return {
+    ...settings,
+    providerId: provider.providerId,
+    providerName: provider.providerName,
+    apiFormat: provider.apiFormat,
+    baseUrl: provider.baseUrl,
+    endpoint: provider.endpoint,
+    apiKey: provider.apiKey,
+    model: provider.model,
+    temperature: provider.temperature,
+    disableThinking: provider.disableThinking,
+    customHeaders: provider.customHeaders,
+  };
+}
+
+/**
+ * Resolve the engine actually serving a translation mode. A per-mode override
+ * ("llm"/"deepl") wins; "provider" (the default) resolves to the active
+ * preset's nature — a DeepL active provider serves MT, anything else serves
+ * the LLM path.
+ */
+export function resolveTranslateEngine(
+  settings: Pick<
+    AstraSettings,
+    "pageTranslateEngine" | "selectionTranslateEngine" | "apiFormat"
+  >,
+  mode: "page" | "selection"
+): ConcreteTranslateEngine {
+  const chosen =
+    (mode === "page"
+      ? settings.pageTranslateEngine
+      : settings.selectionTranslateEngine) || "provider";
+  if (chosen === "deepl") return "deepl";
+  if (chosen === "llm") return "llm";
+  return settings.apiFormat === "deepl" ? "deepl" : "llm";
+}
+
+/**
+ * Full settings for a resolved engine: the whole settings object with only
+ * the provider fields swapped to that engine's provider.
+ *  - "llm": the active preset when it is an LLM, else the fallback LLM
+ *    (null when no LLM provider with a key exists);
+ *  - "deepl": the DeepL preset config — returned even without a key so
+ *    callers can produce the precise "DeepL key missing" error.
+ */
+export function resolveEngineSettings(
+  settings: AstraSettings,
+  engine: ConcreteTranslateEngine
+): AstraSettings | null {
+  if (engine === "llm") {
+    return settings.apiFormat === "deepl"
+      ? resolveDeeplFallbackSettings(settings)
+      : settings;
+  }
+  const provider = resolveProviderSettingsById(settings, "deepl");
+  if (!provider) return null;
+  return {
+    ...settings,
+    providerId: provider.providerId,
+    providerName: provider.providerName,
+    apiFormat: provider.apiFormat,
+    baseUrl: provider.baseUrl,
+    endpoint: provider.endpoint,
+    apiKey: provider.apiKey,
+    model: provider.model,
+    temperature: provider.temperature,
+    disableThinking: provider.disableThinking,
+    customHeaders: provider.customHeaders,
   };
 }

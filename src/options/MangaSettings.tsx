@@ -174,8 +174,13 @@ export function MangaSettingsCard({
               onChange({ ...settings.manga, providerId: e.target.value })
             }
           >
-            <option value="current">
-              {t(lang, "manga.followCurrent", { provider: settings.providerName })}
+            <option
+              value="current"
+              disabled={settings.apiFormat !== "openai-compatible"}
+            >
+              {settings.apiFormat === "openai-compatible"
+                ? t(lang, "manga.followCurrent", { provider: settings.providerName })
+                : t(lang, "manga.followUnsupported", { provider: settings.providerName })}
             </option>
             {DEFAULT_PROVIDER_PRESETS.filter(
               (p) => p.apiFormat === "openai-compatible",

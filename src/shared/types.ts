@@ -9,7 +9,8 @@ import type { UiLanguage } from "./i18n";
 export type ProviderApiFormat =
   | "openai-compatible"
   | "gemini-compatible"
-  | "anthropic-compatible";
+  | "anthropic-compatible"
+  | "deepl";
 
 export interface ProviderPreset {
   id: string;
@@ -20,6 +21,10 @@ export interface ProviderPreset {
   defaultModel: string;
   website?: string;
   supportsThinkingToggle?: boolean;
+  /** True when the provider is a plain-text MT engine (e.g. DeepL):
+   * it serves selection/manual/page translation but cannot do chat,
+   * dictionary lookups, or vision — those fall back to an LLM provider. */
+  textOnly?: boolean;
 }
 
 export interface ProviderConfigItem {
@@ -151,7 +156,33 @@ export interface AstraSettings extends UserProviderSettings {
   liveTranslateFontSize: number;
   liveTranslateBgOpacity: number;
   liveTranslatePrompt: string;
+  /**
+   * LLM preset id used for chat / dictionary lookups while a text-only MT
+   * provider (DeepL) is active. Empty = auto-pick the first LLM provider
+   * that has an API key configured.
+   */
+  deeplFallbackProviderId: string;
+  /**
+   * Per-mode engine assignment. "provider" follows the active preset;
+   * "deepl" forces the DeepL MT engine; "llm" forces the LLM side (the
+   * active preset when it is an LLM, else the configured fallback LLM).
+   */
+  pageTranslateEngine: TranslateEngine;
+  /** Engine for selection + manual (popup) translation. */
+  selectionTranslateEngine: TranslateEngine;
 }
+
+/**
+ * Engine choice for a translation mode. Resolved at request time:
+ *  - "provider": whatever preset is active (back-compat default);
+ *  - "deepl": the DeepL MT engine (requires a DeepL key);
+ *  - "llm": the LLM side (active preset when it is an LLM, else the
+ *    fallback LLM configured for the DeepL flow).
+ */
+export type TranslateEngine = "provider" | "llm" | "deepl";
+
+/** A resolved engine — "provider" never survives resolution. */
+export type ConcreteTranslateEngine = "llm" | "deepl";
 
 export interface LiveSubtitleHistoryItem {
   id: string;
@@ -177,6 +208,7 @@ export type MessageType =
   | "SAVE_SETTINGS"
   | "TEST_PROVIDER"
   | "TEST_SEARCH"
+  | "LIST_PROVIDER_MODELS"
   | "TRANSLATE_TEXT"
   | "TRANSLATE_BATCH"
   | "GET_TRANSLATION_HISTORY"

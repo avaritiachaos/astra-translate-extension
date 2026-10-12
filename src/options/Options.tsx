@@ -1,7 +1,7 @@
 import { MangaSettingsCard } from "./MangaSettings";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import type { AstraSettings, ProviderApiFormat } from "../shared/types";
+import type { AstraSettings, ProviderApiFormat, TranslateEngine } from "../shared/types";
 import { t, type UiLanguage } from "../shared/i18n";
 import {
   DEFAULT_PROVIDER_PRESETS,
@@ -39,6 +39,10 @@ export default function Options() {
     hosts: Array<{ host: string; phrases: number }>;
   } | null>(null);
   const [clearingLexicon, setClearingLexicon] = useState(false);
+  // Upstream model list for the provider being edited (cc-switch style fetch).
+  const [providerModels, setProviderModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -84,6 +88,35 @@ export default function Options() {
     });
     refreshSiteStats();
   }, [refreshSiteStats]);
+
+  // A changed preset / endpoint / key invalidates a previously fetched list.
+  useEffect(() => {
+    setProviderModels([]);
+    setModelsError("");
+  }, [settings.providerId, settings.baseUrl, settings.apiKey]);
+
+  // Fetch the upstream /models list for the provider being edited (draft form
+  // state — the user may not have saved yet).
+  const loadProviderModels = useCallback(async () => {
+    setModelsLoading(true);
+    setModelsError("");
+    try {
+      const res = await chrome.runtime.sendMessage({
+        type: "LIST_PROVIDER_MODELS",
+        settings: settingsRef.current,
+      });
+      if (!res?.success) throw new Error(res?.error || t(lang, "manga.modelsFailed"));
+      if (!Array.isArray(res.models) || res.models.length === 0) {
+        throw new Error(t(lang, "manga.modelsEmpty"));
+      }
+      setProviderModels(res.models as string[]);
+    } catch (err) {
+      setProviderModels([]);
+      setModelsError(err instanceof Error ? err.message : t(lang, "manga.modelsFailed"));
+    } finally {
+      setModelsLoading(false);
+    }
+  }, [lang]);
 
   // Toast helper (defined early so scheduleSave can use it)
   const showToast = useCallback((msg: string) => {
@@ -396,6 +429,7 @@ export default function Options() {
   const selectedPreset = DEFAULT_PROVIDER_PRESETS.find(
     (p) => p.id === settings.providerId
   );
+  const isDeeplProvider = settings.apiFormat === "deepl";
 
   const SECTIONS: Array<{ id: string; labelKey: string }> = [
     { id: "sec-provider", labelKey: "opt.provider" },
@@ -464,6 +498,7 @@ export default function Options() {
             onChange={(e) => update("apiFormat", e.target.value as ProviderApiFormat)}
           >
             <option value="openai-compatible">OpenAI-compatible</option>
+            <option value="deepl">DeepL</option>
             <option value="gemini-compatible" disabled>
               {t(lang, "opt.geminiSoon")}
             </option>
@@ -471,6 +506,72 @@ export default function Options() {
               {t(lang, "opt.anthropicSoon")}
             </option>
           </select>
+        </div>
+
+        {isDeeplProvider && (
+          <>
+            <div className="ast-form-hint" style={{ marginBottom: 10 }}>
+              {t(lang, "opt.deeplHint")}
+            </div>
+            <div className="ast-form-group">
+              <label className="ast-form-label">{t(lang, "opt.deeplFallbackProvider")}</label>
+              <select
+                className="ast-form-select"
+                value={settings.deeplFallbackProviderId || ""}
+                onChange={(e) => update("deeplFallbackProviderId", e.target.value)}
+              >
+                <option value="">{t(lang, "opt.deeplFallbackAuto")}</option>
+                {DEFAULT_PROVIDER_PRESETS.filter(
+                  (p) => p.apiFormat === "openai-compatible",
+                ).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {settings.providerConfigs?.[p.id]?.apiKey ? " ✓" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
+
+        {/* Per-mode engine assignment — lives here so the preset's scope
+         * (which features actually use this card's key) is visible on the spot. */}
+        <div className="ast-form-row">
+          <div className="ast-form-group">
+            <label className="ast-form-label">{t(lang, "opt.pageEngine")}</label>
+            <select
+              className="ast-form-select"
+              value={settings.pageTranslateEngine || "provider"}
+              onChange={(e) => update("pageTranslateEngine", e.target.value as TranslateEngine)}
+            >
+              <option value="provider">{t(lang, "opt.engineProvider")}</option>
+              <option value="llm">{t(lang, "opt.engineLlm")}</option>
+              <option value="deepl">
+                {t(lang, "opt.engineDeepl")}
+                {settings.providerConfigs?.["deepl"]?.apiKey ? " ✓" : ""}
+              </option>
+            </select>
+          </div>
+          <div className="ast-form-group">
+            <label className="ast-form-label">{t(lang, "opt.selectionEngine")}</label>
+            <select
+              className="ast-form-select"
+              value={settings.selectionTranslateEngine || "provider"}
+              onChange={(e) => update("selectionTranslateEngine", e.target.value as TranslateEngine)}
+            >
+              <option value="provider">{t(lang, "opt.engineProvider")}</option>
+              <option value="llm">{t(lang, "opt.engineLlm")}</option>
+              <option value="deepl">
+                {t(lang, "opt.engineDeepl")}
+                {settings.providerConfigs?.["deepl"]?.apiKey ? " ✓" : ""}
+              </option>
+            </select>
+          </div>
+        </div>
+        <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 8, lineHeight: 1.8 }}>
+          <div>· {t(lang, "opt.engineHintProvider")}</div>
+          <div>· {t(lang, "opt.engineHintLlm")}</div>
+          <div>· {t(lang, "opt.engineHintDeepl")}</div>
         </div>
 
         <div className="ast-form-row">
@@ -510,16 +611,51 @@ export default function Options() {
         </div>
 
         <div className="ast-form-row">
-          <div className="ast-form-group">
-            <label className="ast-form-label">{t(lang, "opt.model")}</label>
-            <input
-              className="ast-form-input"
-              type="text"
-              value={settings.model}
-              onChange={(e) => update("model", e.target.value)}
-              placeholder={selectedPreset?.defaultModel || "gemini-3.7-flash"}
-            />
-          </div>
+          {!isDeeplProvider && (
+            <div className="ast-form-group">
+              <label className="ast-form-label">{t(lang, "opt.model")}</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  className="ast-form-input"
+                  type="text"
+                  value={settings.model}
+                  onChange={(e) => update("model", e.target.value)}
+                  placeholder={selectedPreset?.defaultModel || "gemini-3.7-flash"}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <button
+                  type="button"
+                  className="ast-btn ast-btn-secondary"
+                  style={{ whiteSpace: "nowrap", flexShrink: 0 }}
+                  onClick={() => void loadProviderModels()}
+                  disabled={modelsLoading}
+                  title={t(lang, "manga.modelListHint")}
+                >
+                  {modelsLoading ? t(lang, "manga.modelsLoading") : t(lang, "manga.loadModels")}
+                </button>
+              </div>
+              {providerModels.length > 0 && (
+                <select
+                  className="ast-form-select"
+                  style={{ marginTop: 8 }}
+                  value={providerModels.includes(settings.model) ? settings.model : ""}
+                  onChange={(e) => {
+                    if (e.target.value) update("model", e.target.value);
+                  }}
+                >
+                  <option value="" disabled>{t(lang, "opt.pickModel")}</option>
+                  {providerModels.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              )}
+              {modelsError && (
+                <div role="status" style={{ color: "var(--ast-error)", fontSize: 12, marginTop: 6 }}>
+                  {modelsError}
+                </div>
+              )}
+            </div>
+          )}
           <div className="ast-form-group">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <label className="ast-form-label" style={{ margin: 0 }}>{t(lang, "opt.apiKey")}</label>
@@ -540,7 +676,13 @@ export default function Options() {
                 type={showKey ? "text" : "password"}
                 value={settings.apiKey}
                 onChange={(e) => update("apiKey", e.target.value)}
-                placeholder={selectedPreset?.id === "google-gemini" ? "AIzaSy..." : "sk-..."}
+                placeholder={
+                  selectedPreset?.id === "google-gemini"
+                    ? "AIzaSy..."
+                    : isDeeplProvider
+                      ? "DeepL key (:fx = Free)"
+                      : "sk-..."
+                }
               />
               <button
                 className="ast-toggle-visibility"
@@ -706,21 +848,23 @@ export default function Options() {
               ))}
             </select>
           </div>
-          <div className="ast-form-group">
-            <label className="ast-form-label">{t(lang, "opt.temperature")}</label>
-            <input
-              className="ast-form-input"
-              type="number"
-              min="0"
-              max="2"
-              step="0.1"
-              value={settings.temperature}
-              onChange={(e) =>
-                update("temperature", parseFloat(e.target.value) || 0.2)
-              }
-            />
-            <div className="ast-form-hint">{t(lang, "opt.temperatureHint")}</div>
-          </div>
+          {!isDeeplProvider && (
+            <div className="ast-form-group">
+              <label className="ast-form-label">{t(lang, "opt.temperature")}</label>
+              <input
+                className="ast-form-input"
+                type="number"
+                min="0"
+                max="2"
+                step="0.1"
+                value={settings.temperature}
+                onChange={(e) =>
+                  update("temperature", parseFloat(e.target.value) || 0.2)
+                }
+              />
+              <div className="ast-form-hint">{t(lang, "opt.temperatureHint")}</div>
+            </div>
+          )}
         </div>
 
         {/* Smart Target Language */}
