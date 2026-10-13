@@ -1924,10 +1924,9 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
     document.removeEventListener("mousedown", onOutsideClick);
   };
 
-  // Auto-remove after 60 seconds (cleared when entering chat)
-  let autoRemoveTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-    if (dragPopup === el) { cleanup(); removeDragPopup(); }
-  }, 60000);
+  // No auto-close timer: the popup must stay open while the user reads long
+  // translations. Closing is always explicit — ✕ button, Escape, or a click
+  // outside (all wired below).
 
   // ---- Event handlers ----
   const popupAskBtn = el.querySelector(`.${BUBBLE_PREFIX}-popup-ask-btn`);
@@ -1936,10 +1935,6 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
     const src = el.querySelector(`.${BUBBLE_PREFIX}-popup-src`) as HTMLTextAreaElement | null;
     const trimmed = (src?.value || "").trim();
     if (!trimmed) return;
-    if (autoRemoveTimer) {
-      clearTimeout(autoRemoveTimer);
-      autoRemoveTimer = null;
-    }
     void openChatPanelInHost(trimmed, {
       host: el,
       onBack: () => {
@@ -2003,7 +1998,6 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
   // Escape to close
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
-      if (autoRemoveTimer) clearTimeout(autoRemoveTimer);
       cleanup();
       removeDragPopup();
     }
@@ -2014,7 +2008,6 @@ export async function showDraggablePopup(text: string, x: number, y: number): Pr
   const onOutsideClick = (e: MouseEvent) => {
     if (!dragPopup) return;
     if (dragPopup.contains(e.target as Node)) return;
-    if (autoRemoveTimer) clearTimeout(autoRemoveTimer);
     cleanup();
     removeDragPopup();
   };
