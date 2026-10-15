@@ -4,11 +4,11 @@
 
 /** Regex pattern matching models with native vision / multimodal capabilities. */
 const VISION_MODEL_PATTERN =
-  /(vision|-vl\b|vl-|4o\b|4o-mini|gpt-4-turbo|gemini|claude-3|claude-sonnet|claude-opus|qwen-vl|internvl|pixtral|llava|minicpm-v|cogvlm|deepseek-flash|janus)/i;
+  /(vision|-vl\b|vl-|4o\b|4o-mini|gpt-4-turbo|gemini|claude-3|claude-sonnet|claude-opus|qwen-vl|internvl|pixtral|llava|minicpm-v|cogvlm|deepseek-flash|deepseek-v4\.1|v4\.1-flash|janus)/i;
 
 /** Known text-only patterns even if part of a provider with multimodal models. */
 const TEXT_ONLY_PATTERN =
-  /(deepseek-chat|deepseek-reasoner|deepseek-v[0-9]|not-the-vision|llama|mistral-tiny|mistral-small|text-embedding|bge-)/i;
+  /(deepseek-chat|deepseek-reasoner|deepseek-v[1-3]\b|deepseek-v4-flash|not-the-vision|llama|mistral-tiny|mistral-small|text-embedding|bge-)/i;
 
 /**
  * Determine whether a provider/model combination supports multi-modal vision (image inputs).
@@ -23,6 +23,8 @@ export function isVisionCapable(providerId?: string, model?: string): boolean {
   // Model name matching takes precedence when specific model name is available
   if (normalizedModel) {
     if (
+      normalizedModel.includes("v4.1") ||
+      normalizedModel.includes("deepseek-v4.1") ||
       normalizedModel === "deepseek-flash" ||
       normalizedModel.includes("deepseek-vl") ||
       normalizedModel.includes("-vl") ||

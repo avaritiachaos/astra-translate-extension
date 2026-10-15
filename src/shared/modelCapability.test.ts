@@ -20,6 +20,8 @@ describe("modelCapability - isVisionCapable", () => {
   });
 
   it("detects DeepSeek multimodal models as vision-capable", () => {
+    assert.equal(isVisionCapable("deepseek", "deepseek-v4.1-flash"), true);
+    assert.equal(isVisionCapable("deepseek", "deepseek-v4.1"), true);
     assert.equal(isVisionCapable("deepseek", "deepseek-flash"), true);
     assert.equal(isVisionCapable("custom-openai-compatible", "deepseek-ai/deepseek-vl-7b-chat"), true);
   });

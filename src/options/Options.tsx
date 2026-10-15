@@ -534,46 +534,6 @@ export default function Options() {
           </>
         )}
 
-        {/* Per-mode engine assignment — lives here so the preset's scope
-         * (which features actually use this card's key) is visible on the spot. */}
-        <div className="ast-form-row">
-          <div className="ast-form-group">
-            <label className="ast-form-label">{t(lang, "opt.pageEngine")}</label>
-            <select
-              className="ast-form-select"
-              value={settings.pageTranslateEngine || "provider"}
-              onChange={(e) => update("pageTranslateEngine", e.target.value as TranslateEngine)}
-            >
-              <option value="provider">{t(lang, "opt.engineProvider")}</option>
-              <option value="llm">{t(lang, "opt.engineLlm")}</option>
-              <option value="deepl">
-                {t(lang, "opt.engineDeepl")}
-                {settings.providerConfigs?.["deepl"]?.apiKey ? " ✓" : ""}
-              </option>
-            </select>
-          </div>
-          <div className="ast-form-group">
-            <label className="ast-form-label">{t(lang, "opt.selectionEngine")}</label>
-            <select
-              className="ast-form-select"
-              value={settings.selectionTranslateEngine || "provider"}
-              onChange={(e) => update("selectionTranslateEngine", e.target.value as TranslateEngine)}
-            >
-              <option value="provider">{t(lang, "opt.engineProvider")}</option>
-              <option value="llm">{t(lang, "opt.engineLlm")}</option>
-              <option value="deepl">
-                {t(lang, "opt.engineDeepl")}
-                {settings.providerConfigs?.["deepl"]?.apiKey ? " ✓" : ""}
-              </option>
-            </select>
-          </div>
-        </div>
-        <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 8, lineHeight: 1.8 }}>
-          <div>· {t(lang, "opt.engineHintProvider")}</div>
-          <div>· {t(lang, "opt.engineHintLlm")}</div>
-          <div>· {t(lang, "opt.engineHintDeepl")}</div>
-        </div>
-
         <div className="ast-form-row">
           <div className="ast-form-group">
             <label className="ast-form-label">{t(lang, "opt.baseUrl")}</label>
@@ -802,6 +762,45 @@ export default function Options() {
       <div className="ast-card" id="sec-translation">
         <div className="ast-card-title">{t(lang, "opt.translation")}</div>
 
+        {/* Translation Engines */}
+        <div className="ast-form-row">
+          <div className="ast-form-group">
+            <label className="ast-form-label">{t(lang, "opt.pageEngine")}</label>
+            <select
+              className="ast-form-select"
+              value={settings.pageTranslateEngine || "provider"}
+              onChange={(e) => update("pageTranslateEngine", e.target.value as TranslateEngine)}
+            >
+              <option value="provider">{t(lang, "opt.engineProvider")}</option>
+              <option value="llm">{t(lang, "opt.engineLlm")}</option>
+              <option value="deepl">
+                {t(lang, "opt.engineDeepl")}
+                {settings.providerConfigs?.["deepl"]?.apiKey ? " ✓" : ""}
+              </option>
+            </select>
+          </div>
+          <div className="ast-form-group">
+            <label className="ast-form-label">{t(lang, "opt.selectionEngine")}</label>
+            <select
+              className="ast-form-select"
+              value={settings.selectionTranslateEngine || "provider"}
+              onChange={(e) => update("selectionTranslateEngine", e.target.value as TranslateEngine)}
+            >
+              <option value="provider">{t(lang, "opt.engineProvider")}</option>
+              <option value="llm">{t(lang, "opt.engineLlm")}</option>
+              <option value="deepl">
+                {t(lang, "opt.engineDeepl")}
+                {settings.providerConfigs?.["deepl"]?.apiKey ? " ✓" : ""}
+              </option>
+            </select>
+          </div>
+        </div>
+        <div className="ast-form-hint" style={{ marginTop: -4, marginBottom: 12, lineHeight: 1.8 }}>
+          <div>· {t(lang, "opt.engineHintProvider")}</div>
+          <div>· {t(lang, "opt.engineHintLlm")}</div>
+          <div>· {t(lang, "opt.engineHintDeepl")}</div>
+        </div>
+
         <div className="ast-form-row">
           <div className="ast-form-group">
             <label className="ast-form-label">{t(lang, "opt.defaultTargetLang")}</label>
@@ -848,7 +847,7 @@ export default function Options() {
               ))}
             </select>
           </div>
-          {!isDeeplProvider && (
+          {(!isDeeplProvider || settings.pageTranslateEngine === "llm" || settings.selectionTranslateEngine === "llm") && (
             <div className="ast-form-group">
               <label className="ast-form-label">{t(lang, "opt.temperature")}</label>
               <input

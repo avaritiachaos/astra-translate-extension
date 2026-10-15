@@ -201,7 +201,7 @@ npm run build
 
 | 分類 | 項目 | 既定値 | メモ |
 |------|------|--------|------|
-| プロバイダー | プリセット / Base URL / Endpoint / モデル / API Key | DeepSeek · `deepseek-v4-flash` / Gemini · `gemini-3.7-flash` | プロバイダーごとに個別保存 |
+| プロバイダー | プリセット / Base URL / Endpoint / モデル / API Key | DeepSeek · `deepseek-v4.1-flash` / Gemini · `gemini-3.7-flash` | プロバイダーごとに個別保存 |
 | プロバイダー | 思考オフ | オン | 思考対応モデルで高速＆節約 |
 | プロバイダー | ページ／選択・手動エンジン | 上のプリセットに従う | 機能ごとに LLM / DeepL を個別指派 |
 | プロバイダー | 辞書 / チャット用フォールバック LLM | 自動 | DeepL 選択中に辞書とチャットが使う LLM |

@@ -186,7 +186,7 @@ npm run build
 
 | 分类 | 设置项 | 默认值 | 说明 |
 |------|--------|--------|------|
-| 服务商 | 预设 / Base URL / Endpoint / 模型 / API Key | DeepSeek · `deepseek-v4-flash` / Gemini · `gemini-3.7-flash` | 各预设独立配置存储 |
+| 服务商 | 预设 / Base URL / Endpoint / 模型 / API Key | DeepSeek · `deepseek-v4.1-flash` / Gemini · `gemini-3.7-flash` | 各预设独立配置存储 |
 | 服务商 | 关闭思考 | 开 | 对支持思考的模型可关闭，提速省钱 |
 | 服务商 | 整页 / 划词·手动翻译引擎 | 跟随当前服务商 | 每个功能可单独指派 大模型 (LLM) / DeepL |
 | 服务商 | 词典 / 对话回退 LLM | 自动 | DeepL 激活时词典与对话使用的 LLM 服务商 |

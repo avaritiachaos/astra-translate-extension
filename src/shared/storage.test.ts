@@ -9,6 +9,8 @@ import {
   resolveProviderSettingsById,
   resolveTranslateEngine,
   resolveEngineSettings,
+  resolveChatProviderId,
+  resolveChatProviderSettings,
 } from "./storage.ts";
 import {
   DEFAULT_SELECTION_PROMPT,
@@ -158,6 +160,44 @@ describe("deepl fallback resolution", () => {
   it("resolveProviderSettingsById returns null for unknown presets", () => {
     const settings = getDefaultSettings();
     assert.equal(resolveProviderSettingsById(settings, "nope"), null);
+  });
+});
+
+describe("chat provider resolution", () => {
+  it("uses the active provider when it is an LLM", () => {
+    const settings = {
+      ...getDefaultSettings(),
+      providerId: "google-gemini",
+      apiFormat: "openai-compatible" as const,
+    };
+    assert.equal(resolveChatProviderId(settings), "google-gemini");
+  });
+
+  it("never selects DeepL for chat, resolving to fallback LLM instead", () => {
+    const settings = {
+      ...getDefaultSettings(),
+      providerId: "deepl",
+      apiFormat: "deepl" as const,
+      deeplFallbackProviderId: "google-gemini",
+      providerConfigs: {
+        "google-gemini": { apiKey: "AIza-gemini", model: "gemini-3.7-flash" },
+      },
+    };
+    assert.equal(resolveChatProviderId(settings), "google-gemini");
+    const chatProvider = resolveChatProviderSettings(settings);
+    assert.equal(chatProvider.providerId, "google-gemini");
+    assert.equal(chatProvider.model, "gemini-3.7-flash");
+  });
+
+  it("falls back to deepseek when no other LLM is configured under DeepL", () => {
+    const settings = {
+      ...getDefaultSettings(),
+      providerId: "deepl",
+      apiFormat: "deepl" as const,
+      deeplFallbackProviderId: "",
+      providerConfigs: {},
+    };
+    assert.equal(resolveChatProviderId(settings), "deepseek");
   });
 });
 

@@ -31,7 +31,13 @@ import {
   type AstraSettings,
 } from "../shared/types";
 import { DEFAULT_PROVIDER_PRESETS, STORAGE_KEY } from "../shared/constants";
-import { switchProviderSettings, resolveDeeplFallbackProviderId } from "../shared/storage";
+import {
+  switchProviderSettings,
+  resolveDeeplFallbackProviderId,
+  resolveChatProviderId,
+  resolveChatProviderSettings,
+  isLlmPresetId,
+} from "../shared/storage";
 import {
   getChatEffortsForProvider,
   normalizeChatEffort,
@@ -87,13 +93,8 @@ let streamSeq = 0;
 let refreshEffortMenu: (() => void) | null = null;
 let refreshModelMenu: (() => void) | null = null;
 
-/** When DeepL is the active provider, chat actually runs on the fallback LLM
- * provider — the reasoning-effort menu mirrors that provider's levels. */
 function chatEffortProviderId(): string {
-  if (cachedSettings && providerId === "deepl" && cachedSettings.apiFormat === "deepl") {
-    return resolveDeeplFallbackProviderId(cachedSettings) || providerId;
-  }
-  return providerId;
+  return resolveChatProviderId(cachedSettings);
 }
 
 interface ChatRetryDraft {
@@ -1206,6 +1207,7 @@ function getModelDisplayLabel(providerId?: string, model?: string): string {
     return model;
   }
   if (providerId === "deepseek" || norm.includes("deepseek")) {
+    if (norm.includes("4.1") || norm.includes("v4.1")) return "DeepSeek V4.1";
     if (!model || norm.includes("v4") || norm.includes("flash")) return "DeepSeek V4";
     if (norm.includes("chat") || norm.includes("v3")) return "DeepSeek V3";
     if (norm.includes("reasoner") || norm.includes("r1")) return "DeepSeek R1";
@@ -1260,9 +1262,11 @@ function createModelMenu(): HTMLElement {
   menu.style.display = "none";
 
   const renderMenu = () => {
-    const currentPreset = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === providerId);
-    const activeModel = cachedSettings?.model || currentPreset?.defaultModel || providerId;
-    const displayLabel = getModelDisplayLabel(providerId, activeModel);
+    const chatProviderId = resolveChatProviderId(cachedSettings);
+    const chatProvider = cachedSettings ? resolveChatProviderSettings(cachedSettings) : null;
+    const currentPreset = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === chatProviderId);
+    const activeModel = chatProvider?.model || currentPreset?.defaultModel || chatProviderId;
+    const displayLabel = getModelDisplayLabel(chatProviderId, activeModel);
     triggerLabel.textContent = displayLabel;
     trigger.title = `${t(lang, "chat.switchModel")}: ${activeModel}`;
     trigger.setAttribute("aria-expanded", String(menu.style.display !== "none"));
@@ -1273,13 +1277,14 @@ function createModelMenu(): HTMLElement {
     header.textContent = t(lang, "chat.switchModel");
     menu.appendChild(header);
 
-    DEFAULT_PROVIDER_PRESETS.forEach((preset) => {
-      const isSelected = preset.id === providerId;
+    const llmPresets = DEFAULT_PROVIDER_PRESETS.filter((p) => isLlmPresetId(p.id));
+    llmPresets.forEach((preset) => {
+      const isSelected = preset.id === chatProviderId;
       const savedConfig = cachedSettings?.providerConfigs?.[preset.id];
       const modelName = isSelected
-        ? cachedSettings?.model
+        ? activeModel
         : savedConfig?.model || preset.defaultModel || "";
-      const hasKey = isSelected ? !!cachedSettings?.apiKey : !!savedConfig?.apiKey;
+      const hasKey = isSelected ? !!chatProvider?.apiKey : !!savedConfig?.apiKey;
       const displaySub = getModelDisplayLabel(preset.id, modelName);
 
       const option = document.createElement("button");
@@ -1300,7 +1305,7 @@ function createModelMenu(): HTMLElement {
       capBadge.className = `${P}-cp-model-cap-badge ${P}-cp-model-cap-badge--${isVision ? "vision" : "text"}`;
       capBadge.textContent = t(
         lang,
-        preset.textOnly ? "chat.badgeTranslate" : isVision ? "chat.badgeVision" : "chat.badgeText",
+        isVision ? "chat.badgeVision" : "chat.badgeText",
       );
       nameRow.appendChild(capBadge);
 
@@ -1331,9 +1336,17 @@ function createModelMenu(): HTMLElement {
         event.preventDefault();
         event.stopPropagation();
         if (cachedSettings) {
-          const next = switchProviderSettings(cachedSettings, preset.id);
+          let next: AstraSettings;
+          if (cachedSettings.providerId === "deepl") {
+            next = {
+              ...cachedSettings,
+              deeplFallbackProviderId: preset.id,
+            };
+          } else {
+            next = switchProviderSettings(cachedSettings, preset.id);
+          }
           cachedSettings = next;
-          providerId = preset.id;
+          providerId = resolveChatProviderId(next);
           effort = normalizeChatEffort(effort, chatEffortProviderId());
           await chrome.runtime
             .sendMessage({ type: "SAVE_SETTINGS", payload: next })
@@ -1809,7 +1822,9 @@ function renderFooter(): void {
 
   const notice = panel.querySelector(`.${P}-cp-vision-notice`) as HTMLElement | null;
   if (notice) {
-    const isVision = isVisionCapable(providerId, cachedSettings?.model);
+    const chatPid = resolveChatProviderId(cachedSettings);
+    const chatPs = cachedSettings ? resolveChatProviderSettings(cachedSettings) : null;
+    const isVision = isVisionCapable(chatPid, chatPs?.model);
     if (stagedImages.length > 0 && !isVision) {
       notice.style.display = "block";
       notice.textContent = `ℹ️ ${t(lang, "chat.textOnlyNotice")}`;
@@ -2397,7 +2412,7 @@ async function prepareChatPanel(selectionText?: string): Promise<void> {
     const settings = await chrome.runtime.sendMessage({ type: "GET_SETTINGS" });
     if (settings) {
       cachedSettings = settings;
-      providerId = settings.providerId || "deepseek";
+      providerId = resolveChatProviderId(settings);
       lang = settings.uiLanguage || lang;
       autoAttachEnabled = settings.chatAutoAttachPage !== false;
       webSearchAvailable = !!settings.chatWebSearchEnabled;
@@ -2820,7 +2835,7 @@ function attachDragAndResize(
       const settingsChange = changes[STORAGE_KEY];
       if (settingsChange?.newValue) {
         cachedSettings = settingsChange.newValue as AstraSettings;
-        providerId = cachedSettings.providerId || "deepseek";
+        providerId = resolveChatProviderId(cachedSettings);
         effort = normalizeChatEffort(effort, providerId);
         refreshModelMenu?.();
         refreshEffortMenu?.();

@@ -191,7 +191,7 @@ The build output is in `dist/`. Load the `dist` folder following steps 2–4 abo
 
 | Group | Setting | Default | Notes |
 |-------|---------|---------|-------|
-| Provider | Preset / Base URL / Endpoint / Model / API Key | DeepSeek · `deepseek-v4-flash` / Gemini · `gemini-3.7-flash` | Isolated per preset |
+| Provider | Preset / Base URL / Endpoint / Model / API Key | DeepSeek · `deepseek-v4.1-flash` / Gemini · `gemini-3.7-flash` | Isolated per preset |
 | Provider | Disable thinking | On | Speeds up / saves cost on thinking-capable models |
 | Provider | Page / selection·manual engine | Follow provider preset | Assign each feature to LLM / DeepL individually |
 | Provider | Dictionary / chat fallback LLM | Auto | The LLM provider used by dictionary & chat while DeepL is active |

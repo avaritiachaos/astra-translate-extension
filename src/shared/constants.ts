@@ -33,7 +33,7 @@ export const DEFAULT_PROVIDER_PRESETS: ProviderPreset[] = [
     apiFormat: "openai-compatible",
     baseUrl: "https://api.deepseek.com",
     endpoint: "/chat/completions",
-    defaultModel: "deepseek-v4-flash",
+    defaultModel: "deepseek-v4.1-flash",
     website: "https://platform.deepseek.com",
     supportsThinkingToggle: true,
   },

@@ -706,41 +706,41 @@ async function handleTranslateText(
     };
   }
 
+  // The engine is resolved per mode (selection/manual share one assignment),
+  // and prompts + cache follow whichever engine actually serves the request.
+  const engine = resolveTranslateEngine(settings, "selection");
+  const isDeepl = engine === "deepl";
+
   if (textClass === "dictionary") {
-    // Dictionary lookups are always LLM work: under a text-only MT provider
-    // they ride the fallback LLM (cached under that provider's fingerprint,
-    // so switching engines never serves a stale cross-engine answer).
-    const dictSettings = resolveEngineSettings(settings, "llm");
-    if (!dictSettings) {
-      return { success: false, error: t(lang, "error.deeplNoLlmFallback") };
-    }
-    const dictionaryResponse = await handleDictionaryTranslation(
-      dictSettings, lang, text, finalTargetLang,
-      contextBefore || "", contextAfter || "", fullLineText || "",
-      isSoftIdentifier(text)
-    );
-    if (dictionaryResponse.success && dictionaryResponse.translation) {
-      await recordHistorySafely(
-        text,
-        dictionaryResponse.translation,
-        sourceLang,
-        finalTargetLang,
-        effectiveMode === "selection" ? "selection" : "manual",
+    // Dictionary lookups are LLM work: under DeepL or when no LLM fallback key is configured,
+    // gracefully fall through to plain translation rather than failing with an error.
+    const dictSettings = !isDeepl ? resolveEngineSettings(settings, "llm") : null;
+    if (dictSettings && dictSettings.apiKey) {
+      const dictionaryResponse = await handleDictionaryTranslation(
+        dictSettings, lang, text, finalTargetLang,
+        contextBefore || "", contextAfter || "", fullLineText || "",
+        isSoftIdentifier(text)
       );
+      if (dictionaryResponse.success && dictionaryResponse.translation) {
+        await recordHistorySafely(
+          text,
+          dictionaryResponse.translation,
+          sourceLang,
+          finalTargetLang,
+          effectiveMode === "selection" ? "selection" : "manual",
+        );
+        return dictionaryResponse;
+      }
     }
-    return dictionaryResponse;
+    // Graceful fall-through to plain translation (DeepL or plain LLM) below.
   }
 
-  // "soft-identifier" and "translate" both use plain translation; the prompt
-  // preserves names / code / identifiers unchanged. The engine is resolved
-  // per mode (selection/manual share one assignment), and prompts + cache
-  // follow whichever engine actually serves the request.
-  const engine = resolveTranslateEngine(settings, "selection");
+  // "soft-identifier" and "translate" (plus dictionary fall-through) use plain translation;
+  // the prompt preserves names / code / identifiers unchanged.
   const engineSettings = resolveEngineSettings(settings, engine);
   if (!engineSettings) {
     return { success: false, error: t(lang, "error.deeplNoLlmFallback") };
   }
-  const isDeepl = engine === "deepl";
   // DeepL ignores prompts entirely (MT engine) — an empty system prompt keeps
   // its cache keys distinct without pretending a prompt influenced the result.
   const rawPrompt = isDeepl

@@ -37,7 +37,7 @@ export function getDefaultSettings(): AstraSettings {
     baseUrl: "https://api.deepseek.com",
     endpoint: "/chat/completions",
     apiKey: "",
-    model: "deepseek-v4-flash",
+    model: "deepseek-v4.1-flash",
     temperature: 0.2,
     timeoutMs: 30000,
     disableThinking: true,
@@ -104,7 +104,7 @@ export function getDefaultSettings(): AstraSettings {
         apiKey: "",
         baseUrl: "https://api.deepseek.com",
         endpoint: "/chat/completions",
-        model: "deepseek-v4-flash",
+        model: "deepseek-v4.1-flash",
         disableThinking: true,
         temperature: 0.2,
         apiFormat: "openai-compatible",
@@ -167,6 +167,13 @@ export async function getSettings(): Promise<AstraSettings> {
   const savedPagePrompt = saved.pagePrompt?.trim();
   if (!savedPagePrompt || LEGACY_PAGE_PROMPTS.some((p) => p.trim() === savedPagePrompt)) {
     merged.pagePrompt = DEFAULT_PAGE_PROMPT;
+  }
+  // Auto-upgrade legacy default model "deepseek-v4-flash" to "deepseek-v4.1-flash"
+  if (merged.model === "deepseek-v4-flash") {
+    merged.model = "deepseek-v4.1-flash";
+  }
+  if (merged.providerConfigs?.deepseek?.model === "deepseek-v4-flash") {
+    merged.providerConfigs.deepseek.model = "deepseek-v4.1-flash";
   }
   return merged;
 }
@@ -277,6 +284,42 @@ export function resolveDeeplFallbackProviderId(
     if ((configs[preset.id]?.apiKey || "").trim()) return preset.id;
   }
   return null;
+}
+
+/**
+ * Pick the active LLM provider id for Chat mode.
+ * Chat is an LLM surface and never runs on DeepL. If the active provider is
+ * DeepL, Chat resolves to the fallback LLM (or deepseek default).
+ */
+export function resolveChatProviderId(
+  settings: Pick<
+    AstraSettings,
+    "providerId" | "apiFormat" | "deeplFallbackProviderId" | "providerConfigs"
+  > | null
+): string {
+  if (!settings) return "deepseek";
+  if (settings.apiFormat === "openai-compatible" && isLlmPresetId(settings.providerId)) {
+    return settings.providerId;
+  }
+  if (settings.deeplFallbackProviderId && isLlmPresetId(settings.deeplFallbackProviderId)) {
+    return settings.deeplFallbackProviderId;
+  }
+  return resolveDeeplFallbackProviderId(settings) || "deepseek";
+}
+
+/**
+ * Return the provider settings currently active for Chat.
+ * If the active provider is an LLM, returns settings. If it is DeepL,
+ * resolves to the LLM fallback provider settings.
+ */
+export function resolveChatProviderSettings(
+  settings: AstraSettings
+): UserProviderSettings {
+  const chatId = resolveChatProviderId(settings);
+  if (settings.providerId === chatId) {
+    return settings;
+  }
+  return resolveProviderSettingsById(settings, chatId) || settings;
 }
 
 /**

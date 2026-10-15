@@ -1,6 +1,6 @@
 import type { AstraSettings, UserProviderSettings } from "../types";
 import { DEFAULT_PROVIDER_PRESETS } from "../constants.ts";
-import { switchProviderSettings } from "../storage.ts";
+import { switchProviderSettings, resolveDeeplFallbackProviderId } from "../storage.ts";
 import { isVisionCapable } from "../modelCapability.ts";
 import { t } from "../i18n.ts";
 
@@ -24,7 +24,12 @@ export function resolveMangaConfiguration(settings: AstraSettings, options: { re
 } {
   const manga = settings.manga;
   const followsCurrent = manga?.providerId === "current";
-  const targetId = followsCurrent ? settings.providerId : typeof manga?.providerId === "string" ? manga.providerId : "";
+  let targetId = followsCurrent ? settings.providerId : typeof manga?.providerId === "string" ? manga.providerId : "";
+  // When following current provider but the current provider is a text-only MT engine (DeepL),
+  // manga requires a vision LLM. Fall back to the fallback LLM or first OpenAI-compatible provider with a key.
+  if (followsCurrent && settings.apiFormat === "deepl") {
+    targetId = resolveDeeplFallbackProviderId(settings) || "google-gemini";
+  }
   const preset = DEFAULT_PROVIDER_PRESETS.find(p => p.id === targetId);
   const isCurrent = targetId === settings.providerId;
   const provider = isCurrent ? { ...settings } : switchProviderSettings(settings, targetId);

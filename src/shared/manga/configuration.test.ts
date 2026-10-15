@@ -223,4 +223,22 @@ describe("manga model selection defaults", () => {
     assert.equal(status.modelId, "custom-override-vision");
     assert.equal(status.isModelInherited, false);
   });
+  it("falls back to OpenAI-compatible LLM when main provider is DeepL and manga provider is current", () => {
+    const settings = configured();
+    settings.providerId = "deepl";
+    settings.apiFormat = "deepl" as const;
+    settings.deeplFallbackProviderId = "google-gemini";
+    settings.manga.providerId = "current";
+    settings.manga.modelId = "gemini-3.7-flash";
+    settings.providerConfigs = {
+      "google-gemini": {
+        apiKey: "AIza-gemini",
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      },
+    };
+    const { status, provider } = resolveMangaConfiguration(settings);
+    assert.equal(status.ready, true);
+    assert.equal(provider.providerId, "google-gemini");
+    assert.equal(provider.apiFormat, "openai-compatible");
+  });
 });

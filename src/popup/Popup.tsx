@@ -4,7 +4,14 @@ import type { MangaThinkingEffort } from "../shared/manga/types";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { DEFAULT_PROVIDER_PRESETS, SUPPORTED_LANGUAGES } from "../shared/constants";
-import { saveSettings, switchProviderSettings, resolveDeeplFallbackProviderId } from "../shared/storage";
+import {
+  saveSettings,
+  switchProviderSettings,
+  resolveDeeplFallbackProviderId,
+  resolveChatProviderId,
+  resolveChatProviderSettings,
+  isLlmPresetId,
+} from "../shared/storage";
 import { t, type UiLanguage } from "../shared/i18n";
 import type {
   AstraSettings,
@@ -224,6 +231,7 @@ export function getModelDisplayLabel(providerId?: string, model?: string): strin
     return model;
   }
   if (providerId === "deepseek" || norm.includes("deepseek")) {
+    if (norm.includes("4.1") || norm.includes("v4.1")) return "DeepSeek V4.1";
     if (!model || norm.includes("v4") || norm.includes("flash")) return "DeepSeek V4";
     if (norm.includes("chat") || norm.includes("v3")) return "DeepSeek V3";
     if (norm.includes("reasoner") || norm.includes("r1")) return "DeepSeek R1";
@@ -256,9 +264,10 @@ function ChatModelMenu({
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const currentProviderId = settings?.providerId || "deepseek";
+  const currentProviderId = resolveChatProviderId(settings);
+  const chatProvider = settings ? resolveChatProviderSettings(settings) : null;
   const currentModel =
-    settings?.model ||
+    chatProvider?.model ||
     DEFAULT_PROVIDER_PRESETS.find((p) => p.id === currentProviderId)?.defaultModel ||
     currentProviderId;
 
@@ -282,6 +291,8 @@ function ChatModelMenu({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
+
+  const llmPresets = DEFAULT_PROVIDER_PRESETS.filter((p) => isLlmPresetId(p.id));
 
   return (
     <div className="ast-chat-model-wrap" ref={rootRef}>
@@ -338,15 +349,16 @@ function ChatModelMenu({
           aria-label={t(lang, "chat.switchModel")}
         >
           <div className="ast-chat-model-header">{t(lang, "chat.switchModel")}</div>
-          {DEFAULT_PROVIDER_PRESETS.map((preset) => {
+          {llmPresets.map((preset) => {
             const isSelected = preset.id === currentProviderId;
             const savedConfig = settings?.providerConfigs?.[preset.id];
             const activeModel = isSelected
-              ? settings?.model
+              ? currentModel
               : savedConfig?.model || preset.defaultModel || "";
-            const hasKey = isSelected ? !!settings?.apiKey : !!savedConfig?.apiKey;
+            const hasKey = isSelected
+              ? !!chatProvider?.apiKey
+              : !!savedConfig?.apiKey;
             const displaySub = getModelDisplayLabel(preset.id, activeModel);
-
             const isVision = isVisionCapable(preset.id, activeModel);
 
             return (
@@ -366,19 +378,13 @@ function ChatModelMenu({
                 <div className="ast-chat-model-info">
                   <div className="ast-chat-model-name">
                     {preset.name}
-                    {preset.textOnly ? (
-                      <span className="ast-chat-model-cap-badge ast-chat-model-cap-badge--text">
-                        {t(lang, "chat.badgeTranslate")}
-                      </span>
-                    ) : (
-                      <span
-                        className={`ast-chat-model-cap-badge ast-chat-model-cap-badge--${
-                          isVision ? "vision" : "text"
-                        }`}
-                      >
-                        {t(lang, isVision ? "chat.badgeVision" : "chat.badgeText")}
-                      </span>
-                    )}
+                    <span
+                      className={`ast-chat-model-cap-badge ast-chat-model-cap-badge--${
+                        isVision ? "vision" : "text"
+                      }`}
+                    >
+                      {t(lang, isVision ? "chat.badgeVision" : "chat.badgeText")}
+                    </span>
                     {!hasKey && (
                       <span
                         className="ast-chat-model-badge"
@@ -416,14 +422,12 @@ function ChatModelMenu({
 type PopupMode = "translate" | "manga" | "chat" | "live";
 
 /**
- * Provider whose reasoning-effort levels apply to chat: when a text-only MT
- * provider (DeepL) is active, chat actually runs on the fallback LLM, so the
- * effort menu mirrors that provider's levels.
+ * Provider whose reasoning-effort levels apply to chat:
+ * Chat always runs on an LLM provider, resolving to fallback LLM when DeepL is active.
  */
 function chatEffortProviderId(settings: AstraSettings | null): string | undefined {
   if (!settings) return undefined;
-  if (settings.apiFormat !== "deepl") return settings.providerId;
-  return resolveDeeplFallbackProviderId(settings) || undefined;
+  return resolveChatProviderId(settings);
 }
 
 export default function Popup() {
@@ -1039,6 +1043,7 @@ export default function Popup() {
   // ---- Chat mode actions ----
 
   const switchMode = useCallback((next: PopupMode) => {
+    setHistoryOpen(false);
     setMode(next);
     try {
       sessionStorage.setItem(POPUP_MODE_STORAGE_KEY, next);
@@ -1299,9 +1304,19 @@ export default function Popup() {
   const handleModelSwitch = useCallback(
     async (presetId: string) => {
       if (!settings) return;
-      const next = switchProviderSettings(settings, presetId);
+      let next: AstraSettings;
+      if (settings.providerId === "deepl") {
+        // When DeepL is the active translation provider, keep DeepL as global provider
+        // and switch the fallback LLM used for Chat / reasoning without overwriting translation.
+        next = {
+          ...settings,
+          deeplFallbackProviderId: presetId,
+        };
+      } else {
+        next = switchProviderSettings(settings, presetId);
+      }
       setSettings(next);
-      const nextEffort = normalizeChatEffort(chatEffort, chatEffortProviderId(next));
+      const nextEffort = normalizeChatEffort(chatEffort, resolveChatProviderId(next));
       setChatEffort(nextEffort);
       try {
         await chrome.runtime.sendMessage({
@@ -1310,9 +1325,10 @@ export default function Popup() {
         });
         await chrome.storage.session?.set({ [CHAT_EFFORT_SESSION_KEY]: nextEffort });
         const preset = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === presetId);
+        const switchedConfig = next.providerConfigs?.[presetId];
         const displayLabel = getModelDisplayLabel(
           presetId,
-          next.model || preset?.defaultModel || ""
+          (presetId === next.providerId ? next.model : switchedConfig?.model) || preset?.defaultModel || ""
         );
         showToast(
           t(lang, "chat.modelSwitched", {
@@ -1552,22 +1568,24 @@ export default function Popup() {
                 </svg>
               </button>
             )}
-            <button
-              type="button"
-              className={`ast-popup-history-btn ${historyOpen ? "ast-popup-history-btn--active" : ""}`}
-              onClick={() => setHistoryOpen((open) => !open)}
-              aria-expanded={historyOpen}
-              aria-pressed={historyOpen}
-              aria-controls="ast-history-panel"
-              aria-label={t(lang, "popup.historyToggle")}
-              title={t(lang, "popup.historyToggle")}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M3 12a9 9 0 1 0 3-6.7" />
-                <path d="M3 4v6h6" />
-                <path d="M12 7v5l3 2" />
-              </svg>
-            </button>
+            {mode === "translate" && (
+              <button
+                type="button"
+                className={`ast-popup-history-btn ${historyOpen ? "ast-popup-history-btn--active" : ""}`}
+                onClick={() => setHistoryOpen((open) => !open)}
+                aria-expanded={historyOpen}
+                aria-pressed={historyOpen}
+                aria-controls="ast-history-panel"
+                aria-label={t(lang, "popup.historyToggle")}
+                title={t(lang, "popup.historyToggle")}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M3 12a9 9 0 1 0 3-6.7" />
+                  <path d="M3 4v6h6" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+              </button>
+            )}
             <button
               type="button"
               className="ast-popup-settings-btn"
@@ -1579,7 +1597,7 @@ export default function Popup() {
           </div>
         </div>
 
-        {historyOpen && (
+        {historyOpen && mode === "translate" && (
           <div
             id="ast-history-panel"
             className="ast-history-panel"
@@ -2205,7 +2223,11 @@ export default function Popup() {
               </div>
             )}
 
-            {chatImages.length > 0 && !isVisionCapable(settings?.providerId, settings?.model) && (
+            {chatImages.length > 0 &&
+              !isVisionCapable(
+                resolveChatProviderId(settings),
+                (settings ? resolveChatProviderSettings(settings) : null)?.model
+              ) && (
               <div className="ast-chat-vision-notice">
                 <span>ℹ️</span>
                 <span>{t(lang, "chat.textOnlyNotice")}</span>
