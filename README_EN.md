@@ -101,8 +101,9 @@ Select text and click 💬, or right-click the floating ball and pick "Ask AI ab
 DeepL joins as the 4th provider preset, alongside Gemini / DeepSeek / custom LLMs:
 
 - **Plain-text machine translation** — selection / manual / page translation can run on DeepL: the free tier covers 500,000 characters/month and keys ending in `:fx` automatically use the free endpoint; page translation maps DeepL's text array 1:1 in input order, with no JSON parse errors, refusals, or echoes
-- **Per-feature engine assignment** — "Page Translation Engine" and "Selection / Manual Engine" are two independent dropdowns, each offering: Follow provider preset / LLM / DeepL; e.g. DeepL active + page translation on the LLM keeps streaming and full-batch context, and the reverse works too
-- **Automatic dictionary & chat fallback** — DeepL has no dictionary or chat surface; those features automatically use your fallback LLM provider (selectable; defaults to the first configured key)
+- **Per-feature engine assignment** — "Page Translation Engine" and "Selection / Manual Engine" are two independent dropdowns, each offering: Follow main provider preset / LLM / DeepL; e.g. DeepL active + page translation on the LLM keeps streaming and full-batch context, and the reverse works too
+- **Automatic dictionary fallback** — DeepL has no dictionary surface; word lookups automatically use your fallback LLM provider (selectable; defaults to the first configured key). With no LLM available they degrade to a plain DeepL translation instead of failing with an error
+- **Chat fully decoupled from translation** — AI chat runs on an LLM only: DeepL never appears in the chat model menu and the menu never names a provider you have not configured. Switching the chat model affects chat alone and never rewrites the provider that serves page / selection translation
 - **Per-engine cache isolation** — LLM and DeepL translations cache under separate fingerprints, so switching engines never cross-contaminates
 - **Fetch upstream model list** — for LLM providers, fill in the key + base URL and load the `/models` list to pick a model directly
 - **Manga isolation** — manga translation needs an image-capable LLM (Gemini recommended); DeepL never appears in manga provider options
@@ -193,8 +194,9 @@ The build output is in `dist/`. Load the `dist` folder following steps 2–4 abo
 |-------|---------|---------|-------|
 | Provider | Preset / Base URL / Endpoint / Model / API Key | DeepSeek · `deepseek-v4.1-flash` / Gemini · `gemini-3.7-flash` | Isolated per preset |
 | Provider | Disable thinking | On | Speeds up / saves cost on thinking-capable models |
-| Provider | Page / selection·manual engine | Follow provider preset | Assign each feature to LLM / DeepL individually |
-| Provider | Dictionary / chat fallback LLM | Auto | The LLM provider used by dictionary & chat while DeepL is active |
+| Provider | Page / selection·manual engine | Follow main provider | Assign each feature to LLM / DeepL individually |
+| Provider | Dictionary / translation fallback LLM | Auto | The LLM provider used by dictionary & translation engines while DeepL is active |
+| Chat | Chat model | Follows main provider | Chosen in the chat model menu; never changes the translation provider |
 | Provider | Load available models | — | One-click `/models` fetch for LLM providers after key + URL |
 | Search | Serper API Key | Empty | Web search supplement with connection test & visibility toggle |
 | Translation | Default / Page / Selection target language | Simplified Chinese | Three independent settings |

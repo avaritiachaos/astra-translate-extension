@@ -1672,6 +1672,16 @@ body.ast-popup-chat-mode #root,
   outline: none;
 }
 
+/* A provider without a key cannot serve chat, so it is listed but not selectable. */
+.ast-chat-model-option--disabled,
+.ast-chat-model-option--disabled:hover,
+.ast-chat-model-option--disabled:focus-visible {
+  background: transparent;
+  color: var(--ast-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .ast-chat-model-info {
   display: flex;
   flex-direction: column;

@@ -32,8 +32,6 @@ import {
 } from "../shared/types";
 import { DEFAULT_PROVIDER_PRESETS, STORAGE_KEY } from "../shared/constants";
 import {
-  switchProviderSettings,
-  resolveDeeplFallbackProviderId,
   resolveChatProviderId,
   resolveChatProviderSettings,
   isLlmPresetId,
@@ -86,15 +84,15 @@ let chatStorageKey: string | null = null;
 /** One-shot page supplement for a selected-text question; never persisted. */
 let supplementPage = false;
 let effort: ChatEffort = "high";
-let providerId = "deepseek";
+let providerId: string | null = null;
 let cachedSettings: AstraSettings | null = null;
 let webSearchOn = false;
 let streamSeq = 0;
 let refreshEffortMenu: (() => void) | null = null;
 let refreshModelMenu: (() => void) | null = null;
 
-function chatEffortProviderId(): string {
-  return resolveChatProviderId(cachedSettings);
+function chatEffortProviderId(): string | undefined {
+  return resolveChatProviderId(cachedSettings) ?? undefined;
 }
 
 interface ChatRetryDraft {
@@ -820,6 +818,14 @@ function injectStyles(): void {
       background: ${C.primarySoft};
       color: ${C.primary};
     }
+    /* A provider without a key cannot serve chat: listed, not selectable. */
+    .${P}-cp-model-option--disabled,
+    .${P}-cp-model-option--disabled:hover {
+      background: transparent;
+      color: ${C.textMuted};
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
     .${P}-cp-model-info {
       display: flex;
       flex-direction: column;
@@ -1261,14 +1267,39 @@ function createModelMenu(): HTMLElement {
   menu.setAttribute("role", "listbox");
   menu.style.display = "none";
 
+  /**
+   * Pin chat to a provider id ("" = follow the main provider) and persist it.
+   * Chat has its own provider choice, so this never rewrites the provider that
+   * serves page / selection translation.
+   */
+  const applyChatProvider = async (presetId: string) => {
+    if (!cachedSettings) return;
+    const next: AstraSettings = { ...cachedSettings, chatProviderId: presetId };
+    cachedSettings = next;
+    providerId = resolveChatProviderId(next);
+    effort = normalizeChatEffort(effort, chatEffortProviderId());
+    await chrome.runtime
+      .sendMessage({ type: "SAVE_SETTINGS", payload: next })
+      .catch(() => {});
+    await chrome.storage.session
+      ?.set({ [CHAT_EFFORT_SESSION_KEY]: effort })
+      .catch(() => {});
+    setOpen(false);
+    refreshEffortMenu?.();
+    renderMenu();
+    renderFooter();
+  };
+
   const renderMenu = () => {
     const chatProviderId = resolveChatProviderId(cachedSettings);
     const chatProvider = cachedSettings ? resolveChatProviderSettings(cachedSettings) : null;
     const currentPreset = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === chatProviderId);
-    const activeModel = chatProvider?.model || currentPreset?.defaultModel || chatProviderId;
-    const displayLabel = getModelDisplayLabel(chatProviderId, activeModel);
+    const activeModel = chatProvider?.model || currentPreset?.defaultModel || "";
+    const displayLabel = chatProviderId
+      ? getModelDisplayLabel(chatProviderId, activeModel)
+      : t(lang, "chat.modelUnconfigured");
     triggerLabel.textContent = displayLabel;
-    trigger.title = `${t(lang, "chat.switchModel")}: ${activeModel}`;
+    trigger.title = `${t(lang, "chat.switchModel")}: ${activeModel || displayLabel}`;
     trigger.setAttribute("aria-expanded", String(menu.style.display !== "none"));
     menu.innerHTML = "";
 
@@ -1277,21 +1308,65 @@ function createModelMenu(): HTMLElement {
     header.textContent = t(lang, "chat.switchModel");
     menu.appendChild(header);
 
+    // Un-pins the chat model so it tracks the main provider again.
+    {
+      const followsMain = !cachedSettings?.chatProviderId;
+      const inherited = cachedSettings
+        ? resolveChatProviderSettings({ ...cachedSettings, chatProviderId: "" })
+        : null;
+      const followOption = document.createElement("button");
+      followOption.type = "button";
+      followOption.className = `${P}-cp-model-option${followsMain ? ` ${P}-cp-model-option--selected` : ""}${inherited ? "" : ` ${P}-cp-model-option--disabled`}`;
+      followOption.setAttribute("role", "option");
+      followOption.setAttribute("aria-selected", String(followsMain));
+      followOption.disabled = !inherited;
+
+      const followInfo = document.createElement("div");
+      followInfo.className = `${P}-cp-model-info`;
+      const followName = document.createElement("div");
+      followName.className = `${P}-cp-model-name`;
+      followName.textContent = t(lang, "chat.followMainProvider");
+      const followSub = document.createElement("div");
+      followSub.className = `${P}-cp-model-sub`;
+      followSub.textContent = inherited
+        ? getModelDisplayLabel(inherited.providerId, inherited.model)
+        : t(lang, "chat.modelUnconfigured");
+      followInfo.append(followName, followSub);
+      followOption.appendChild(followInfo);
+      if (followsMain) {
+        const followCheck = document.createElement("span");
+        followCheck.className = `${P}-cp-effort-check`;
+        followCheck.textContent = "✓";
+        followOption.appendChild(followCheck);
+      }
+      followOption.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (inherited) await applyChatProvider("");
+      });
+      menu.appendChild(followOption);
+    }
+
     const llmPresets = DEFAULT_PROVIDER_PRESETS.filter((p) => isLlmPresetId(p.id));
     llmPresets.forEach((preset) => {
-      const isSelected = preset.id === chatProviderId;
+      // `effective` drives the model/key shown; `pinned` drives the tick, so
+      // "follow main provider" and a concrete provider never both look chosen.
+      const effective = preset.id === chatProviderId;
+      const pinned = cachedSettings?.chatProviderId === preset.id;
       const savedConfig = cachedSettings?.providerConfigs?.[preset.id];
-      const modelName = isSelected
+      const modelName = effective
         ? activeModel
         : savedConfig?.model || preset.defaultModel || "";
-      const hasKey = isSelected ? !!chatProvider?.apiKey : !!savedConfig?.apiKey;
+      const hasKey = effective ? !!chatProvider?.apiKey : !!savedConfig?.apiKey;
       const displaySub = getModelDisplayLabel(preset.id, modelName);
 
       const option = document.createElement("button");
       option.type = "button";
-      option.className = `${P}-cp-model-option${isSelected ? ` ${P}-cp-model-option--selected` : ""}`;
+      option.className = `${P}-cp-model-option${pinned ? ` ${P}-cp-model-option--selected` : ""}${hasKey ? "" : ` ${P}-cp-model-option--disabled`}`;
       option.setAttribute("role", "option");
-      option.setAttribute("aria-selected", String(isSelected));
+      option.setAttribute("aria-selected", String(pinned));
+      option.disabled = !hasKey;
+      if (!hasKey) option.title = t(lang, "chat.modelNoKeyHint");
 
       const info = document.createElement("div");
       info.className = `${P}-cp-model-info`;
@@ -1325,7 +1400,7 @@ function createModelMenu(): HTMLElement {
       }
 
       option.appendChild(info);
-      if (isSelected) {
+      if (pinned) {
         const check = document.createElement("span");
         check.className = `${P}-cp-effort-check`;
         check.textContent = "✓";
@@ -1335,30 +1410,7 @@ function createModelMenu(): HTMLElement {
       option.addEventListener("click", async (event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (cachedSettings) {
-          let next: AstraSettings;
-          if (cachedSettings.providerId === "deepl") {
-            next = {
-              ...cachedSettings,
-              deeplFallbackProviderId: preset.id,
-            };
-          } else {
-            next = switchProviderSettings(cachedSettings, preset.id);
-          }
-          cachedSettings = next;
-          providerId = resolveChatProviderId(next);
-          effort = normalizeChatEffort(effort, chatEffortProviderId());
-          await chrome.runtime
-            .sendMessage({ type: "SAVE_SETTINGS", payload: next })
-            .catch(() => {});
-          await chrome.storage.session
-            ?.set({ [CHAT_EFFORT_SESSION_KEY]: effort })
-            .catch(() => {});
-          setOpen(false);
-          refreshEffortMenu?.();
-          renderMenu();
-          renderFooter();
-        }
+        if (hasKey) await applyChatProvider(preset.id);
       });
 
       menu.appendChild(option);
@@ -1824,7 +1876,7 @@ function renderFooter(): void {
   if (notice) {
     const chatPid = resolveChatProviderId(cachedSettings);
     const chatPs = cachedSettings ? resolveChatProviderSettings(cachedSettings) : null;
-    const isVision = isVisionCapable(chatPid, chatPs?.model);
+    const isVision = isVisionCapable(chatPid ?? undefined, chatPs?.model);
     if (stagedImages.length > 0 && !isVision) {
       notice.style.display = "block";
       notice.textContent = `ℹ️ ${t(lang, "chat.textOnlyNotice")}`;
@@ -2428,7 +2480,7 @@ async function prepareChatPanel(selectionText?: string): Promise<void> {
       CHAT_EFFORT_SESSION_KEY,
     ]);
     webSearchOn = webSearchAvailable && session?.[CHAT_WEB_SEARCH_SESSION_KEY] === true;
-    effort = normalizeChatEffort(session?.[CHAT_EFFORT_SESSION_KEY], providerId);
+    effort = normalizeChatEffort(session?.[CHAT_EFFORT_SESSION_KEY], providerId ?? undefined);
   } catch {
     // Defaults are fine.
   }
@@ -2836,7 +2888,7 @@ function attachDragAndResize(
       if (settingsChange?.newValue) {
         cachedSettings = settingsChange.newValue as AstraSettings;
         providerId = resolveChatProviderId(cachedSettings);
-        effort = normalizeChatEffort(effort, providerId);
+        effort = normalizeChatEffort(effort, providerId ?? undefined);
         refreshModelMenu?.();
         refreshEffortMenu?.();
         render();

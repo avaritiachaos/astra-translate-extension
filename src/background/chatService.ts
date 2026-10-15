@@ -43,7 +43,7 @@ import {
 import { sliceForRegenerate } from "../shared/chatRegenerate";
 import { DEFAULT_CHAT_PROMPT } from "../shared/prompts";
 import { t, type UiLanguage } from "../shared/i18n";
-import { getSettings, resolveDeeplFallbackSettings } from "../shared/storage";
+import { getSettings, resolveChatSettings } from "../shared/storage";
 import {
   chatViaProvider,
   chatViaProviderStream,
@@ -575,11 +575,9 @@ function createChatService(storageKey: string) {
   async function runChatExchange(opts: RunOpts): Promise<ChatResponse> {
     const settings = await getSettings();
     const lang: UiLanguage = settings.uiLanguage || "zh-CN";
-    // A text-only MT provider (DeepL) owns translation only — chat rides the
-    // fallback LLM provider (explicit user choice, else first configured key).
-    const effectiveSettings = settings.apiFormat === "deepl"
-      ? resolveDeeplFallbackSettings(settings)
-      : settings;
+    // Chat is an LLM-only surface. The provider resolved here is the same one
+    // the UI names, so the model a user reads is always the model that answers.
+    const effectiveSettings = resolveChatSettings(settings);
     if (!effectiveSettings) {
       return {
         success: false,

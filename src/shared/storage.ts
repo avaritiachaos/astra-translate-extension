@@ -90,6 +90,7 @@ export function getDefaultSettings(): AstraSettings {
     liveTranslateBgOpacity: 80,
     liveTranslatePrompt: DEFAULT_LIVE_TRANSLATE_PROMPT,
     deeplFallbackProviderId: "",
+    chatProviderId: "",
     pageTranslateEngine: "provider",
     selectionTranslateEngine: "provider",
 
@@ -286,55 +287,11 @@ export function resolveDeeplFallbackProviderId(
   return null;
 }
 
-/**
- * Pick the active LLM provider id for Chat mode.
- * Chat is an LLM surface and never runs on DeepL. If the active provider is
- * DeepL, Chat resolves to the fallback LLM (or deepseek default).
- */
-export function resolveChatProviderId(
-  settings: Pick<
-    AstraSettings,
-    "providerId" | "apiFormat" | "deeplFallbackProviderId" | "providerConfigs"
-  > | null
-): string {
-  if (!settings) return "deepseek";
-  if (settings.apiFormat === "openai-compatible" && isLlmPresetId(settings.providerId)) {
-    return settings.providerId;
-  }
-  if (settings.deeplFallbackProviderId && isLlmPresetId(settings.deeplFallbackProviderId)) {
-    return settings.deeplFallbackProviderId;
-  }
-  return resolveDeeplFallbackProviderId(settings) || "deepseek";
-}
-
-/**
- * Return the provider settings currently active for Chat.
- * If the active provider is an LLM, returns settings. If it is DeepL,
- * resolves to the LLM fallback provider settings.
- */
-export function resolveChatProviderSettings(
-  settings: AstraSettings
-): UserProviderSettings {
-  const chatId = resolveChatProviderId(settings);
-  if (settings.providerId === chatId) {
-    return settings;
-  }
-  return resolveProviderSettingsById(settings, chatId) || settings;
-}
-
-/**
- * Full settings for the DeepL chat/dictionary fallback: the whole settings
- * object with only the provider fields swapped to the fallback LLM provider
- * (prompts, cache limits, UI language etc. stay global). Null when no LLM
- * provider with an API key exists.
- */
-export function resolveDeeplFallbackSettings(
-  settings: AstraSettings
-): AstraSettings | null {
-  const id = resolveDeeplFallbackProviderId(settings);
-  if (!id) return null;
-  const provider = resolveProviderSettingsById(settings, id);
-  if (!provider) return null;
+/** Overlay one provider's connection fields onto the full settings object. */
+function withProviderFields(
+  settings: AstraSettings,
+  provider: UserProviderSettings
+): AstraSettings {
   return {
     ...settings,
     providerId: provider.providerId,
@@ -348,6 +305,82 @@ export function resolveDeeplFallbackSettings(
     disableThinking: provider.disableThinking,
     customHeaders: provider.customHeaders,
   };
+}
+
+/**
+ * Pick the LLM provider id that serves Chat mode.
+ *
+ * Chat is an LLM-only surface: it never runs on a text-only MT engine (DeepL),
+ * and the answer a user reads always comes from the provider this returns — the
+ * UI and the background both resolve through here, so they cannot disagree.
+ * Order:
+ *   1. the explicit chat choice (chatProviderId) once it has a key;
+ *   2. the active provider when it is an LLM — with or without a key, so a
+ *      missing key surfaces as that provider's own precise error;
+ *   3. the DeepL fallback LLM (explicit keyed choice, else first keyed LLM).
+ * Returns null when no LLM can serve chat; callers must then say so instead of
+ * naming a provider that is not configured.
+ */
+export function resolveChatProviderId(
+  settings: Pick<
+    AstraSettings,
+    "providerId" | "chatProviderId" | "deeplFallbackProviderId" | "providerConfigs"
+  > | null
+): string | null {
+  if (!settings) return null;
+  const configs = settings.providerConfigs || {};
+  const pinned = settings.chatProviderId || "";
+  if (isLlmPresetId(pinned) && (configs[pinned]?.apiKey || "").trim()) {
+    return pinned;
+  }
+  if (isLlmPresetId(settings.providerId)) {
+    return settings.providerId;
+  }
+  return resolveDeeplFallbackProviderId(settings);
+}
+
+/**
+ * Provider settings currently serving Chat, or null when no LLM provider can.
+ * When the active provider already is that LLM, the full settings object is
+ * returned; otherwise the provider is rebuilt from its own saved config.
+ */
+export function resolveChatProviderSettings(
+  settings: AstraSettings
+): UserProviderSettings | null {
+  const chatId = resolveChatProviderId(settings);
+  if (!chatId) return null;
+  if (settings.providerId === chatId) return settings;
+  return resolveProviderSettingsById(settings, chatId);
+}
+
+/**
+ * Full settings for Chat: globals (prompts, search keys, UI language) stay put
+ * while the provider fields follow resolveChatProviderId. Null when no LLM
+ * provider can serve chat.
+ */
+export function resolveChatSettings(settings: AstraSettings): AstraSettings | null {
+  const chatId = resolveChatProviderId(settings);
+  if (!chatId) return null;
+  if (settings.providerId === chatId) return settings;
+  const provider = resolveProviderSettingsById(settings, chatId);
+  return provider ? withProviderFields(settings, provider) : null;
+}
+
+/**
+ * Full settings for the DeepL dictionary / translation-LLM fallback: the whole
+ * settings object with only the provider fields swapped to the fallback LLM
+ * provider (prompts, cache limits, UI language etc. stay global). Null when no
+ * LLM provider with an API key exists. Chat resolves through
+ * resolveChatSettings instead — it has its own provider choice.
+ */
+export function resolveDeeplFallbackSettings(
+  settings: AstraSettings
+): AstraSettings | null {
+  const id = resolveDeeplFallbackProviderId(settings);
+  if (!id) return null;
+  const provider = resolveProviderSettingsById(settings, id);
+  if (!provider) return null;
+  return withProviderFields(settings, provider);
 }
 
 /**
@@ -391,17 +424,5 @@ export function resolveEngineSettings(
   }
   const provider = resolveProviderSettingsById(settings, "deepl");
   if (!provider) return null;
-  return {
-    ...settings,
-    providerId: provider.providerId,
-    providerName: provider.providerName,
-    apiFormat: provider.apiFormat,
-    baseUrl: provider.baseUrl,
-    endpoint: provider.endpoint,
-    apiKey: provider.apiKey,
-    model: provider.model,
-    temperature: provider.temperature,
-    disableThinking: provider.disableThinking,
-    customHeaders: provider.customHeaders,
-  };
+  return withProviderFields(settings, provider);
 }

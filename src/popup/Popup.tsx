@@ -6,8 +6,6 @@ import { createRoot } from "react-dom/client";
 import { DEFAULT_PROVIDER_PRESETS, SUPPORTED_LANGUAGES } from "../shared/constants";
 import {
   saveSettings,
-  switchProviderSettings,
-  resolveDeeplFallbackProviderId,
   resolveChatProviderId,
   resolveChatProviderSettings,
   isLlmPresetId,
@@ -269,9 +267,11 @@ function ChatModelMenu({
   const currentModel =
     chatProvider?.model ||
     DEFAULT_PROVIDER_PRESETS.find((p) => p.id === currentProviderId)?.defaultModel ||
-    currentProviderId;
+    "";
 
-  const displayModelLabel = getModelDisplayLabel(currentProviderId, currentModel);
+  const displayModelLabel = currentProviderId
+    ? getModelDisplayLabel(currentProviderId, currentModel)
+    : t(lang, "chat.modelUnconfigured");
 
   useEffect(() => {
     if (!open) return;
@@ -301,7 +301,7 @@ function ChatModelMenu({
         className={`ast-chat-pill ast-chat-model ${open ? "ast-chat-pill--on" : ""}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title={`${t(lang, "chat.switchModel")}: ${currentModel}`}
+        title={`${t(lang, "chat.switchModel")}: ${currentModel || displayModelLabel}`}
         onClick={() => setOpen((current) => !current)}
       >
         <svg
@@ -349,13 +349,50 @@ function ChatModelMenu({
           aria-label={t(lang, "chat.switchModel")}
         >
           <div className="ast-chat-model-header">{t(lang, "chat.switchModel")}</div>
+          {/* Un-pins the chat model so it tracks the main provider again. */}
+          {(() => {
+            const followsMain = !settings?.chatProviderId;
+            const inherited = settings
+              ? resolveChatProviderSettings({ ...settings, chatProviderId: "" })
+              : null;
+            const inheritedLabel = inherited
+              ? getModelDisplayLabel(inherited.providerId, inherited.model)
+              : t(lang, "chat.modelUnconfigured");
+            return (
+              <button
+                type="button"
+                role="option"
+                aria-selected={followsMain}
+                disabled={!inherited}
+                className={`ast-chat-model-option ${
+                  followsMain ? "ast-chat-model-option--selected" : ""
+                } ${!inherited ? "ast-chat-model-option--disabled" : ""}`}
+                onClick={() => {
+                  if (!inherited) return;
+                  onSwitch("");
+                  setOpen(false);
+                }}
+              >
+                <div className="ast-chat-model-info">
+                  <div className="ast-chat-model-name">
+                    {t(lang, "chat.followMainProvider")}
+                  </div>
+                  <div className="ast-chat-model-sub">{inheritedLabel}</div>
+                </div>
+                {followsMain && <span className="ast-chat-effort-check">✓</span>}
+              </button>
+            );
+          })()}
           {llmPresets.map((preset) => {
-            const isSelected = preset.id === currentProviderId;
+            // `effective` drives the model/key shown; `pinned` drives the tick,
+            // so "follow main provider" and a concrete provider never both look chosen.
+            const effective = preset.id === currentProviderId;
+            const pinned = settings?.chatProviderId === preset.id;
             const savedConfig = settings?.providerConfigs?.[preset.id];
-            const activeModel = isSelected
+            const activeModel = effective
               ? currentModel
               : savedConfig?.model || preset.defaultModel || "";
-            const hasKey = isSelected
+            const hasKey = effective
               ? !!chatProvider?.apiKey
               : !!savedConfig?.apiKey;
             const displaySub = getModelDisplayLabel(preset.id, activeModel);
@@ -366,11 +403,14 @@ function ChatModelMenu({
                 key={preset.id}
                 type="button"
                 role="option"
-                aria-selected={isSelected}
+                aria-selected={pinned}
+                disabled={!hasKey}
                 className={`ast-chat-model-option ${
-                  isSelected ? "ast-chat-model-option--selected" : ""
-                }`}
+                  pinned ? "ast-chat-model-option--selected" : ""
+                } ${!hasKey ? "ast-chat-model-option--disabled" : ""}`}
+                title={hasKey ? undefined : t(lang, "chat.modelNoKeyHint")}
                 onClick={() => {
+                  if (!hasKey) return;
                   onSwitch(preset.id);
                   setOpen(false);
                 }}
@@ -396,7 +436,7 @@ function ChatModelMenu({
                   </div>
                   {activeModel && <div className="ast-chat-model-sub">{displaySub} · {activeModel}</div>}
                 </div>
-                {isSelected && <span className="ast-chat-effort-check">✓</span>}
+                {pinned && <span className="ast-chat-effort-check">✓</span>}
               </button>
             );
           })}
@@ -427,7 +467,7 @@ type PopupMode = "translate" | "manga" | "chat" | "live";
  */
 function chatEffortProviderId(settings: AstraSettings | null): string | undefined {
   if (!settings) return undefined;
-  return resolveChatProviderId(settings);
+  return resolveChatProviderId(settings) ?? undefined;
 }
 
 export default function Popup() {
@@ -1304,19 +1344,15 @@ export default function Popup() {
   const handleModelSwitch = useCallback(
     async (presetId: string) => {
       if (!settings) return;
-      let next: AstraSettings;
-      if (settings.providerId === "deepl") {
-        // When DeepL is the active translation provider, keep DeepL as global provider
-        // and switch the fallback LLM used for Chat / reasoning without overwriting translation.
-        next = {
-          ...settings,
-          deeplFallbackProviderId: presetId,
-        };
-      } else {
-        next = switchProviderSettings(settings, presetId);
-      }
+      // Chat has its own provider choice ("" = follow the main provider):
+      // switching the chat model never rewrites the provider that serves
+      // page / selection translation.
+      const next: AstraSettings = { ...settings, chatProviderId: presetId };
       setSettings(next);
-      const nextEffort = normalizeChatEffort(chatEffort, resolveChatProviderId(next));
+      const nextEffort = normalizeChatEffort(
+        chatEffort,
+        resolveChatProviderId(next) ?? undefined
+      );
       setChatEffort(nextEffort);
       try {
         await chrome.runtime.sendMessage({
@@ -1324,12 +1360,12 @@ export default function Popup() {
           payload: next,
         });
         await chrome.storage.session?.set({ [CHAT_EFFORT_SESSION_KEY]: nextEffort });
-        const preset = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === presetId);
-        const switchedConfig = next.providerConfigs?.[presetId];
-        const displayLabel = getModelDisplayLabel(
-          presetId,
-          (presetId === next.providerId ? next.model : switchedConfig?.model) || preset?.defaultModel || ""
-        );
+        // Name what chat will actually run on, so the toast can never claim a
+        // provider that resolution would not pick.
+        const resolved = resolveChatProviderSettings(next);
+        const displayLabel = resolved
+          ? getModelDisplayLabel(resolved.providerId, resolved.model)
+          : t(lang, "chat.modelUnconfigured");
         showToast(
           t(lang, "chat.modelSwitched", {
             model: displayLabel,
@@ -2225,7 +2261,7 @@ export default function Popup() {
 
             {chatImages.length > 0 &&
               !isVisionCapable(
-                resolveChatProviderId(settings),
+                resolveChatProviderId(settings) ?? undefined,
                 (settings ? resolveChatProviderSettings(settings) : null)?.model
               ) && (
               <div className="ast-chat-vision-notice">

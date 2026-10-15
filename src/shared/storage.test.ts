@@ -11,6 +11,7 @@ import {
   resolveEngineSettings,
   resolveChatProviderId,
   resolveChatProviderSettings,
+  resolveChatSettings,
 } from "./storage.ts";
 import {
   DEFAULT_SELECTION_PROMPT,
@@ -185,11 +186,11 @@ describe("chat provider resolution", () => {
     };
     assert.equal(resolveChatProviderId(settings), "google-gemini");
     const chatProvider = resolveChatProviderSettings(settings);
-    assert.equal(chatProvider.providerId, "google-gemini");
-    assert.equal(chatProvider.model, "gemini-3.7-flash");
+    assert.equal(chatProvider?.providerId, "google-gemini");
+    assert.equal(chatProvider?.model, "gemini-3.7-flash");
   });
 
-  it("falls back to deepseek when no other LLM is configured under DeepL", () => {
+  it("reports no chat provider instead of naming an unconfigured one", () => {
     const settings = {
       ...getDefaultSettings(),
       providerId: "deepl",
@@ -197,7 +198,90 @@ describe("chat provider resolution", () => {
       deeplFallbackProviderId: "",
       providerConfigs: {},
     };
+    assert.equal(resolveChatProviderId(settings), null);
+    assert.equal(resolveChatProviderSettings(settings), null);
+    assert.equal(resolveChatSettings(settings), null);
+  });
+
+  it("keeps the UI and the backend on the same provider when the pinned fallback has no key", () => {
+    // Regression: resolveChatProviderId used to ignore the key while the
+    // backend honoured it, so the pill named DeepSeek while Gemini answered.
+    const settings = {
+      ...getDefaultSettings(),
+      providerId: "deepl",
+      apiFormat: "deepl" as const,
+      deeplFallbackProviderId: "deepseek",
+      providerConfigs: {
+        deepseek: { apiKey: "", model: "deepseek-v4.1-flash" },
+        "google-gemini": { apiKey: "AIza-gemini", model: "gemini-3.7-flash" },
+      },
+    };
+    assert.equal(resolveChatProviderId(settings), "google-gemini");
+    assert.equal(resolveChatSettings(settings)?.providerId, "google-gemini");
+    assert.equal(resolveChatSettings(settings)?.model, "gemini-3.7-flash");
+  });
+
+  it("honours an explicit chat provider without touching the translation provider", () => {
+    const settings = {
+      ...getDefaultSettings(),
+      providerId: "google-gemini",
+      apiFormat: "openai-compatible" as const,
+      apiKey: "AIza-gemini",
+      model: "gemini-3.7-flash",
+      chatProviderId: "deepseek",
+      providerConfigs: {
+        deepseek: { apiKey: "sk-deepseek", model: "deepseek-v4.1-flash" },
+        "google-gemini": { apiKey: "AIza-gemini", model: "gemini-3.7-flash" },
+      },
+    };
+    // Chat follows the explicit choice...
     assert.equal(resolveChatProviderId(settings), "deepseek");
+    // ...while page / selection translation still follow the active provider.
+    assert.equal(settings.providerId, "google-gemini");
+    assert.equal(settings.apiFormat, "openai-compatible");
+    assert.equal(resolveTranslateEngine(settings, "page"), "llm");
+    assert.equal(resolveEngineSettings(settings, "llm")?.model, "gemini-3.7-flash");
+  });
+
+  it("ignores a pinned chat provider whose key was removed", () => {
+    const settings = {
+      ...getDefaultSettings(),
+      providerId: "google-gemini",
+      apiFormat: "openai-compatible" as const,
+      apiKey: "AIza-gemini",
+      model: "gemini-3.7-flash",
+      chatProviderId: "deepseek",
+      providerConfigs: {
+        deepseek: { apiKey: "", model: "deepseek-v4.1-flash" },
+        "google-gemini": { apiKey: "AIza-gemini", model: "gemini-3.7-flash" },
+      },
+    };
+    assert.equal(resolveChatProviderId(settings), "google-gemini");
+    assert.equal(resolveChatSettings(settings)?.model, "gemini-3.7-flash");
+  });
+
+  it("resolveChatSettings swaps only the provider fields", () => {
+    const settings = {
+      ...getDefaultSettings(),
+      providerId: "deepl",
+      apiFormat: "deepl" as const,
+      apiKey: "deepl-key:fx",
+      model: "",
+      chatProviderId: "deepseek",
+      chatPrompt: "keep me",
+      uiLanguage: "ja-JP" as const,
+      providerConfigs: {
+        deepseek: { apiKey: "sk-deepseek", model: "deepseek-v4.1-flash" },
+      },
+    };
+    const chat = resolveChatSettings(settings);
+    assert.equal(chat?.providerId, "deepseek");
+    assert.equal(chat?.apiKey, "sk-deepseek");
+    assert.equal(chat?.model, "deepseek-v4.1-flash");
+    assert.equal(chat?.chatPrompt, "keep me");
+    assert.equal(chat?.uiLanguage, "ja-JP");
+    // The source settings object is never mutated by resolution.
+    assert.equal(settings.providerId, "deepl");
   });
 });
 

@@ -163,6 +163,14 @@ export interface AstraSettings extends UserProviderSettings {
    */
   deeplFallbackProviderId: string;
   /**
+   * LLM preset id that serves AI chat, independent of the active translation
+   * provider. Empty = follow the active provider when it is an LLM, else the
+   * fallback LLM. Chat is an LLM-only surface and never runs on a text-only
+   * MT engine (DeepL), so switching the chat model here never rewrites the
+   * provider used for page / selection translation.
+   */
+  chatProviderId: string;
+  /**
    * Per-mode engine assignment. "provider" follows the active preset;
    * "deepl" forces the DeepL MT engine; "llm" forces the LLM side (the
    * active preset when it is an LLM, else the configured fallback LLM).
