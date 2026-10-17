@@ -8,7 +8,7 @@ const VISION_MODEL_PATTERN =
 
 /** Known text-only patterns even if part of a provider with multimodal models. */
 const TEXT_ONLY_PATTERN =
-  /(deepseek-chat|deepseek-reasoner|deepseek-v[1-3]\b|deepseek-v4-flash|not-the-vision|llama|mistral-tiny|mistral-small|text-embedding|bge-)/i;
+  /(deepseek-v4-pro|deepseek-v[1-3]\b|deepseek-reasoner|not-the-vision|llama|mistral-tiny|mistral-small|text-embedding|bge-)/i;
 
 /**
  * Determine whether a provider/model combination supports multi-modal vision (image inputs).
@@ -47,8 +47,8 @@ export function isVisionCapable(providerId?: string, model?: string): boolean {
   }
 
   if (normalizedProvider === "deepseek") {
-    // Official DeepSeek default endpoints (v3/chat/reasoner) are pure text
-    return false;
+    // DeepSeek official API default model is deepseek-v4.1-flash / deepseek-flash with native vision.
+    return !normalizedModel || !TEXT_ONLY_PATTERN.test(normalizedModel);
   }
 
   return false;

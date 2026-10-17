@@ -12,10 +12,9 @@ describe("modelCapability - isVisionCapable", () => {
     assert.equal(isVisionCapable("google-gemini", ""), true);
   });
 
-  it("detects DeepSeek as text-only for legacy text models", () => {
-    assert.equal(isVisionCapable("deepseek", "deepseek-chat"), false);
+  it("detects DeepSeek as text-only for legacy text models and pro models", () => {
+    assert.equal(isVisionCapable("deepseek", "deepseek-v4-pro"), false);
     assert.equal(isVisionCapable("deepseek", "deepseek-v3"), false);
-    assert.equal(isVisionCapable("deepseek", "deepseek-v4-flash"), false);
     assert.equal(isVisionCapable("deepseek", "deepseek-reasoner"), false);
   });
 
@@ -23,6 +22,8 @@ describe("modelCapability - isVisionCapable", () => {
     assert.equal(isVisionCapable("deepseek", "deepseek-v4.1-flash"), true);
     assert.equal(isVisionCapable("deepseek", "deepseek-v4.1"), true);
     assert.equal(isVisionCapable("deepseek", "deepseek-flash"), true);
+    assert.equal(isVisionCapable("deepseek", "deepseek-chat"), true);
+    assert.equal(isVisionCapable("deepseek", ""), true);
     assert.equal(isVisionCapable("custom-openai-compatible", "deepseek-ai/deepseek-vl-7b-chat"), true);
   });
 
@@ -60,6 +61,7 @@ describe("modelCapability - isVisionCapable", () => {
 describe("modelCapability - getModelCapabilityKind", () => {
   it("returns vision or text", () => {
     assert.equal(getModelCapabilityKind("google-gemini", "gemini-3.7-flash"), "vision");
-    assert.equal(getModelCapabilityKind("deepseek", "deepseek-chat"), "text");
+    assert.equal(getModelCapabilityKind("deepseek", "deepseek-chat"), "vision");
+    assert.equal(getModelCapabilityKind("deepseek", "deepseek-v4-pro"), "text");
   });
 });

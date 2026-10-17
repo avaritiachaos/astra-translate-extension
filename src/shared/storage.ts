@@ -144,6 +144,7 @@ export async function getSettings(): Promise<AstraSettings> {
   }
   if (merged.providerId) {
     merged.providerConfigs[merged.providerId] = {
+      ...merged.providerConfigs[merged.providerId],
       apiKey: merged.apiKey,
       baseUrl: merged.baseUrl,
       endpoint: merged.endpoint,
@@ -151,7 +152,6 @@ export async function getSettings(): Promise<AstraSettings> {
       disableThinking: merged.disableThinking,
       temperature: merged.temperature,
       apiFormat: merged.apiFormat,
-      ...merged.providerConfigs[merged.providerId],
       customHeaders: { ...(merged.customHeaders ?? {}) },
     };
   }
@@ -250,7 +250,7 @@ export function resolveProviderSettingsById(
     baseUrl: saved?.baseUrl ?? preset.baseUrl,
     endpoint: saved?.endpoint ?? preset.endpoint,
     apiKey: saved?.apiKey ?? "",
-    model: saved?.model ?? (preset.defaultModel || ""),
+    model: saved?.model?.trim() ? saved.model : (preset.defaultModel || ""),
     temperature: saved?.temperature ?? settings.temperature,
     timeoutMs: settings.timeoutMs,
     disableThinking:
