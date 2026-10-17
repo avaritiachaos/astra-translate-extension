@@ -51,6 +51,52 @@ describe("prompt auto-upgrade", () => {
     assert.equal(preserved.selectionPrompt, "My custom translation prompt");
     assert.equal(preserved.pagePrompt, "My custom page prompt");
   });
+
+  it("upgrades legacy or architectural DeepSeek model names to official deepseek-flash", async () => {
+    const memoryStore: Record<string, any> = {};
+    (globalThis as any).chrome = {
+      storage: {
+        local: {
+          get: async (key: string) => ({ [key]: memoryStore[key] }),
+          set: async (obj: Record<string, any>) => Object.assign(memoryStore, obj),
+        },
+      },
+    };
+
+    memoryStore[STORAGE_KEY] = {
+      model: "deepseek-v4.1-flash",
+      providerConfigs: {
+        deepseek: { model: "deepseek-v4-flash" },
+      },
+    };
+    const upgraded = await getSettings();
+    assert.equal(upgraded.model, "deepseek-flash");
+    assert.equal(upgraded.providerConfigs?.deepseek?.model, "deepseek-flash");
+  });
+
+  it("never alters models for other providers like Google Gemini", async () => {
+    const memoryStore: Record<string, any> = {};
+    (globalThis as any).chrome = {
+      storage: {
+        local: {
+          get: async (key: string) => ({ [key]: memoryStore[key] }),
+          set: async (obj: Record<string, any>) => Object.assign(memoryStore, obj),
+        },
+      },
+    };
+
+    memoryStore[STORAGE_KEY] = {
+      providerId: "google-gemini",
+      model: "gemini-3.7-flash",
+      providerConfigs: {
+        "google-gemini": { model: "gemini-3.7-flash" },
+      },
+    };
+    const loaded = await getSettings();
+    assert.equal(loaded.providerId, "google-gemini");
+    assert.equal(loaded.model, "gemini-3.7-flash");
+    assert.equal(loaded.providerConfigs?.["google-gemini"]?.model, "gemini-3.7-flash");
+  });
 });
 
 describe("provider configuration isolation", () => {

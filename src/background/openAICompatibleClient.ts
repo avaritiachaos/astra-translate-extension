@@ -134,16 +134,30 @@ export function buildRequestParts(
   }
 
   const url = `${baseUrl.replace(/\/+$/, "")}${endpoint}`;
+  const modelLower = (model || "").toLowerCase();
+  const isGoogle = providerId === "google-gemini" || modelLower.includes("gemini");
+  const isDeepSeek = providerId === "deepseek" || modelLower.includes("deepseek") || baseUrl.includes("deepseek.com");
+
+  // Normalize model identifier for DeepSeek official API if architectural/legacy name is used
+  let effectiveModel = model;
+  if (isDeepSeek) {
+    if (
+      effectiveModel === "deepseek-v4.1-flash" ||
+      effectiveModel === "deepseek-v4-flash" ||
+      effectiveModel === "deepseek-v4.1" ||
+      effectiveModel === "deepseek-v4" ||
+      effectiveModel === "deepseek-chat"
+    ) {
+      effectiveModel = "deepseek-flash";
+    }
+  }
+
   const body: Record<string, unknown> = {
-    model,
+    model: effectiveModel,
     messages,
     temperature,
     stream,
   };
-
-  const modelLower = (model || "").toLowerCase();
-  const isGoogle = providerId === "google-gemini" || modelLower.includes("gemini");
-  const isDeepSeek = providerId === "deepseek" || modelLower.includes("deepseek");
 
   let defaultTranslationOptional: Record<string, unknown> = {};
   if (isGoogle) {
@@ -420,17 +434,19 @@ async function providerHttpError(
     void reader.cancel().catch(() => {});
     reader.releaseLock();
   }
-  let message = text, code = "";
+  let message = text, code = "", param = "";
   try {
     const data = JSON.parse(text);
     message = String(data.error?.message ?? data.message ?? "");
     code = String(data.error?.code ?? data.code ?? "");
+    param = String(data.error?.param ?? data.param ?? "");
   } catch {
     /* Some gateways return plain text. */
   }
   if (
     /^(model_not_found|unknown_model|model_not_available)$/i.test(code) ||
-    /unknown provider for model|(?:unknown|unsupported|nonexistent) model|model[^\n]{0,150}(?:does not exist|not found|not available)/i.test(message)
+    param === "model" ||
+    /unknown provider for model|(?:unknown|unsupported|nonexistent|invalid) model|model[^\n]{0,150}(?:does not exist|not found|not available)/i.test(message)
   ) {
     // Surface the model from our request, not the raw upstream error: proxies
     // sometimes echo credentials or the request body in error.message.
@@ -448,6 +464,23 @@ async function providerHttpError(
       t(lang, "error.invalidResponse"),
       "FORMAT_UNSUPPORTED",
       400,
+    );
+  }
+  const sanitizedMessage = message
+    .replace(/data:[^;]+;base64,[A-Za-z0-9+/=]+/gi, "[data]")
+    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer ***")
+    .replace(/(?:sk|key|token)[-_A-Za-z0-9]{6,}/gi, "***")
+    .trim();
+  if (sanitizedMessage) {
+    const detail =
+      sanitizedMessage.length > 200
+        ? `${sanitizedMessage.slice(0, 197)}...`
+        : sanitizedMessage;
+    return new ProviderRequestError(
+      `${error.message} (${detail})`,
+      error.code,
+      res.status,
+      error.retryable,
     );
   }
   return error;

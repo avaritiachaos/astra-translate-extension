@@ -61,8 +61,25 @@ describe("openAICompatibleClient buildRequestParts", () => {
       "zh-CN"
     );
 
+    assert.equal(parts.body.model, "deepseek-flash");
     assert.deepEqual(parts.body.thinking, { type: "disabled" });
     assert.deepEqual(parts.optionalKeys, ["thinking"]);
+  });
+
+  it("normalizes architectural model deepseek-v4.1-flash to deepseek-flash", () => {
+    const parts = buildRequestParts(
+      {
+        ...BASE_SETTINGS,
+        providerId: "deepseek",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-v4.1-flash",
+      },
+      [{ role: "user", content: "Translate this" }],
+      false,
+      "zh-CN"
+    );
+
+    assert.equal(parts.body.model, "deepseek-flash");
   });
 
   it("respects extra.optionalBody for Chat requests without overriding", () => {
@@ -258,6 +275,32 @@ describe("actionable model routing errors", () => {
   it("recognizes a plain CPA model-routing error", async ctx => {
     ctx.mock.method(globalThis, "fetch", async () => new Response("unknown provider for model missing", { status: 400 }));
     await assert.rejects(openAIChat(BASE_SETTINGS, imageMessages, "en-US", { optionalBody: {}, maxRetries: 0 }), (error: any) => error.code === "MODEL_NOT_FOUND");
+  });
+
+  it("recognizes invalid model message as MODEL_NOT_FOUND", async ctx => {
+    ctx.mock.method(globalThis, "fetch", async () => Response.json({
+      error: { message: "Invalid model: deepseek-v4.1-flash", type: "invalid_request_error" }
+    }, { status: 400 }));
+    await assert.rejects(
+      openAIChat(BASE_SETTINGS, imageMessages, "zh-CN", { optionalBody: {}, maxRetries: 0 }),
+      (error: any) => error.code === "MODEL_NOT_FOUND" && error.message.includes("不识别模型")
+    );
+  });
+
+  it("surfaces sanitized upstream error details on generic 400", async ctx => {
+    ctx.mock.method(globalThis, "fetch", async () => Response.json({
+      error: { message: "User location is not supported. Bearer my-secret-token" }
+    }, { status: 400 }));
+    await assert.rejects(
+      openAIChat(BASE_SETTINGS, imageMessages, "zh-CN", { optionalBody: {}, maxRetries: 0 }),
+      (error: any) => {
+        assert.equal(error.code, "HTTP_ERROR");
+        assert.match(error.message, /400/);
+        assert.match(error.message, /User location is not supported/);
+        assert.doesNotMatch(error.message, /my-secret-token/);
+        return true;
+      }
+    );
   });
 
   it("accepts Gemini uppercase STOP and Claude end_turn finish_reason in streaming", async ctx => {

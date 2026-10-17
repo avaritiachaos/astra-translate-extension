@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-6.4.1-7C5CFF" alt="version" />
+  <img src="https://img.shields.io/badge/version-6.4.2-7C5CFF" alt="version" />
   <img src="https://img.shields.io/badge/Manifest-V3-4F46E5" alt="manifest v3" />
   <img src="https://img.shields.io/badge/TypeScript-React_18-3178C6" alt="tech" />
   <img src="https://img.shields.io/badge/license-MIT-3FB950" alt="license" />
@@ -187,7 +187,7 @@ npm run build
 
 | 分类 | 设置项 | 默认值 | 说明 |
 |------|--------|--------|------|
-| 服务商 | 预设 / Base URL / Endpoint / 模型 / API Key | DeepSeek · `deepseek-v4.1-flash` / Gemini · `gemini-3.7-flash` | 各预设独立配置存储 |
+| 服务商 | 预设 / Base URL / Endpoint / 模型 / API Key | DeepSeek · `deepseek-flash` (DeepSeek-V4.1-Flash) / Gemini · `gemini-3.7-flash` | 各预设独立配置存储 |
 | 服务商 | 关闭思考 | 开 | 对支持思考的模型可关闭，提速省钱 |
 | 服务商 | 整页 / 划词·手动翻译引擎 | 跟随主服务商 | 每个功能可单独指派 大模型 (LLM) / DeepL |
 | 服务商 | 词典 / 翻译回退 LLM | 自动 | DeepL 激活时词典与翻译引擎使用的 LLM 服务商 |

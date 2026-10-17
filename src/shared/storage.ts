@@ -37,7 +37,7 @@ export function getDefaultSettings(): AstraSettings {
     baseUrl: "https://api.deepseek.com",
     endpoint: "/chat/completions",
     apiKey: "",
-    model: "deepseek-v4.1-flash",
+    model: "deepseek-flash",
     temperature: 0.2,
     timeoutMs: 30000,
     disableThinking: true,
@@ -105,7 +105,7 @@ export function getDefaultSettings(): AstraSettings {
         apiKey: "",
         baseUrl: "https://api.deepseek.com",
         endpoint: "/chat/completions",
-        model: "deepseek-v4.1-flash",
+        model: "deepseek-flash",
         disableThinking: true,
         temperature: 0.2,
         apiFormat: "openai-compatible",
@@ -169,12 +169,21 @@ export async function getSettings(): Promise<AstraSettings> {
   if (!savedPagePrompt || LEGACY_PAGE_PROMPTS.some((p) => p.trim() === savedPagePrompt)) {
     merged.pagePrompt = DEFAULT_PAGE_PROMPT;
   }
-  // Auto-upgrade legacy default model "deepseek-v4-flash" to "deepseek-v4.1-flash"
-  if (merged.model === "deepseek-v4-flash") {
-    merged.model = "deepseek-v4.1-flash";
+  // Auto-upgrade legacy or architectural names to official API model "deepseek-flash"
+  if (
+    merged.providerId === "deepseek" &&
+    (merged.model === "deepseek-v4-flash" ||
+      merged.model === "deepseek-v4.1-flash" ||
+      merged.model === "deepseek-chat")
+  ) {
+    merged.model = "deepseek-flash";
   }
-  if (merged.providerConfigs?.deepseek?.model === "deepseek-v4-flash") {
-    merged.providerConfigs.deepseek.model = "deepseek-v4.1-flash";
+  if (
+    merged.providerConfigs?.deepseek?.model === "deepseek-v4-flash" ||
+    merged.providerConfigs?.deepseek?.model === "deepseek-v4.1-flash" ||
+    merged.providerConfigs?.deepseek?.model === "deepseek-chat"
+  ) {
+    merged.providerConfigs.deepseek.model = "deepseek-flash";
   }
   return merged;
 }

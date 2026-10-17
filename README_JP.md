@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-6.4.1-7C5CFF" alt="version" />
+  <img src="https://img.shields.io/badge/version-6.4.2-7C5CFF" alt="version" />
   <img src="https://img.shields.io/badge/Manifest-V3-4F46E5" alt="manifest v3" />
   <img src="https://img.shields.io/badge/TypeScript-React_18-3178C6" alt="tech" />
   <img src="https://img.shields.io/badge/license-MIT-3FB950" alt="license" />
@@ -202,7 +202,7 @@ npm run build
 
 | 分類 | 項目 | 既定値 | メモ |
 |------|------|--------|------|
-| プロバイダー | プリセット / Base URL / Endpoint / モデル / API Key | DeepSeek · `deepseek-v4.1-flash` / Gemini · `gemini-3.7-flash` | プロバイダーごとに個別保存 |
+| プロバイダー | プリセット / Base URL / Endpoint / モデル / API Key | DeepSeek · `deepseek-flash` (DeepSeek-V4.1-Flash) / Gemini · `gemini-3.7-flash` | プロバイダーごとに個別保存 |
 | プロバイダー | 思考オフ | オン | 思考対応モデルで高速＆節約 |
 | プロバイダー | ページ／選択・手動エンジン | メインプロバイダーに従う | 機能ごとに LLM / DeepL を個別指派 |
 | プロバイダー | 辞書 / 翻訳用フォールバック LLM | 自動 | DeepL 選択中に辞書と翻訳エンジンが使う LLM |

@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-6.4.1-7C5CFF" alt="version" />
+  <img src="https://img.shields.io/badge/version-6.4.2-7C5CFF" alt="version" />
   <img src="https://img.shields.io/badge/Manifest-V3-4F46E5" alt="manifest v3" />
   <img src="https://img.shields.io/badge/TypeScript-React_18-3178C6" alt="tech" />
   <img src="https://img.shields.io/badge/license-MIT-3FB950" alt="license" />
@@ -192,7 +192,7 @@ The build output is in `dist/`. Load the `dist` folder following steps 2–4 abo
 
 | Group | Setting | Default | Notes |
 |-------|---------|---------|-------|
-| Provider | Preset / Base URL / Endpoint / Model / API Key | DeepSeek · `deepseek-v4.1-flash` / Gemini · `gemini-3.7-flash` | Isolated per preset |
+| Provider | Preset / Base URL / Endpoint / Model / API Key | DeepSeek · `deepseek-flash` (DeepSeek-V4.1-Flash) / Gemini · `gemini-3.7-flash` | Isolated per preset |
 | Provider | Disable thinking | On | Speeds up / saves cost on thinking-capable models |
 | Provider | Page / selection·manual engine | Follow main provider | Assign each feature to LLM / DeepL individually |
 | Provider | Dictionary / translation fallback LLM | Auto | The LLM provider used by dictionary & translation engines while DeepL is active |

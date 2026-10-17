@@ -229,10 +229,10 @@ export function getModelDisplayLabel(providerId?: string, model?: string): strin
     return model;
   }
   if (providerId === "deepseek" || norm.includes("deepseek")) {
-    if (norm.includes("4.1") || norm.includes("v4.1")) return "DeepSeek V4.1";
-    if (!model || norm.includes("v4") || norm.includes("flash")) return "DeepSeek V4";
-    if (norm.includes("chat") || norm.includes("v3")) return "DeepSeek V3";
+    if (norm.includes("pro") || norm.includes("v4-pro")) return "DeepSeek V4 Pro";
     if (norm.includes("reasoner") || norm.includes("r1")) return "DeepSeek R1";
+    if (norm.includes("chat") || norm.includes("v3")) return "DeepSeek V3";
+    if (!model || norm.includes("flash") || norm.includes("4.1") || norm.includes("v4")) return "DeepSeek V4.1";
     return "DeepSeek";
   }
   if (model) {
